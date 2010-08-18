@@ -1,0 +1,25 @@
+ul {
+    list-style-type: none;
+}
+
+li {
+    margin-left: -10px;
+    padding: 1px;
+} 
+
+.iconElement {
+    position: relative; 
+    top: 4px;
+    margin-right: 3px;
+}
+
+.messageBox {
+    background-color: #FFFF99; 
+    border: 1px solid #FFCC35; 
+    font-weight: bold;
+}
+
+.ninja {
+    color: black;
+    visibility: hidden;
+}
