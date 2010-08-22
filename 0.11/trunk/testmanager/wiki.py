@@ -80,6 +80,8 @@ class WikiTestCatalogInterface(Component):
         title = req.args.get('title')
         author = get_reporter_id(req, 'author')
 
+        autosave = req.args.get('autosave', 'false')
+        duplicate = req.args.get('duplicate')
         paste = req.args.get('paste')
         tcId = req.args.get('tcId')
 
@@ -90,33 +92,27 @@ class WikiTestCatalogInterface(Component):
         if type == 'catalog':
             req.perm.require('TEST_MODIFY')
             pagename += '_TT'+str(id)
-            req.redirect(req.href.wiki(pagename, action='edit', text='== '+title+' =='))
+            
+            if autosave and autosave == 'true':
+                # Create and save the new wiki page automatically
+                new_cat_page = WikiPage(self.env, pagename)
+                new_cat_page.text = '== '+title+' =='
+                new_cat_page.save(author, '', req.remote_addr)
+                # Redirect to display the page
+                req.redirect(req.href.wiki(pagename))
+            else:
+                # Redirect to edit the new wiki page. The user can still cancel the operation.
+                req.redirect(req.href.wiki(pagename, action='edit', text='== '+title+' =='))
             
         elif type == 'testplan':
             req.perm.require('TEST_PLAN_ADMIN')
-            update = req.args.get('update')
-            if update and update == 'true':
-                is_update = True
-            else: 
-                is_update = False
-                
+            
             catid = path.rpartition('_TT')[2]
 
             try:
-                if not is_update:
-                    # Add the new test plan in the database
-                    test_manager_system.add_testplan(id, catid, path, title, author)
+                # Add the new test plan in the database
+                test_manager_system.add_testplan(id, catid, path, title, author)
 
-                # Add any test case that are in the catalog but not already in the plan
-                #for subpage_name in WikiSystem(self.env).get_pages(path+'_'):
-                #    tc_id_str = subpage_name.rpartition('_TC')[2]
-                #    if tc_id_str and not tc_id_str == '':
-                #        # It is a test case
-                #        tc_id = int(tc_id_str)
-                #        
-                #        # Add test case status record for this test plan
-                #        test_manager_system.add_testcase(tc_id, id, is_update, author)
-                        
             except:
                 print "Error adding test plan!"
                 # Back to the catalog
@@ -166,10 +162,34 @@ class WikiTestCatalogInterface(Component):
                 # Redirect to test catalog, forcing a page refresh by means of a random request parameter
                 req.redirect(req.href.wiki(pagename.rpartition('_TC')[0], random=str(datetime.now(utc).microsecond)))
                 
+            elif duplicate and duplicate != '':
+                # Duplicate test case
+                old_pagename = tcId
+                old_page = WikiPage(self.env, old_pagename)
+                
+                # New test case name will be the old catalog name + the newly generated test case ID
+                author = get_reporter_id(req, 'author')
+                
+                # Create new test case wiki page as a copy of the old one
+                new_page = WikiPage(self.env, pagename)
+                new_page.text = old_page.text
+
+                # Note that saving the wiki page automatically creates the test case into the cusotm tables "testcases" and "testcasehistory" via the change listener
+                new_page.save(author, '', req.remote_addr)
+
+                # Redirect tp allow for editing the copy test case
+                req.redirect(req.href.wiki(pagename, action='edit'))
+                
             else:
                 # Normal creation of a new test case
-                req.redirect(req.href.wiki(pagename, action='edit', text='== '+title+' =='))
-        
+                if autosave and autosave == 'true':
+                    new_cat_page = WikiPage(self.env, pagename)
+                    new_cat_page.text = '== '+title+' =='
+                    new_cat_page.save(author, '', req.remote_addr)
+                    req.redirect(req.href.wiki(pagename))
+                else:
+                    req.redirect(req.href.wiki(pagename, action='edit', text='== '+title+' =='))
+
         
     # IWikiChangeListener methods
     
@@ -178,13 +198,15 @@ class WikiTestCatalogInterface(Component):
         
         if page.name.find('_TC') >= 0:
             test_manager_system = TestManagerSystem(self.env)
-            # test_manager_system.add_testcase(page.name.rpartition('_TC')[2], page_on_db.author)
 
     def wiki_page_changed(self, page, version, t, comment, author, ipnr):
         pass
 
     def wiki_page_deleted(self, page):
         if page.name.find('_TC') >= 0:
+            # Only Test Case deletion is supported. 
+            # Deleting a Test Catalog will not delete all of the inner
+            #   Test Cases.
             test_manager_system = TestManagerSystem(self.env)
             test_manager_system.delete_testcase(page.name.rpartition('_TC')[2])
 
@@ -237,6 +259,7 @@ class WikiTestCatalogInterface(Component):
         tree_macro = TestCaseTreeMacro(self.env)
 
         if page_name == 'TC':
+            # Root of all catalogs
             insert1 = tag.div()(
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(LABELS['select_cat_to_move'],
                             tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(LABELS['cancel'])
@@ -267,6 +290,7 @@ class WikiTestCatalogInterface(Component):
                     ))
                     
         if not page_name == 'TC':
+            # The root of all catalogs cannot contain itself test cases
             insert2.append(tag.div(id='pasteTCHereDiv')(
                         tag.br(), tag.br(),
                         tag.input(type='button', id='pasteTCHereButton', value=LABELS['move_here'], onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
@@ -285,6 +309,8 @@ class WikiTestCatalogInterface(Component):
                     ))
         
         if not page_name == 'TC':
+            # The root of all catalogs cannot contain itself test cases,
+            #   cannot generate test plans and does not need a test plans list
             insert2.append(tag.div(class_='field')(
                         tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                         tag.br(),
@@ -393,6 +419,8 @@ class WikiTestCatalogInterface(Component):
                     tag.input(type='button', value=LABELS['open_ticket_button'], onclick='creaTicket("'+tc_name+'", "", "")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', id='moveTCButton', value=LABELS['move_tc_button'], onclick='copyTestCaseToClipboard("'+tc_name+'")'),
+                    HTML('&nbsp;&nbsp;'), 
+                    tag.input(type='button', id='duplicateTCButton', value=LABELS['duplicate_tc_button'], onclick='duplicateTestCase("'+tc_name+'", "'+cat_name+'")'),
                     tag.br(), tag.br()
                     )
                     

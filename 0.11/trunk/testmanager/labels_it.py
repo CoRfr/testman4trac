@@ -46,5 +46,6 @@ LABELS = {
     'regenerate_plan_button': "Rigenera il Piano di Test",
     'test_plan_list': "Piani di Test disponibili",
     'plan_name': "Nome del Piano",
-    'open_testplan_title': "Apri il Piano di Test"
+    'open_testplan_title': "Apri il Piano di Test",
+    'duplicate_tc_button': "Duplica il Caso di Test"  
 }

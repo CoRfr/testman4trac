@@ -190,6 +190,21 @@ class TestManagerSystem(Component):
 
         print "-- END Test Cases --"
 
+
+        cursor = db.cursor()
+
+        sql = "SELECT id, time, status FROM testcasehistory ORDER BY id"
+        
+        cursor.execute(sql)
+
+        print "-- BEGIN Test Case History --"
+        
+        print "id,plan id,status"
+        for id, ts, status in cursor:
+            print id+","+str(datetime.fromtimestamp(ts, utc))+","+status
+
+        print "-- END Test Case History --"
+
     def get_testcase_status_history_markup(self, id, planid):
         """Returns a test case status in a plan audit trail."""
 

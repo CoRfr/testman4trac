@@ -13,3 +13,4 @@ import web_ui
 import wiki
 import model
 import util
+import stats

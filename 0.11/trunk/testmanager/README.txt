@@ -14,6 +14,12 @@ A Trac plugin to create Test Cases, organize them in catalogs, generate test pla
 =================================================================================================  
 Change History:
 
+Release 1.1.1 (2010-08-20):
+  o Enhancement #7526 Add ability to duplicate a test case
+  o Enhancement #7536 Add test management statistics
+  o Added "autosave=true" parameter to the RESTful API to create test catalogs 
+    and test cases programmatically without need to later submit the wiki editing form.
+
 Release 1.1.0 (2010-08-18):
   o Enhancement #7487 Add multiple test plans capability
   o Enhancement #7507 Implement security permissions

@@ -5,11 +5,13 @@
 
 import time
 
+from datetime import datetime
+
 from trac.core import *
 from trac.env import IEnvironmentSetupParticipant
 from trac.db import Table, Column, Index
-from datetime import datetime
 from trac.util.datefmt import utc, to_timestamp
+from trac.wiki.model import WikiPage
 
 
 class TestManagerModelProvider(Component):
@@ -102,14 +104,9 @@ class TestManagerModelProvider(Component):
             db.commit()
 
             # Create the basic "TC" Wiki page, used as the root test catalog
-            cursor = db.cursor()
-            cursor.execute("INSERT INTO wiki (name,version,time,author,ipnr,"
-                           "text,comment,readonly) VALUES (%s,%s,%s,%s,%s,%s,"
-                           "%s,%s)", ('TC', 1,
-                                      to_timestamp(datetime.now(utc)), 'System', '127.0.0.1',
-                                      ' ', '', 0))
-                    
-            db.commit()
+            tc_page = WikiPage(self.env, 'TC')
+            tc_page.text = ' '
+            tc_page.save('System', '', '127.0.0.1')
 
         except:
             db.rollback()

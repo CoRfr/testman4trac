@@ -3,6 +3,10 @@
  * Copyright (C) 2010 Roberto Longopbardi - seccanj@gmail.com, Marco Cipriani
  */
 
+/******************************************************/
+/**         Test case, catalog, plan creation         */
+/******************************************************/
+
 function creaTestCatalog(path) {
 	var tcInput = document.getElementById("catName");
 	var catalogName = tcInput.value;
@@ -60,6 +64,11 @@ function creaTestPlan(catName){
     }
 }
 
+function duplicateTestCase(tcName, catName){ 
+	var url = baseLocation+'/testcreate?type=testcase&duplicate=true&tcId='+tcName+'&path='+catName; 
+	window.location = url;
+}
+
 function regenerateTestPlan(planId, path) {
     var url = baseLocation+"/testcreate?type=testplan&update=true&planid="+planId+"&path="+path;
     window.location = url;
@@ -70,17 +79,14 @@ function creaTicket(tcName, planId, planName){
 	window.location = url;
 }
 
+/******************************************************/
+/**         Move test case into another catalog       */
+/******************************************************/
+
 function checkMoveTCDisplays() {
     displayNode('copiedTCMessage', isPasteEnabled());
     displayNode('pasteTCHereMessage', isPasteEnabled());
     displayNode('pasteTCHereDiv', isPasteEnabled());
-}
-
-function displayNode(id, show) {
-    var msgNode = document.getElementById(id);
-    if (msgNode) {
-        msgNode.style.display = show ? "block" : "none";
-    }
 }
 
 function isPasteEnabled() {
@@ -111,20 +117,17 @@ function cancelTCMove() {
     setTimeout('window.location="'+window.location+'"', 100);
 }
 
-function stripSpecialChars(str) {
-    result = str.replace(/[ ',;:àèéìòù£§<>!"%&=@#��\[\]\-\\\\^\$\.\|\?\*\+\(\)\{\}]/g, '');
-    return result;
-}
+/******************************************************/
+/**                 Tree view widget                  */
+/******************************************************/
 
-function stripLessSpecialChars(str) {
-    result = str.replace(/[;#&\?]/g, '');
-    return result;
-}
+/** Configuration property to specify whether non-matching search results should be hidden. */ 
+var selectHide = true;
+/** Configuration property to specify whether matching search results should be displayed in bold font. */
+var selectBold = true;
 
 var selectData = [];
 var deselectData = [];
-var selectHide = true;
-var selectBold = true;
 var htimer = null;
 var searchResults = 0;
 
@@ -225,7 +228,6 @@ function clearSelection() {
 }
 
 function select(node) {
-
     searchResults++;
 
     do {
@@ -281,11 +283,6 @@ function checkFilter(now) {
     }
 }
 
-window.onload = function() {
-                    checkFilter(true);
-                    checkMoveTCDisplays();
-                };
-
 function underlineLink(id) {
     el = document.getElementById(id);
     el.style.backgroundColor = '#EEEEEE';
@@ -299,6 +296,10 @@ function removeUnderlineLink(id) {
     el.style.color = 'black';
     el.style.textDecoration = 'none';
 }
+
+/******************************************************/
+/**        Test case in plan status management        */
+/******************************************************/
 
 function changestate(tc, planid, newStatus) {
 
@@ -318,8 +319,29 @@ function changestate(tc, planid, newStatus) {
     currStatus = newStatus; 
 }
 
+/******************************************************/
+/**                  Utility functions                */
+/******************************************************/
+
 function expandCollapseSection(nodeId) {
     toggleClass(nodeId, "collapsed");
+}
+
+function stripSpecialChars(str) {
+    result = str.replace(/[ ',;:àèéìòù£§<>!"%&=@#��\[\]\-\\\\^\$\.\|\?\*\+\(\)\{\}]/g, '');
+    return result;
+}
+
+function stripLessSpecialChars(str) {
+    result = str.replace(/[;#&\?]/g, '');
+    return result;
+}
+
+function displayNode(id, show) {
+    var msgNode = document.getElementById(id);
+    if (msgNode) {
+        msgNode.style.display = show ? "block" : "none";
+    }
 }
 
 function toggleClass(nodeId, className) {
@@ -342,7 +364,40 @@ function doAjaxCall(url) {
     
     xmlhttp.open("GET", url, false);
     xmlhttp.send("");
-    xmlDoc = xmlhttp.responseXML;
+    responseText = xmlhttp.responseText;
     
-    return xmlDoc;
+    return responseText;
 }
+
+/**
+ * Adds the specified function, by name or by pointer, to the window.onload() queue.
+ * 
+ * Usage:
+ *
+ * addLoadHandler(nameOfSomeFunctionToRunOnPageLoad); 
+ *
+ * addLoadHandler(function() { 
+ *   <more code to run on page load>
+ * }); 
+ */
+function addLoadHandler(func) { 
+    var oldonload = window.onload; 
+    if (typeof window.onload != 'function') { 
+        window.onload = func; 
+    } else { 
+        window.onload = function() { 
+            if (oldonload) { 
+                oldonload(); 
+            } 
+            func(); 
+        } 
+    } 
+} 
+
+/**
+ * Do some checks as soon as the page is loaded.
+ */
+addLoadHandler(function() {
+        checkFilter(true);
+        checkMoveTCDisplays();
+    });
