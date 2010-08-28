@@ -17,9 +17,10 @@ from trac.perm import IPermissionRequestor
 
 from datetime import date, datetime, time, timedelta
 from time import strptime
-from trac.util.datefmt import to_utimestamp, utc, to_timestamp
+from trac.util.datefmt import utc, to_timestamp
 
 from testmanager.api import TestManagerSystem
+from testmanager.util import *
 
 
 # ************************
@@ -69,12 +70,12 @@ class TestStatsPlugin(Component):
             path_filter = catpath + "_%" 
 
         dates_condition = ''
-        
+
         if from_date:
-            dates_condition += " AND time > %s" % to_utimestamp(from_date)
+            dates_condition += " AND time > %s" % to_any_timestamp(from_date)
 
         if at_date:
-            dates_condition += " AND time <= %s" % to_utimestamp(at_date)
+            dates_condition += " AND time <= %s" % to_any_timestamp(at_date)
 
         db = self.env.get_db_cnx()
         cursor = db.cursor()
@@ -99,7 +100,6 @@ class TestStatsPlugin(Component):
             testplan_filter = ''
         else:
             testplan_filter = " AND planid = '%s'" % (testplan) 
-
         
         db = self.env.get_db_cnx()
         cursor = db.cursor()
@@ -109,12 +109,6 @@ class TestStatsPlugin(Component):
         row = cursor.fetchone()
         
         count = row[0]
-
-        #print("dates: "+str(to_timestamp(from_date))+"-"+str(to_timestamp(at_date)))
-        #cursor = db.cursor()
-        #cursor.execute("SELECT time from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s" % (status, to_timestamp(from_date), to_timestamp(at_date)))
-        #for row in cursor:
-        #    print (row[0])
 
         return count
 
@@ -192,9 +186,6 @@ class TestStatsPlugin(Component):
 
         # Calculate remaining points
         for cur_date in daterange(from_date, at_date, graph_res):
-            
-            print cur_date
-            
             num_new = self._get_num_testcases(last_date, cur_date, catpath, testplan, req)
             num_successful = self._get_num_tcs_by_status(last_date, cur_date, 'SUCCESSFUL', testplan, req)
             num_failed = self._get_num_tcs_by_status(last_date, cur_date, 'FAILED', testplan, req)
@@ -208,7 +199,9 @@ class TestStatsPlugin(Component):
             datestr = cur_date.strftime("%m/%d/%Y") 
             if graph_res != 1:
                 datestr = "%s thru %s" % (last_date.strftime("%m/%d/%Y"), datestr) 
-            count.append( {'date'  : datestr,
+            count.append( {'from_date': last_date.strftime("%m/%d/%Y"),
+                         'to_date': cur_date.strftime("%m/%d/%Y"),
+                         'date'  : datestr,
                          'new_tcs'    : num_new,
                          'successful': num_successful,
                          'failed': num_failed,
@@ -234,6 +227,22 @@ class TestStatsPlugin(Component):
             jsdstr = jsdstr[:-2] +'\n]}'
             req.send_header("Content-Length", len(jsdstr))
             req.write(jsdstr)
+            return 
+        elif (not req_content == None) and (req_content == "downloadcsv"):
+            csvstr = "Date from;Date to;New Test Cases;Successful;Failed;Total Test Cases;Total Successful;Total Untested;Total Failed\r\n"
+            for x in count:
+                csvstr += '%s;' % x['from_date']
+                csvstr += '%s;' % x['to_date']
+                csvstr += '%s;' % x['new_tcs']
+                csvstr += '%s;' % x['successful']
+                csvstr += '%s;' % x['failed']
+                csvstr += '%s;' % x['all_tcs']
+                csvstr += '%s;' % x['all_successful']
+                csvstr += '%s;' % x['all_untested']
+                csvstr += '%s\r\n' % x['all_failed']
+            req.send_header("Content-Length", len(csvstr))
+            req.send_header("Content-Disposition", "attachment;filename=Test_stats.csv")
+            req.write(csvstr)
             return 
         else:
             db = self.env.get_db_cnx()
@@ -277,7 +286,7 @@ def daterange(begin, end, delta = timedelta(1)):
 
      Arguments:
      begin -- a date (or datetime) object; the beginning of the range.
-     end    -- a date (or datetime) object; the end of the range.
+     end   -- a date (or datetime) object; the end of the range.
      delta -- (optional) a timedelta object; how much to step each iteration.
                  Default step is 1 day.
                  

@@ -14,6 +14,10 @@ A Trac plugin to create Test Cases, organize them in catalogs, generate test pla
 =================================================================================================  
 Change History:
 
+Release 1.1.2 (2010-08-25):
+  o Enhancement #7552 Export test statistics in CSV and bookmark this chart features in the test stats chart
+  o Fixed Ticket #7551 Test statistics don't work on Trac 0.11
+
 Release 1.1.1 (2010-08-20):
   o Enhancement #7526 Add ability to duplicate a test case
   o Enhancement #7536 Add test management statistics

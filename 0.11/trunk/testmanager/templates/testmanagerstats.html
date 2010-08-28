@@ -21,6 +21,29 @@
 	<!-- Source files -->
 	<script type="text/javascript" src="http://yui.yahooapis.com/2.5.2/build/charts/charts-experimental-min.js"></script>
 
+    <script type="text/javascript">
+        var urlAddress = "${baseurl}" + "/teststats?content=render";
+
+        function addBookmark() {
+            var sel = document.getElementById("dt_frm").testplan;
+            var tplan = sel.options[sel.options.selectedIndex].innerHTML;
+            
+            var title = "Test Case statistics (" + tplan + ") ${start_date} - ${end_date}"; 
+
+            if (window.sidebar) { /* Mozilla Firefox Bookmark */
+                window.sidebar.addPanel(title, urlAddress, "");
+            } else if (window.external) { 
+                if (window.external.AddFavorite) { /* IE Favorite */
+                    window.external.AddFavorite(urlAddress, title); 
+                }
+            } else if (window.opera) {
+                if (window.print) { /* Opera Hotlist */
+                    return true; 
+                }
+            }
+        }
+    </script>
+    
   </head>
 <body class="yui-skin-sam">
 
@@ -44,7 +67,9 @@
 		updateStaticURL();
 	}
 	function updateStaticURL(){
+        urlAddress = "${baseurl}" + "/teststats?content=render" + rqstr();
 		document.getElementById("static_url").innerHTML = "${baseurl}" + "/teststats?content=render" + rqstr();
+        document.getElementById("export_excel").href = "${baseurl}" + "/teststats?content=downloadcsv" + rqstr();
 	}
    function setProvided(res, mile){
       if (!res)
@@ -84,7 +109,21 @@
 </form>
 <p />
 <div class="help"><small>
-<b>Static URL:</b> <span id="static_url"></span>
+<b>URL to bookmark:</b> <span id="static_url"></span>
+<br />
+
+<script type="text/javascript">
+    if (window.sidebar) {
+        document.write('<a href="javascript:addBookmark()">Bookmark this chart</a>&nbsp;&nbsp;&nbsp;(On Firefox you\'ll need to Ctrl-click on the bookmark to then open it)'); 
+    } else if (window.opera) {
+        if (window.print) {
+            document.write('<a rel="sidebar" href="javascript:addBookmark()">Bookmark this chart</a>'); 
+        }
+    }
+</script>
+
+<br />
+<a id="export_excel" href="">Export this data to Excel</a>&nbsp;&nbsp;&nbsp;(CSV format)
 </small></div>
 </fieldset>
 </div>
@@ -141,14 +180,10 @@ var myCChart = new YAHOO.widget.ColumnChart( "chart", myDataSource,
 	yAxis: numtixAxis,
 	dataTipFunction: YAHOO.example.getDataTipText,
 	style: {legend: {display: "bottom"}},
-	request: rqstr(),
+	request: rqstr()
 });
 
 
-</script>
-<div id="myLogger"></div>
-<script type="text/javascript">
-    var myLogReader = new YAHOO.widget.LogReader("myLogger");
 </script>
 
   </body>
