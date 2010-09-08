@@ -7,8 +7,11 @@ import re
 from trac.core import *
 
 def get_page_title(text):
-
     return text.split('\n')[0].strip('\r\n').strip('= \'')
+
+    
+def get_page_description(text):
+    return text.split('\n')[1]
 
     
 def formatExceptionInfo(maxTBlevel=5):
@@ -74,3 +77,18 @@ def check_utimestamp():
         has_utimestamp = False
 
     checked_utimestamp = True
+
+
+def to_list(params=[]):
+    result = []
+    
+    for i in params:
+        if isinstance(i, list):
+            for v in i:
+                result.append(v)
+        else:
+            result.append(i)
+    
+    return tuple(result)
+  
+    

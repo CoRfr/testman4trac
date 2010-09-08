@@ -14,8 +14,9 @@ from trac.wiki.api import WikiSystem, parse_args
 from trac.wiki.model import WikiPage
 
 from testmanager.api import TestManagerSystem
-from testmanager.util import get_page_title
 from testmanager.labels import *
+from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
+from testmanager.util import *
 
 
 # Macros
@@ -168,8 +169,6 @@ class TestCaseStatusHistoryMacro(WikiMacroBase):
 # Internal methods
 
 def _build_testcases_breadcrumb(env,req,curpage):
-    test_manager_system = TestManagerSystem(env)
-
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
@@ -204,8 +203,6 @@ def _build_testcases_breadcrumb(env,req,curpage):
             
 
 def _build_catalog_tree(env,req,curpage):
-    test_manager_system = TestManagerSystem(env)
-
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
@@ -266,8 +263,6 @@ def _build_catalog_tree(env,req,curpage):
     return text
     
 def _build_testplan_tree(env, req, planid, curpage):
-    test_manager_system = TestManagerSystem(env)
-
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
@@ -304,7 +299,13 @@ def _build_testplan_tree(env, req, planid, curpage):
 
             else:
                 # It is a test case page
-                status = test_manager_system.get_testcase_status(tc.partition('TC')[2], planid)
+                tc_id = tc.partition('TC')[2]
+                tcip = TestCaseInPlan(env, tc_id, planid)
+                if tcip.exists:
+                    status = tcip['status']
+                else:
+                    status = 'TO_BE_TESTED'
+                    
                 parent['childrenT'][tc]={'id':curr_path, 'title': subpage_title, 'status': status}
                 compLoop = parent
                 while (True):
@@ -330,26 +331,45 @@ def _build_testplan_tree(env, req, planid, curpage):
 
 
 def _build_testplan_list(env, req, curpage):
-    test_manager_system = TestManagerSystem(env)
-
     # Determine current catalog name
     cat_name = 'TC'
     catid = -1
     if curpage.find('_TC') >= 0:
         cat_name = curpage.rpartition('_TC')[0].rpartition('_')[2]
-        catid = int(cat_name.rpartition('TT')[2])
+        catid = cat_name.rpartition('TT')[2]
     elif not curpage == 'TC':
         cat_name = curpage.rpartition('_')[2]
-        catid = int(cat_name.rpartition('TT')[2])
+        catid = cat_name.rpartition('TT')[2]
         
-    markup, num_plans = test_manager_system.get_testplan_list_markup(catid)
+    markup, num_plans = _render_testplan_list(env, catid)
         
     text = '<form id="testPlanList"><fieldset id="testPlanListFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no4"  onclick="expandCollapseSection(\'testPlanListFields\')">'+LABELS['test_plan_list']+' ('+str(num_plans)+')</a></legend>'
     text += markup
     text += '</fieldset></form>'
 
     return text
+    
+def _render_testplan_list(env, catid):
+    """Returns a test case status in a plan audit trail."""
 
+    cat = TestCatalog(env, catid)
+    
+    result = '<table class="listing"><thead>'
+    result += '<tr><th>'+LABELS['plan_name']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['timestamp']+'</th></tr>'
+    result += '</thead><tbody>'
+    
+    num_plans = 0
+    for tp in cat.list_testplans():
+        result += '<tr>'
+        result += '<td><a title="'+LABELS['open_testplan_title']+'" href="'+tp['page_name']+'?planid='+tp['id']+'">'+tp['name']+'</a></td>'
+        result += '<td>'+tp['author']+'</td>'
+        result += '<td>'+str(tp['time'])+'</td>'
+        result += '</tr>'
+        num_plans += 1
+
+    result += '</tbody></table>'
+
+    return result, num_plans
     
 # Render the breadcrumb
 def _render_breadcrumb(breadcrumb):
@@ -435,10 +455,13 @@ def _render_testcases(planid, data):
     
     
 def _build_testcase_status(env, req, planid, curpage):
-    test_manager_system = TestManagerSystem(env)
-
-    tc = curpage.rpartition('_TC')[2]
-    status = test_manager_system.get_testcase_status(tc, planid)
+    tc_id = curpage.rpartition('_TC')[2]
+    
+    tcip = TestCaseInPlan(env, tc_id, planid)
+    if tcip.exists:
+        status = tcip['status']
+    else:
+        status = 'TO_BE_TESTED'
     
     display = {'SUCCESSFUL': 'none', 'TO_BE_TESTED': 'none', 'FAILED': 'none'}
     display[status] = 'block'
@@ -452,10 +475,13 @@ def _build_testcase_status(env, req, planid, curpage):
 
     
 def _build_testcase_change_status(env, req, planid, curpage):
-    test_manager_system = TestManagerSystem(env)
-
-    tc = curpage.rpartition('_TC')[2]
-    status = test_manager_system.get_testcase_status(tc, planid)
+    tc_id = curpage.rpartition('_TC')[2]
+    
+    tcip = TestCaseInPlan(env, tc_id, planid)
+    if tcip.exists:
+        status = tcip['status']
+    else:
+        status = 'TO_BE_TESTED'
     
     text = ''
     
@@ -469,21 +495,21 @@ def _build_testcase_change_status(env, req, planid, curpage):
     if status == 'SUCCESSFUL':
         border = 'border: 2px solid black;'
 
-    text += '<span id="tcStatusSUCCESSFUL" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc+'\', \''+str(planid)+'\', \'SUCCESSFUL\')">'
+    text += '<span id="tcStatusSUCCESSFUL" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+str(planid)+'\', \''+curpage+'\', \'SUCCESSFUL\')">'
     text += '<img src="../chrome/testmanager/images/green.png" title="'+LABELS['SUCCESSFUL']+'"></img></span>'
 
     border = ''
     if status == 'TO_BE_TESTED':
         border = 'border: 2px solid black;'
 
-    text += '<span id="tcStatusTO_BE_TESTED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc+'\', \''+str(planid)+'\', \'TO_BE_TESTED\')">'
+    text += '<span id="tcStatusTO_BE_TESTED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+str(planid)+'\', \''+curpage+'\', \'TO_BE_TESTED\')">'
     text += '<img src="../chrome/testmanager/images/yellow.png" title="'+LABELS['TO_BE_TESTED']+'"></img></span>'
 
     border = ''
     if status == 'FAILED':
         border = 'border: 2px solid black;'
 
-    text += '<span id="tcStatusFAILED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc+'\', \''+str(planid)+'\', \'FAILED\')">'
+    text += '<span id="tcStatusFAILED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+str(planid)+'\', \''+curpage+'\', \'FAILED\')">'
     text += '<img src="../chrome/testmanager/images/red.png" title="'+LABELS['FAILED']+'"></img></span>'
 
     text += '</span>'
@@ -492,12 +518,24 @@ def _build_testcase_change_status(env, req, planid, curpage):
 
     
 def _build_testcase_status_history(env,req,planid,curpage):
-    test_manager_system = TestManagerSystem(env)
-
-    tc = curpage.rpartition('_TC')[2]
+    tc_id = curpage.rpartition('_TC')[2]
+    
+    tcip = TestCaseInPlan(env, tc_id, planid)
     
     text = '<form id="testCaseHistory"><fieldset id="testCaseHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no3"  onclick="expandCollapseSection(\'testCaseHistoryFields\')">'+LABELS['status_change_hist']+'</a></legend>'
-    text += test_manager_system.get_testcase_status_history_markup(tc, planid)
+    
+    text += '<table class="listing"><thead>'
+    text += '<tr><th>'+LABELS['timestamp']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['status']+'</th></tr>'
+    text += '</thead><tbody>'
+
+    for ts, author, status in tcip.list_history():
+        text += '<tr>'
+        text += '<td>'+str(from_any_timestamp(ts))+'</td>'
+        text += '<td>'+author+'</td>'
+        text += '<td>'+LABELS[status]+'</td>'
+        text += '</tr>'
+        
+    text += '</tbody></table>'
     text += '</fieldset></form>'
 
     return text

@@ -30,12 +30,13 @@ from genshi import HTML
 from testmanager.api import TestManagerSystem
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.labels import *
+from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 
 
 class WikiTestManagerInterface(Component):
     """Implement generic template provider."""
     
-    implements(ITemplateProvider)
+    implements(ITemplateProvider, ITemplateStreamFilter, IRequestHandler, IWikiChangeListener)
     
     # ITemplateProvider
     def get_templates_dirs(self):
@@ -61,19 +62,14 @@ class WikiTestManagerInterface(Component):
         from pkg_resources import resource_filename
         return [('testmanager', resource_filename(__name__, 'htdocs'))]
 
-
-class WikiTestCatalogInterface(Component):
-    """Implement the user interface for test catalogs."""
-    
-    implements(ITemplateStreamFilter, IRequestHandler, IWikiChangeListener)
-
+        
     # IRequestHandler methods
 
     def match_request(self, req):
         type = req.args.get('type')
         return req.path_info.startswith('/testcreate') and (((type == 'catalog' or type == 'testcase') and ('TEST_MODIFY' in req.perm)) or 
              (type == 'testplan' and ('TEST_PLAN_ADMIN' in req.perm))) 
-             
+
     def process_request(self, req):
         type = req.args.get('type')
         path = req.args.get('path')
@@ -89,20 +85,24 @@ class WikiTestCatalogInterface(Component):
         id = test_manager_system.get_next_id(type)
 
         pagename = path
+        
         if type == 'catalog':
             req.perm.require('TEST_MODIFY')
             pagename += '_TT'+str(id)
-            
-            if autosave and autosave == 'true':
-                # Create and save the new wiki page automatically
-                new_cat_page = WikiPage(self.env, pagename)
-                new_cat_page.text = '== '+title+' =='
-                new_cat_page.save(author, '', req.remote_addr)
-                # Redirect to display the page
-                req.redirect(req.href.wiki(pagename))
-            else:
-                # Redirect to edit the new wiki page. The user can still cancel the operation.
-                req.redirect(req.href.wiki(pagename, action='edit', text='== '+title+' =='))
+
+            try:
+                new_tc = TestCatalog(self.env, id, pagename, '== '+title+' ==', '')
+                new_tc.author = author
+                new_tc.remote_addr = req.remote_addr
+                # This also creates the Wiki page
+                new_tc.insert()
+            except:
+                print "Error adding test catalog!"
+                print self._formatExceptionInfo()
+                req.redirect(req.path_info)
+
+            # Redirect to see the new wiki page.
+            req.redirect(req.href.wiki(pagename))
             
         elif type == 'testplan':
             req.perm.require('TEST_PLAN_ADMIN')
@@ -111,10 +111,12 @@ class WikiTestCatalogInterface(Component):
 
             try:
                 # Add the new test plan in the database
-                test_manager_system.add_testplan(id, catid, path, title, author)
+                new_tc = TestPlan(self.env, id, catid, pagename, title, author)
+                new_tc.insert()
 
             except:
                 print "Error adding test plan!"
+                print self._formatExceptionInfo()
                 # Back to the catalog
                 req.redirect(req.href.wiki(path))
 
@@ -130,74 +132,72 @@ class WikiTestCatalogInterface(Component):
                 # Handle move/paste of the test case into another catalog
 
                 req.perm.require('TEST_PLAN_ADMIN')
-                
-                old_pagename = tcId
-                old_id = tcId.rpartition('_TC')[2]
-                
-                old_page = WikiPage(self.env, old_pagename)
 
                 try:
-                    db = self.env.get_db_cnx()
-            
-                    cursor = db.cursor()
+                    catid = path.rpartition('_TT')[2]
+                    tcat = TestCatalog(self.env, catid)
                     
-                    # Create a new test case, copy contents from original one
-                    cursor.execute("INSERT INTO wiki (name,version,time,author,ipnr,"
-                                   "text,comment,readonly) VALUES (%s,%s,%s,%s,%s,%s,"
-                                   "%s,%s)", (pagename, 1,
-                                              to_timestamp(datetime.now(utc)), old_page.author, '127.0.0.1',
-                                              old_page.text, '', 0))
-                                              
-                    db.commit()
-                    
-                    test_manager_system.move_testcase(old_id, id)
-                                              
-                    # Delete the original test case
-                    old_page.delete()
-                    
+                    old_pagename = tcId
+                    tc_id = tcId.rpartition('_TC')[2]
+                    tc = TestCase(self.env, tc_id)
+                    if tc.exists:
+                        tc.move_to(tcat)
+                    else:
+                        print("Test case not found")
                 except:
-                    db.rollback()
+                    print "Error pasting test case!"
                     print self._formatExceptionInfo()
+                    req.redirect(req.path_info)
             
                 # Redirect to test catalog, forcing a page refresh by means of a random request parameter
                 req.redirect(req.href.wiki(pagename.rpartition('_TC')[0], random=str(datetime.now(utc).microsecond)))
                 
             elif duplicate and duplicate != '':
                 # Duplicate test case
+                old_id = tcId.rpartition('_TC')[2]
                 old_pagename = tcId
-                old_page = WikiPage(self.env, old_pagename)
-                
-                # New test case name will be the old catalog name + the newly generated test case ID
-                author = get_reporter_id(req, 'author')
-                
-                # Create new test case wiki page as a copy of the old one
-                new_page = WikiPage(self.env, pagename)
-                new_page.text = old_page.text
-
-                # Note that saving the wiki page automatically creates the test case into the cusotm tables "testcases" and "testcasehistory" via the change listener
-                new_page.save(author, '', req.remote_addr)
+                try:
+                    old_tc = TestCase(self.env, old_id, old_pagename)
+                    
+                    # New test case name will be the old catalog name + the newly generated test case ID
+                    author = get_reporter_id(req, 'author')
+                    
+                    # Create new test case wiki page as a copy of the old one, but change its page path
+                    new_tc = old_tc
+                    new_tc['page_name'] = pagename
+                    new_tc.remote_addr = req.remote_addr
+                    # And save it under the new id
+                    new_tc.save_as({'id': id})
+                except:
+                    print "Error duplicating test case!"
+                    print self._formatExceptionInfo()
+                    req.redirect(req.path_info)
 
                 # Redirect tp allow for editing the copy test case
                 req.redirect(req.href.wiki(pagename, action='edit'))
                 
             else:
                 # Normal creation of a new test case
-                if autosave and autosave == 'true':
-                    new_cat_page = WikiPage(self.env, pagename)
-                    new_cat_page.text = '== '+title+' =='
-                    new_cat_page.save(author, '', req.remote_addr)
-                    req.redirect(req.href.wiki(pagename))
-                else:
-                    req.redirect(req.href.wiki(pagename, action='edit', text='== '+title+' =='))
+                try:
+                    new_tc = TestCase(self.env, id, pagename, '== '+title+' ==', '')
+                    new_tc.author = author
+                    new_tc.remote_addr = req.remote_addr
+                    # This also creates the Wiki page
+                    new_tc.insert()
+                except:
+                    print "Error adding test case!"
+                    print self._formatExceptionInfo()
+                    req.redirect(req.path_info)
+
+                # Redirect to edit the test case description
+                req.redirect(req.href.wiki(pagename, action='edit'))
 
         
     # IWikiChangeListener methods
     
     def wiki_page_added(self, page):
-        page_on_db = WikiPage(self.env, page.name)
-        
-        if page.name.find('_TC') >= 0:
-            test_manager_system = TestManagerSystem(self.env)
+        #page_on_db = WikiPage(self.env, page.name)
+        pass
 
     def wiki_page_changed(self, page, version, t, comment, author, ipnr):
         pass
@@ -207,8 +207,12 @@ class WikiTestCatalogInterface(Component):
             # Only Test Case deletion is supported. 
             # Deleting a Test Catalog will not delete all of the inner
             #   Test Cases.
-            test_manager_system = TestManagerSystem(self.env)
-            test_manager_system.delete_testcase(page.name.rpartition('_TC')[2])
+            tc_id = page.name.rpartition('_TC')[2]
+            tc = TestCase(self.env, tc_id)
+            if tc.exists:
+                tc.delete(del_wiki_page=false)
+            else:
+                print("Test case not found")
 
     def wiki_page_version_deleted(self, page):
         pass
@@ -350,19 +354,12 @@ class WikiTestCatalogInterface(Component):
         add_script(req, 'testmanager/js/testmanager.js')
 
         tree_macro = TestPlanTreeMacro(self.env)
-        test_manager_system = TestManagerSystem(self.env)
-        
-        try:
-            planid, catid, catpath, name, author, timestr = test_manager_system.get_testplan(planid)
-        except:
-            # Back to the catalog
-            print "Error getting Test Plan: "+str(planid)
-            req.redirect(req.href.wiki(page_name))
+        tp = TestPlan(self.env, planid)
         
         insert1 = tag.div()(
                     tag.a(href=req.href.wiki(page_name))(LABELS['back_to_catalog']),
                     tag.br(), tag.br(), tag.br(), 
-                    tag.h1(LABELS['test_plan']+name)
+                    tag.h1(LABELS['test_plan']+tp['name'])
                     )
 
         insert2 = tag.div()(
@@ -432,8 +429,8 @@ class WikiTestCatalogInterface(Component):
         cat_name = path_name.rpartition('/')[2].partition('_TC')[0]
         
         has_status = True
-        test_manager_system = TestManagerSystem(self.env)
-        planid, catid, catpath, plan_name, plan_author, timestr = test_manager_system.get_testplan(int(planid))
+        tp = TestPlan(self.env, planid)
+        plan_name = tp['name']
     
         add_stylesheet(req, 'testmanager/css/testmanager.css')
         add_stylesheet(req, 'common/css/report.css')
@@ -472,8 +469,8 @@ class WikiTestCatalogInterface(Component):
             # We are in the context of a test plan
             if not page_name.rpartition('_TC')[2] == '':
                 # It's a test case
-                test_manager_system = TestManagerSystem(self.env)
-                planid, catid, catpath, name, author, timestr = test_manager_system.get_testplan(int(planid))
+                tp = TestPlan(self.env, planid)
+                catpath = tp['page_name']
                 return tag.a(href=formatter.req.href.wiki(catpath, planid=planid))(LABELS['back_to_plan'])
             else:
                 # It's a test plan

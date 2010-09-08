@@ -75,7 +75,7 @@ function regenerateTestPlan(planId, path) {
 }
 
 function creaTicket(tcName, planId, planName){ 
-	var url = baseLocation+'/newticket?testCaseNumber='+tcName+'&planId='+planId+'&planName='+planName+'&description=Test%20Case:%20[wiki:'+tcName+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
+	var url = baseLocation+'/newticket?testCaseNumber='+tcName+'&planId='+planId+'&planName='+planName+'&description=Test%20Case:%20[wiki:'+tcName+'?planid='+planId+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
 	window.location = url;
 }
 
@@ -301,9 +301,9 @@ function removeUnderlineLink(id) {
 /**        Test case in plan status management        */
 /******************************************************/
 
-function changestate(tc, planid, newStatus) {
+function changestate(tc, planid, path, newStatus) {
 
-    var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus;
+    var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus+"&path="+path;
     
     xmlDoc = doAjaxCall(url); 
     

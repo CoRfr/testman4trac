@@ -4,29 +4,49 @@
 #
 
 import re
-import time
 import sys
+import time
 import traceback
 
 from datetime import datetime
 from trac.core import *
 from trac.perm import IPermissionRequestor, PermissionError
 from trac.util import get_reporter_id
-from trac.util.datefmt import utc, to_timestamp
+from trac.util.datefmt import utc
+from trac.util.translation import _, N_, gettext
 from trac.web.api import IRequestHandler
 
-from testmanager.util import formatExceptionInfo
+from testmanager.util import *
 from testmanager.labels import *
+from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
 
 
-# Public methods
+class ITestObjectChangeListener(Interface):
+    """Extension point interface for components that require notification
+    when test objects, e.g. test cases, catalogs, plans etc, are created, 
+    modified, or deleted."""
+
+    def object_created(testobject):
+        """Called when a test object is created."""
+
+    def object_changed(testobject, comment, author, old_values):
+        """Called when a test object is modified.
+        
+        `old_values` is a dictionary containing the previous values of the
+        fields that have changed.
+        """
+
+    def object_deleted(testobject):
+        """Called when a test object is deleted."""
+
 
 class TestManagerSystem(Component):
     """Test Manager system for Trac."""
 
     implements(IPermissionRequestor, IRequestHandler)
 
-    # Public methods
+    change_listeners = ExtensionPoint(ITestObjectChangeListener)
+
     def get_next_id(self, type):
         propname = _get_next_prop_name(type)
     
@@ -47,7 +67,7 @@ class TestManagerSystem(Component):
             
             db.commit()
         except:
-            print self._formatExceptionInfo()
+            print (self._formatExceptionInfo())
             db.rollback()
             raise
 
@@ -64,7 +84,7 @@ class TestManagerSystem(Component):
            
             db.commit()
         except:
-            print self._formatExceptionInfo()
+            print (self._formatExceptionInfo())
             db.rollback()
             raise
     
@@ -90,13 +110,13 @@ class TestManagerSystem(Component):
                 cursor.execute(sql)
 
                 cursor = db.cursor()
-                sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, '+str(to_timestamp(datetime.now(utc)))+', %s, %s)'
+                sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, '+str(to_any_timestamp(datetime.now(utc)))+', %s, %s)'
                 cursor.execute(sql, (str(id), str(planid), author, status))
 
                 db.commit()
                 
             except:
-                print self._formatExceptionInfo()
+                print (self._formatExceptionInfo())
                 db.rollback()
                 raise
 
@@ -119,7 +139,7 @@ class TestManagerSystem(Component):
             cursor.execute(sql)
             db.commit()
         except:
-            print self._formatExceptionInfo()
+            print (self._formatExceptionInfo())
             db.rollback()
             raise
 
@@ -161,13 +181,13 @@ class TestManagerSystem(Component):
                 cursor.execute(sql)
 
             cursor = db.cursor()
-            sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, '+str(to_timestamp(datetime.now(utc)))+', %s, %s)'
+            sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, '+str(to_any_timestamp(datetime.now(utc)))+', %s, %s)'
             cursor.execute(sql, (str(id), str(planid), author, status))
             
             db.commit()
 
         except:
-            print self._formatExceptionInfo()
+            print (self._formatExceptionInfo())
             db.rollback()
             
             raise
@@ -201,7 +221,7 @@ class TestManagerSystem(Component):
         
         print "id,plan id,status"
         for id, ts, status in cursor:
-            print id+","+str(datetime.fromtimestamp(ts, utc))+","+status
+            print id+","+str(from_any_timestamp(ts))+","+status
 
         print "-- END Test Case History --"
 
@@ -220,7 +240,7 @@ class TestManagerSystem(Component):
         cursor.execute(sql)
         for ts, author, status in cursor:
             result += '<tr>'
-            result += '<td>'+str(datetime.fromtimestamp(ts, utc))+'</td>'
+            result += '<td>'+str(from_any_timestamp(ts))+'</td>'
             result += '<td>'+author+'</td>'
             result += '<td>'+LABELS[status]+'</td>'
             result += '</tr>'
@@ -251,19 +271,19 @@ class TestManagerSystem(Component):
             raise
         
         
-    def add_testplan(self, planid, catid, catpath, name, author="System"):
+    def add_testplan(self, planid, catid, page_name, name, author="System"):
         """Add a test plan."""
         
         try:
             db = self.env.get_db_cnx()
             cursor = db.cursor()
-            sql = "INSERT INTO testplans (planid, catid, catpath, name, author, time) VALUES ('"+str(planid)+"', '"+str(catid)+"', '"+catpath+"', '"+name+"', '"+author+"', "+str(to_timestamp(datetime.now(utc)))+")"
+            sql = "INSERT INTO testplan (planid, catid, page_name, name, author, time) VALUES ('"+str(planid)+"', '"+str(catid)+"', '"+page_name+"', '"+name+"', '"+author+"', "+str(to_any_timestamp(datetime.now(utc)))+")"
             cursor.execute(sql)
 
             db.commit()
             
         except:
-            print self._formatExceptionInfo()
+            print (self._formatExceptionInfo())
             db.rollback()
             raise
 
@@ -273,11 +293,11 @@ class TestManagerSystem(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
-        sql = "SELECT planid, catid, catpath, name, author, time FROM testplans WHERE planid='"+str(planid)+"'"
+        sql = "SELECT planid, catid, page_name, name, author, time FROM testplan WHERE planid='"+str(planid)+"'"
         
         cursor.execute(sql)
-        for planid, catid, catpath, name, author, ts in cursor:
-            return planid, catid, catpath, name, author, str(datetime.fromtimestamp(ts, utc))
+        for planid, catid, page_name, name, author, ts in cursor:
+            return planid, catid, page_name, name, author, str(from_any_timestamp(ts))
 
     def list_all_testplans(self):
         """Returns a list of all test plans."""
@@ -285,23 +305,11 @@ class TestManagerSystem(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
-        sql = "SELECT planid, catid, catpath, name, author, time FROM testplans ORDER BY catid, planid"
+        sql = "SELECT id, catid, page_name, name, author, time FROM testplan ORDER BY catid, id"
         
         cursor.execute(sql)
-        for planid, catid, catpath, name, author, ts  in cursor:
-            yield planid, catid, catpath, name, author, str(datetime.fromtimestamp(ts, utc))
-
-    def list_testplans_for_catalog(self, catid):
-        """Returns a list of test plans for the specified catalog."""
-
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
-        sql = "SELECT planid, catid, catpath, name, author, time FROM testplans WHERE catid='"+str(catid)+"' ORDER BY planid DESC"
-        
-        cursor.execute(sql)
-        for planid, catid, catpath, name, author, ts in cursor:
-            yield planid, catid, catpath, name, author, str(datetime.fromtimestamp(ts, utc))
+        for id, catid, page_name, name, author, ts  in cursor:
+            yield id, catid, page_name, name, author, str(from_any_timestamp(ts))
 
     def list_testplans_for_testcase(self, id):
         """Returns a list of test plans for the specified test case."""
@@ -309,62 +317,41 @@ class TestManagerSystem(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
-        sql = "SELECT planid, catid, catpath, name, author, time, status FROM testplans, testcases WHERE testplans.planid=testcases.planid AND testcases.id='"+str(id)+"' ORDER BY name"
+        sql = "SELECT testplan.id, catid, page_name, name, author, time, status FROM testplan, testcase WHERE testplan.id=testcase.planid AND testcase.id='"+str(id)+"' ORDER BY name"
         
         cursor.execute(sql)
-        for planid, catid, catpath, name, author, ts, status in cursor:
-            yield planid, catid, catpath, name, author, str(datetime.fromtimestamp(ts, utc)), status
+        for id, catid, page_name, name, author, ts, status in cursor:
+            yield id, catid, page_name, name, author, str(from_any_timestamp(ts)), status
 
-    def delete_testplan(self, planid):
+    def delete_testplan(self, id):
         """Delete a test plan."""
 
         try:
             db = self.env.get_db_cnx()
             cursor = db.cursor()
 
-            sql = "DELETE FROM testplans WHERE planid='"+str(planid)+"'"
+            sql = "DELETE FROM testplan WHERE id='"+str(id)+"'"
             
             cursor.execute(sql)
             db.commit()
 
             cursor = db.cursor()
 
-            sql = "DELETE FROM testcases WHERE planid='"+str(planid)+"'"
+            sql = "DELETE FROM testcaseinplan WHERE planid='"+str(id)+"'"
             
             cursor.execute(sql)
             db.commit()
 
             cursor = db.cursor()
 
-            sql = "DELETE FROM testcasehistory WHERE planid='"+str(planid)+"'"
+            sql = "DELETE FROM testcasehistory WHERE planid='"+str(id)+"'"
             
             cursor.execute(sql)
             db.commit()
         except:
-            print self._formatExceptionInfo()
+            print (self._formatExceptionInfo())
             db.rollback()
             raise
-
-            
-    def get_testplan_list_markup(self, catid):
-        """Returns a test case status in a plan audit trail."""
-
-        result = '<table class="listing"><thead>'
-        result += '<tr><th>'+LABELS['plan_name']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['timestamp']+'</th></tr>'
-        result += '</thead><tbody>'
-        
-        num_plans = 0
-        for planid, catid, catpath, name, author, timestr in self.list_testplans_for_catalog(catid):
-            result += '<tr>'
-            result += '<td><a title="'+LABELS['open_testplan_title']+'" href="'+catpath+'?planid='+str(planid)+'">'+name+'</a></td>'
-            result += '<td>'+author+'</td>'
-            result += '<td>'+timestr+'</td>'
-            result += '</tr>'
-            num_plans += 1
-
-        result += '</tbody></table>'
-         
-        return result, num_plans
 
             
     # IPermissionRequestor methods
@@ -387,10 +374,22 @@ class TestManagerSystem(Component):
     
         id = req.args.get('id')
         planid = req.args.get('planid')
+        path = req.args.get('path')
         status = req.args.get('status')
         author = get_reporter_id(req, 'author')
 
-        self.set_testcase_status(id, planid, status, author)
+        try:
+            self.env.log.debug("Setting status %s to test case %s in plan %s" % (status, id, planid))
+            tcip = TestCaseInPlan(self.env, id, planid)
+            if tcip.exists:
+                tcip.set_status(status, author)
+                tcip.save_changes(author, "Status changed")
+            else:
+                tcip['page_name'] = path
+                tcip['status'] = status
+                tcip.insert()
+        except:
+            self.env.log.debug(self._formatExceptionInfo())
         
         return 'empty.html', {}, None
 
