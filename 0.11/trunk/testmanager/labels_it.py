@@ -47,5 +47,8 @@ LABELS = {
     'test_plan_list': "Piani di Test disponibili",
     'plan_name': "Nome del Piano",
     'open_testplan_title': "Apri il Piano di Test",
-    'duplicate_tc_button': "Duplica il Caso di Test"  
+    'duplicate_tc_button': "Duplica il Caso di Test",
+    'edit_test_case_label': "Modifica il Caso di Test",
+    'edit_label': "Modifica",
+    'update_button': "Salva"
 }

@@ -16,7 +16,7 @@ from trac.wiki.api import IWikiSyntaxProvider
 from trac.resource import Resource, render_resource_link, get_resource_url
 from trac.mimeview.api import Context
 from trac.web.api import ITemplateStreamFilter, IRequestHandler
-from trac.wiki.api import WikiSystem, IWikiPageManipulator, IWikiChangeListener
+from trac.wiki.api import WikiSystem, IWikiChangeListener
 from trac.wiki.model import WikiPage
 from trac.wiki.formatter import Formatter
 from trac.util import get_reporter_id
@@ -30,7 +30,7 @@ from genshi import HTML
 from testmanager.api import TestManagerSystem
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.labels import *
-from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
+from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
 
 
 class WikiTestManagerInterface(Component):
@@ -91,7 +91,7 @@ class WikiTestManagerInterface(Component):
             pagename += '_TT'+str(id)
 
             try:
-                new_tc = TestCatalog(self.env, id, pagename, '== '+title+' ==', '')
+                new_tc = TestCatalog(self.env, id, pagename, title, '')
                 new_tc.author = author
                 new_tc.remote_addr = req.remote_addr
                 # This also creates the Wiki page
@@ -139,8 +139,9 @@ class WikiTestManagerInterface(Component):
                     
                     old_pagename = tcId
                     tc_id = tcId.rpartition('_TC')[2]
-                    tc = TestCase(self.env, tc_id)
+                    tc = TestCase(self.env, tc_id, tcId)
                     if tc.exists:
+                        print tc.wikipage.text
                         tc.move_to(tcat)
                     else:
                         print("Test case not found")
@@ -179,7 +180,7 @@ class WikiTestManagerInterface(Component):
             else:
                 # Normal creation of a new test case
                 try:
-                    new_tc = TestCase(self.env, id, pagename, '== '+title+' ==', '')
+                    new_tc = TestCase(self.env, id, pagename, title, '')
                     new_tc.author = author
                     new_tc.remote_addr = req.remote_addr
                     # This also creates the Wiki page
@@ -210,7 +211,7 @@ class WikiTestManagerInterface(Component):
             tc_id = page.name.rpartition('_TC')[2]
             tc = TestCase(self.env, tc_id)
             if tc.exists:
-                tc.delete(del_wiki_page=false)
+                tc.delete(del_wiki_page=False)
             else:
                 print("Test case not found")
 
@@ -230,6 +231,7 @@ class WikiTestManagerInterface(Component):
         
         if page_name.startswith('TC'):
             req.perm.require('TEST_VIEW')
+            
             if page_name.find('_TC') >= 0:
                 if filename == 'wiki_view.html':
                     if not planid or planid == '-1':
@@ -251,7 +253,11 @@ class WikiTestManagerInterface(Component):
     def _catalog_wiki_view(self, req, formatter, page_name, stream):
         path_name = req.path_info
         cat_name = path_name.rpartition('/')[2]
+        cat_id = cat_name.rpartition('TT')[2]
 
+        tmmodelprovider = TestManagerModelProvider(self.env)
+        test_catalog = TestCatalog(self.env, cat_id, page_name)
+        
         add_stylesheet(req, 'testmanager/css/testmanager.css')
         add_stylesheet(req, 'common/css/report.css')
 
@@ -295,14 +301,17 @@ class WikiTestManagerInterface(Component):
                     
         if not page_name == 'TC':
             # The root of all catalogs cannot contain itself test cases
+            insert2.append(tag.div()(
+                        self._get_custom_fields_markup(test_catalog, tmmodelprovider.get_custom_fields_for_realm('testcatalog')),
+                        tag.br()
+                    ))
             insert2.append(tag.div(id='pasteTCHereDiv')(
-                        tag.br(), tag.br(),
                         tag.input(type='button', id='pasteTCHereButton', value=LABELS['move_here'], onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
                     ))
                     
         insert2.append(tag.div(class_='field')(
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
-                    tag.br(), tag.br(), tag.br(), tag.br(),
+                    tag.br(), tag.br(), tag.br(),
                     tag.label(
                         fieldLabel,
                         tag.span(id='catErrorMsgSpan', style='color: red;'),
@@ -345,7 +354,11 @@ class WikiTestManagerInterface(Component):
     def _testplan_wiki_view(self, req, formatter, page_name, planid, stream):
         path_name = req.path_info
         cat_name = path_name.rpartition('/')[2]
+        cat_id = cat_name.rpartition('TT')[2]
 
+        tmmodelprovider = TestManagerModelProvider(self.env)
+        test_plan = TestPlan(self.env, planid, cat_id, page_name)
+        
         add_stylesheet(req, 'testmanager/css/testmanager.css')
         add_stylesheet(req, 'common/css/report.css')
 
@@ -366,6 +379,8 @@ class WikiTestManagerInterface(Component):
                     HTML(tree_macro.expand_macro(formatter, None, 'planid='+str(planid)+',catalog_path='+page_name)),
                     tag.div(class_='testCaseList')(
                     tag.br(), tag.br(),
+                    self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
+                    tag.br(),
                     tag.div(class_='field')(
                         tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                         tag.br(), tag.br(), tag.br(), tag.br(),
@@ -379,13 +394,19 @@ class WikiTestManagerInterface(Component):
         
 
     def _testcase_wiki_view(self, req, formatter, planid, page_name, stream):
-        path_name = req.path_info
-        tc_name = path_name.rpartition('/')[2]
-        cat_name = path_name.rpartition('/')[2].partition('_TC')[0]
+        tc_name = page_name
+        cat_name = page_name.partition('_TC')[0]
+        
+        is_edit = req.args.get('edit_custom', 'false')
         
         has_status = False
         plan_name = ''
     
+        tc_id = tc_name.partition('_TC')[2]
+        test_case = TestCase(self.env, tc_id, tc_name)
+        
+        tmmodelprovider = TestManagerModelProvider(self.env)
+        
         add_stylesheet(req, 'testmanager/css/testmanager.css')
         add_stylesheet(req, 'common/css/report.css')
 
@@ -411,7 +432,9 @@ class WikiTestManagerInterface(Component):
                     )
         
         insert2 = tag.div(class_='field', style='marging-top: 60px;')(
-                    tag.br(), tag.br(), tag.br(), tag.br(),
+                    tag.br(), tag.br(), 
+                    self._get_custom_fields_markup(test_case, tmmodelprovider.get_custom_fields_for_realm('testcase')),
+                    tag.br(),
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     tag.input(type='button', value=LABELS['open_ticket_button'], onclick='creaTicket("'+tc_name+'", "", "")'),
                     HTML('&nbsp;&nbsp;'), 
@@ -424,13 +447,19 @@ class WikiTestManagerInterface(Component):
         return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
 
     def _testcase_in_plan_wiki_view(self, req, formatter, planid, page_name, stream):
-        path_name = req.path_info
-        tc_name = path_name.rpartition('/')[2]
-        cat_name = path_name.rpartition('/')[2].partition('_TC')[0]
+        tc_name = page_name
+        cat_name = page_name.partition('_TC')[0]
         
         has_status = True
         tp = TestPlan(self.env, planid)
         plan_name = tp['name']
+    
+        tc_id = tc_name.partition('_TC')[2]
+        # Note that assigning a default status here is functional. If the tcip actually exists,
+        # the real status will override this value.
+        tcip = TestCaseInPlan(self.env, tc_id, planid, page_name, 'TO_BE_TESTED')
+        
+        tmmodelprovider = TestManagerModelProvider(self.env)
     
         add_stylesheet(req, 'testmanager/css/testmanager.css')
         add_stylesheet(req, 'common/css/report.css')
@@ -451,7 +480,9 @@ class WikiTestManagerInterface(Component):
                     )
         
         insert2 = tag.div(class_='field', style='marging-top: 60px;')(
-                    tag.br(), tag.br(), tag.br(), tag.br(),
+                    tag.br(), tag.br(),
+                    self._get_custom_fields_markup(tcip, tmmodelprovider.get_custom_fields_for_realm('testcaseinplan'), ('page_name', 'status')),
+                    tag.br(), 
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     self._get_testcase_change_status_markup(formatter, has_status, page_name, planid),
                     tag.br(), tag.br(),
@@ -510,6 +541,51 @@ class WikiTestManagerInterface(Component):
         testplan_list_macro = TestPlanListMacro(self.env)
         return HTML(testplan_list_macro.expand_macro(formatter, None, 'catalog_path='+cat_name))
 
+    def _get_custom_fields_markup(self, obj, fields, props=None):
+        obj_key = obj.gey_key_string()
+
+        obj_props = ''
+        if props is not None:
+            obj_props = obj.get_values_as_string(props)
+        
+        result = '<input type="hidden" value="' + obj_key + '" id="obj_key_field"></input>'
+        result += '<input type="hidden" value="' + obj_props + '" id="obj_props_field"></input>'
+        
+        result += '<table><tbody>'
+        
+        for f in fields:
+            result += "<tr onmouseover='showPencil(\"field_pencilIcon"+f['name']+"\", true)' onmouseout='hidePencil(\"field_pencilIcon"+f['name']+"\", false)'>"
+            
+            if f['type'] == 'text':
+                result += '<td><label for="custom_field_'+f['name']+'">'+f['label']+':</label></td>'
+                
+                result += '<td>'
+                result += '<span id="custom_field_value_'+f['name']+'" name="custom_field_value_'+f['name']+'">'
+                if obj[f['name']] is not None:
+                    result += obj[f['name']]
+                result += '</span>'
+            
+                result += '<input style="display: none;" type="text" id="custom_field_'+f['name']+'" name="custom_field_'+f['name']+'" '
+                if obj[f['name']] is not None:
+                    result += ' value="' + obj[f['name']] + '" '
+                result += '></input>'
+                result += '</td>'
+
+                result += '<td>'
+                result += '<span class="rightIcon" style="display: none;" title="'+LABELS['edit_label']+'" onclick="editField(\''+f['name']+'\')" id="field_pencilIcon'+f['name']+'"></span>'
+                result += '</td>'
+
+                result += '<td>'
+                result += '<input style="display: none;" type="button" onclick="sendUpdate(\''+obj.realm+'\', \'' + f['name']+'\')" id="update_button_'+f['name']+'" name="update_button_'+f['name']+'" value="'+LABELS['update_button']+'"></input>'
+                result += '</td>'
+
+            # TODO Support other field types
+            
+            result += '</tr>'
+
+        result += '</tbody></table>'
+
+        return HTML(result)
         
     def _formatExceptionInfo(maxTBlevel=5):
         cla, exc, trbk = sys.exc_info()

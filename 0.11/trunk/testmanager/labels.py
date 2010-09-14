@@ -47,5 +47,8 @@ LABELS = {
     'test_plan_list': "Available Test Plans",
     'plan_name': "Plan Name",
     'open_testplan_title': "Open Test Plan",
-    'duplicate_tc_button': "Duplicate the Test Case"
+    'duplicate_tc_button': "Duplicate the Test Case",
+    'edit_test_case_label': "Edit the Test Case",
+    'edit_label': "Edit",
+    'update_button': "Save"
 }

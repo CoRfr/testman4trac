@@ -447,9 +447,9 @@ def _render_testcases(planid, data):
 
         if has_status:
             statusLabel = LABELS[status]
-            text+="<li style='font-weight: normal;'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+str(planid)+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span></li>"
+            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+str(planid)+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit&planid="+str(planid)+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
         else:
-            text+="<li style='font-weight: normal;'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a></li>"
+            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
             
     return text
     

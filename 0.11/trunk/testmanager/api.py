@@ -67,7 +67,7 @@ class TestManagerSystem(Component):
             
             db.commit()
         except:
-            print (self._formatExceptionInfo())
+            self.env.log.debug(self._formatExceptionInfo())
             db.rollback()
             raise
 
@@ -84,147 +84,10 @@ class TestManagerSystem(Component):
            
             db.commit()
         except:
-            print (self._formatExceptionInfo())
+            self.env.log.debug(self._formatExceptionInfo())
             db.rollback()
             raise
     
-    def add_testcase(self, id, planid, is_update=False, author="System", status='TO_BE_TESTED'):
-        """Add a test case to a test plan."""
-
-        db = self.env.get_db_cnx()
-
-        existing = False
-        if is_update:
-            cursor = db.cursor()
-            sql = "SELECT status FROM testcases WHERE id='"+str(id)+"' AND planid='"+str(planid)+"'"
-            cursor.execute(sql)
-            row = cursor.fetchone()
-            
-            if row:
-                existing = True
-
-        if not is_update or not existing:
-            try:
-                cursor = db.cursor()
-                sql = "INSERT INTO testcases (id, planid, status) VALUES ('"+str(id)+"', '"+str(planid)+"', '"+status+"')"
-                cursor.execute(sql)
-
-                cursor = db.cursor()
-                sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, '+str(to_any_timestamp(datetime.now(utc)))+', %s, %s)'
-                cursor.execute(sql, (str(id), str(planid), author, status))
-
-                db.commit()
-                
-            except:
-                print (self._formatExceptionInfo())
-                db.rollback()
-                raise
-
-    def delete_testcase(self, id):
-        """Delete a test case from all test plans."""
-
-        try:
-            db = self.env.get_db_cnx()
-            cursor = db.cursor()
-
-            sql = "DELETE FROM testcases WHERE id='"+str(id)+"'"
-            
-            cursor.execute(sql)
-            db.commit()
-
-            cursor = db.cursor()
-
-            sql = "DELETE FROM testcasehistory WHERE id='"+str(id)+"'"
-            
-            cursor.execute(sql)
-            db.commit()
-        except:
-            print (self._formatExceptionInfo())
-            db.rollback()
-            raise
-
-    def get_testcase_status(self, id, planid):
-        """Returns a test case status in a test plan."""
-
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
-        sql = "SELECT status FROM testcases WHERE id='"+str(id)+"' AND planid='"+str(planid)+"'"
-        
-        cursor.execute(sql)
-        row = cursor.fetchone()
-        
-        status = 'TO_BE_TESTED'
-        if row:
-            status = row[0]
-        
-        return status
-
-    def set_testcase_status(self, id, planid, status, author="Unknown"):
-        """Set a test case status in a test plan."""
-
-        try:
-            db = self.env.get_db_cnx()
-
-            cursor = db.cursor()
-            sql = "SELECT status FROM testcases WHERE id='"+str(id)+"' AND planid='"+str(planid)+"'"
-            cursor.execute(sql)
-            row = cursor.fetchone()
-            
-            if row:
-                cursor = db.cursor()
-                sql = 'UPDATE testcases SET status=%s WHERE id=%s AND planid=%s'
-                cursor.execute(sql, (status, str(id), str(planid)))
-            else:
-                cursor = db.cursor()
-                sql = "INSERT INTO testcases (id, planid, status) VALUES ('"+str(id)+"', '"+str(planid)+"', '"+status+"')"
-                cursor.execute(sql)
-
-            cursor = db.cursor()
-            sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, '+str(to_any_timestamp(datetime.now(utc)))+', %s, %s)'
-            cursor.execute(sql, (str(id), str(planid), author, status))
-            
-            db.commit()
-
-        except:
-            print (self._formatExceptionInfo())
-            db.rollback()
-            
-            raise
-
-    def report_testcase_status(self):
-        """Prints a list of all test cases with their status."""
-
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
-        sql = "SELECT id, planid, status FROM testcases"
-        
-        cursor.execute(sql)
-
-        print "-- BEGIN Test Cases --"
-        
-        print "id,plan id,status"
-        for id, planid, status in cursor:
-            print id+","+planid+","+status
-
-        print "-- END Test Cases --"
-
-
-        cursor = db.cursor()
-
-        sql = "SELECT id, time, status FROM testcasehistory ORDER BY id"
-        
-        cursor.execute(sql)
-
-        print "-- BEGIN Test Case History --"
-        
-        print "id,plan id,status"
-        for id, ts, status in cursor:
-            print id+","+str(from_any_timestamp(ts))+","+status
-
-        print "-- END Test Case History --"
-
     def get_testcase_status_history_markup(self, id, planid):
         """Returns a test case status in a plan audit trail."""
 
@@ -249,56 +112,7 @@ class TestManagerSystem(Component):
          
         return result
 
-    def move_testcase(self, old_id, new_id):
-        """Moves all records related to the status of the old test case in all its plans (including history) to the new test case"""
-        
-        try:
-            db = self.env.get_db_cnx()
-            
-            cursor = db.cursor()
-            sql = "UPDATE testcases SET id='"+str(new_id)+"' WHERE id='"+str(old_id)+"'"
-            cursor.execute(sql)
-                
-            cursor = db.cursor()
-            sql = "UPDATE testcasehistory SET id='"+str(new_id)+"' WHERE id='"+str(old_id)+"'"
-            cursor.execute(sql)
-
-            db.commit()
-            
-        except:
-            print self._formatExceptionInfo()
-            db.rollback()
-            raise
-        
-        
-    def add_testplan(self, planid, catid, page_name, name, author="System"):
-        """Add a test plan."""
-        
-        try:
-            db = self.env.get_db_cnx()
-            cursor = db.cursor()
-            sql = "INSERT INTO testplan (planid, catid, page_name, name, author, time) VALUES ('"+str(planid)+"', '"+str(catid)+"', '"+page_name+"', '"+name+"', '"+author+"', "+str(to_any_timestamp(datetime.now(utc)))+")"
-            cursor.execute(sql)
-
-            db.commit()
-            
-        except:
-            print (self._formatExceptionInfo())
-            db.rollback()
-            raise
-
-    def get_testplan(self, planid):
-        """Returns the specified test plan."""
-
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
-        sql = "SELECT planid, catid, page_name, name, author, time FROM testplan WHERE planid='"+str(planid)+"'"
-        
-        cursor.execute(sql)
-        for planid, catid, page_name, name, author, ts in cursor:
-            return planid, catid, page_name, name, author, str(from_any_timestamp(ts))
-
+    # @deprecated
     def list_all_testplans(self):
         """Returns a list of all test plans."""
 
@@ -311,49 +125,7 @@ class TestManagerSystem(Component):
         for id, catid, page_name, name, author, ts  in cursor:
             yield id, catid, page_name, name, author, str(from_any_timestamp(ts))
 
-    def list_testplans_for_testcase(self, id):
-        """Returns a list of test plans for the specified test case."""
 
-        db = self.env.get_db_cnx()
-        cursor = db.cursor()
-
-        sql = "SELECT testplan.id, catid, page_name, name, author, time, status FROM testplan, testcase WHERE testplan.id=testcase.planid AND testcase.id='"+str(id)+"' ORDER BY name"
-        
-        cursor.execute(sql)
-        for id, catid, page_name, name, author, ts, status in cursor:
-            yield id, catid, page_name, name, author, str(from_any_timestamp(ts)), status
-
-    def delete_testplan(self, id):
-        """Delete a test plan."""
-
-        try:
-            db = self.env.get_db_cnx()
-            cursor = db.cursor()
-
-            sql = "DELETE FROM testplan WHERE id='"+str(id)+"'"
-            
-            cursor.execute(sql)
-            db.commit()
-
-            cursor = db.cursor()
-
-            sql = "DELETE FROM testcaseinplan WHERE planid='"+str(id)+"'"
-            
-            cursor.execute(sql)
-            db.commit()
-
-            cursor = db.cursor()
-
-            sql = "DELETE FROM testcasehistory WHERE planid='"+str(id)+"'"
-            
-            cursor.execute(sql)
-            db.commit()
-        except:
-            print (self._formatExceptionInfo())
-            db.rollback()
-            raise
-
-            
     # IPermissionRequestor methods
     def get_permission_actions(self):
         return ['TEST_VIEW', 'TEST_MODIFY', 'TEST_EXECUTE', 'TEST_DELETE', 'TEST_PLAN_ADMIN']
@@ -362,34 +134,65 @@ class TestManagerSystem(Component):
     # IRequestHandler methods
 
     def match_request(self, req):
-        return req.path_info.startswith('/teststatusupdate') and 'TEST_EXECUTE' in req.perm
+        return (req.path_info.startswith('/teststatusupdate') and 'TEST_EXECUTE' in req.perm) or (req.path_info.startswith('/testpropertyupdate') and 'TEST_MODIFY' in req.perm)
 
     def process_request(self, req):
         """Handles Ajax requests to set the test case status."""
 
-        req.perm.require('TEST_EXECUTE')
-        
-        # Print the status of all test cases
-        #self.report_testcase_status()
-    
-        id = req.args.get('id')
-        planid = req.args.get('planid')
-        path = req.args.get('path')
-        status = req.args.get('status')
         author = get_reporter_id(req, 'author')
 
-        try:
-            self.env.log.debug("Setting status %s to test case %s in plan %s" % (status, id, planid))
-            tcip = TestCaseInPlan(self.env, id, planid)
-            if tcip.exists:
-                tcip.set_status(status, author)
-                tcip.save_changes(author, "Status changed")
-            else:
-                tcip['page_name'] = path
-                tcip['status'] = status
-                tcip.insert()
-        except:
-            self.env.log.debug(self._formatExceptionInfo())
+        if req.path_info.startswith('/teststatusupdate'):
+            req.perm.require('TEST_EXECUTE')
+        
+            id = req.args.get('id')
+            planid = req.args.get('planid')
+            path = req.args.get('path')
+            status = req.args.get('status')
+
+            try:
+                self.env.log.debug("Setting status %s to test case %s in plan %s" % (status, id, planid))
+                tcip = TestCaseInPlan(self.env, id, planid)
+                if tcip.exists:
+                    tcip.set_status(status, author)
+                    tcip.save_changes(author, "Status changed")
+                else:
+                    tcip['page_name'] = path
+                    tcip['status'] = status
+                    tcip.insert()
+            except:
+                self.env.log.debug(self._formatExceptionInfo())
+        
+        elif req.path_info.startswith('/testpropertyupdate'):
+            req.perm.require('TEST_MODIFY')
+
+            realm = req.args.get('realm')
+            key_str = req.args.get('key')
+            name = req.args.get('name')
+            value = req.args.get('value')
+
+            key = get_dictionary_from_string(key_str)
+
+            try:
+                self.env.log.debug("Setting property %s to %s, in %s with key %s" % (name, value, realm, key))
+                
+                tmmodelprovider = TestManagerModelProvider(self.env)
+                obj = tmmodelprovider.get_object(realm, key)
+                
+                obj[name] = value
+                obj.author = author
+                obj.remote_addr = req.remote_addr
+                if obj is not None and obj.exists:
+                    obj.save_changes(author, "Custom property changed")
+                else:
+                    self.env.log.debug("Object to update not found. Creating it.")
+                    props_str = req.args.get('props')
+                    if props_str is not None and not props_str == '':
+                        props = get_dictionary_from_string(props_str)
+                        obj.set_values(props)
+                    obj.insert()
+            except:
+                self.env.log.debug(self._formatExceptionInfo())
+
         
         return 'empty.html', {}, None
 

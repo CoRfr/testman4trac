@@ -182,10 +182,12 @@ function highlight(string) {
         var nodes=document.getElementById("ticketContainer").getElementsByTagName("a");
         for(var i=0;i<nodes.length;i++) {
             var n=nodes.item(i);
-            if (filterMatch(n, n.nextSibling, res)) {
-                select(n);
-            }else{
-                deselect(n);
+            if (n.nextSibling) {
+                if (filterMatch(n, n.nextSibling, res)) {
+                    select(n);
+                } else {
+                    deselect(n);
+                }
             }
         }
 
@@ -297,6 +299,16 @@ function removeUnderlineLink(id) {
     el.style.textDecoration = 'none';
 }
 
+function showPencil(id) {
+    el = document.getElementById(id);
+    el.style.display = '';
+}
+
+function hidePencil(id) {
+    el = document.getElementById(id);
+    el.style.display = 'none';
+}
+
 /******************************************************/
 /**        Test case in plan status management        */
 /******************************************************/
@@ -305,7 +317,7 @@ function changestate(tc, planid, path, newStatus) {
 
     var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus+"&path="+path;
     
-    xmlDoc = doAjaxCall(url); 
+    result = doAjaxCall(url); 
     
     oldIconSpan = document.getElementById("tcStatus"+currStatus);
     oldIconSpan.style.border="";
@@ -313,8 +325,8 @@ function changestate(tc, planid, path, newStatus) {
     newIconSpan = document.getElementById("tcStatus"+newStatus);
     newIconSpan.style.border="2px solid black";
     
-    document.getElementById("tcTitleStatusIcon"+currStatus).style.display="none";
-    document.getElementById("tcTitleStatusIcon"+newStatus).style.display="block";
+    displayNode("tcTitleStatusIcon"+currStatus, false);
+    displayNode("tcTitleStatusIcon"+newStatus, true);
     
     currStatus = newStatus; 
 }
@@ -367,6 +379,34 @@ function doAjaxCall(url) {
     responseText = xmlhttp.responseText;
     
     return responseText;
+}
+
+function editField(name) {
+    displayNode('custom_field_value_'+name, false);
+    displayNode('custom_field_'+name, true);
+    displayNode('update_button_'+name, true);
+}
+
+function sendUpdate(realm, name) {
+   	var objKeyField = document.getElementById("obj_key_field");
+    var objKey = objKeyField.value;
+
+   	var objPropsField = document.getElementById("obj_props_field");
+    var objProps = objPropsField.value;
+
+   	var inputField = document.getElementById("custom_field_"+name);
+	var value = inputField.value;
+    
+    var url = baseLocation+"/testpropertyupdate?realm="+realm+"&key="+objKey+"&props="+objProps+"&name="+name+"&value="+value;
+    
+    result = doAjaxCall(url); 
+
+   	var readonlyField = document.getElementById("custom_field_value_"+name);
+    readonlyField.innerHTML = value;
+
+    displayNode('custom_field_value_'+name, true);
+    displayNode('custom_field_'+name, false);
+    displayNode('update_button_'+name, false);
 }
 
 /**

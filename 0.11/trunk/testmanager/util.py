@@ -5,13 +5,14 @@
 
 import re
 from trac.core import *
+from trac.util.text import CRLF
 
 def get_page_title(text):
     return text.split('\n')[0].strip('\r\n').strip('= \'')
 
     
 def get_page_description(text):
-    return text.split('\n')[1]
+    return text.partition(CRLF)[2]
 
     
 def formatExceptionInfo(maxTBlevel=5):
@@ -91,4 +92,37 @@ def to_list(params=[]):
     
     return tuple(result)
   
+
+def get_dictionary_from_string(str):
+    result = {}
+
+    sub = str.partition('{')[2].rpartition('}')[0]
+    tokens = sub.split(",")
+
+    for tok in tokens:
+        name = remove_quotes(tok.partition(':')[0])
+        value = remove_quotes(tok.partition(':')[2])
+        
+        result[name] = value
+
+    return result
+
+
+def get_string_from_dictionary(dictionary, values=None):
+    if values is None:
+        values = dictionary
     
+    result = '{'
+    for i, k in enumerate(dictionary):
+        result += "'"+k+"':'"+values[k]+"'"
+        if i < len(dictionary)-1:
+            result += ","
+    
+    result += '}'
+    
+    return result
+
+
+def remove_quotes(str, quote='\''):
+    return str.partition(quote)[2].rpartition(quote)[0]
+

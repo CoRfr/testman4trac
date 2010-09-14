@@ -41,14 +41,16 @@ class AbstractVariableFieldsObject(object):
         self.fields = TestManagerModelProvider(self.env).get_fields(realm)
         self.time_fields = [f['name'] for f in self.fields
                             if f['type'] == 'time']
-                            
+
+        if key is not None and len(key) > 0:
+            self.key = key
+            
         if not key or not self._fetch_object(key, db):
             self._init_defaults(db)
-            self.key = None
             self.exists = False
 
         self.env.log.debug("Exists: %s" % self.exists)
-        print(self.values)
+        self.env.log.debug(self.values)
         
         self._old = {}
 
@@ -181,12 +183,15 @@ class AbstractVariableFieldsObject(object):
     def post_delete(self, db):
         pass
         
+    def pre_save_as(self, old_key, new_key, db):
+        return True
+        
     def post_save_as(self, old_key, new_key, db):
         pass
         
     def pre_list_matching_objects(self, db):
         return True
-     
+    
     def build_key_object(self):
         key = None
         for k in self.get_key_prop_names():
@@ -195,8 +200,18 @@ class AbstractVariableFieldsObject(object):
                     key = {}
 
                 key[k] = self.values[k]
-            
+        
         return key
+
+    def gey_key_string(self):
+        """ Returns a JSON string with the object key properties
+        """
+        return get_string_from_dictionary(self.key)
+
+    def get_values_as_string(self, props):
+        """ Returns a JSON string for the specified object properties
+        """
+        return get_string_from_dictionary(props, self.values)
 
     def __getitem__(self, name):
         return self.values.get(name)
@@ -204,7 +219,9 @@ class AbstractVariableFieldsObject(object):
     def __setitem__(self, name, value):
         """Log object modifications so the table ticket_change can be updated
         """
-        self.env.log.debug("Value before: %s" % self.values[name])
+        if name in self.values:
+            self.env.log.debug("Value before: %s" % self.values[name])
+            
         if name in self.values and self.values[name] == value:
             return
         if name not in self._old: # Changed field
@@ -293,6 +310,7 @@ class AbstractVariableFieldsObject(object):
             key_names = self.get_key_prop_names()
             key_values = self.get_key_prop_values()
             if custom_fields:
+                self.env.log.debug('  Inserting custom fields')
                 cursor.executemany("""
                 INSERT INTO %s_custom (%s,name,value) VALUES (%s,%%s,%%s)
                 """ 
@@ -438,17 +456,24 @@ class AbstractVariableFieldsObject(object):
                 
             #Attachment.delete_all(self.env, 'ticket', self.id, db)
 
+            cursor = db.cursor()
+
             key_names = self.get_key_prop_names()
             key_values = self.get_key_prop_values()
-            sql_where = '1=1'
+
+            sql_where = 'WHERE 1=1'
             for k in key_names:
                 sql_where += " AND " + k + "=%%s" 
+
+            self.env.log.debug("Deleting %s: %s" % (self.realm, sql_where))
+            for k in key_names:
+                self.env.log.debug("%s = %s" % (k, self[k]))
                            
-            cursor.execute(("DELETE FROM %s WHERE " + sql_where)
+            cursor.execute(("DELETE FROM %s " + sql_where)
                 % self.realm, key_values)
-            cursor.execute(("DELETE FROM %s_change WHERE " + sql_where)
+            cursor.execute(("DELETE FROM %s_change " + sql_where)
                 % self.realm, key_values)
-            cursor.execute(("DELETE FROM %s_custom WHERE " + sql_where) 
+            cursor.execute(("DELETE FROM %s_custom " + sql_where) 
                 % self.realm, key_values)
 
             self.post_delete(db)
@@ -458,32 +483,42 @@ class AbstractVariableFieldsObject(object):
             listener.object_deleted(self.realm, self)
         
         self.exists = False
+        self.env.log.debug('<<< delete')
 
     def save_as(self, new_key, when=None, db=None):
+        self.env.log.debug('>>> save_as')
+
         old_key = self.key
-        self.key = new_key
-    
-        # Copy values from key into corresponding self.values field
-        for f in self.get_key_prop_names():
-             self.values[f] = new_key[f]
-
-        self.exists = False
+        if self.pre_save_as(old_key, new_key, db):
+            self.key = new_key
         
-        # Create object with new key
-        self.insert(when, db)
-    
-        self.post_save_as(old_key, new_key, db)
+            # Copy values from key into corresponding self.values field
+            for f in self.get_key_prop_names():
+                 self.values[f] = new_key[f]
 
-        self.env.log.debug('<<< delete')
+            self.exists = False
+
+            # Create object with new key
+            self.insert(when, db)
+        
+            self.post_save_as(old_key, new_key, db)
+
+        self.env.log.debug('<<< save_as')
         
     def get_non_empty_prop_names(self):
-        result = []
-        
-        for n in self.values:
-            if self.values[n] is not None:
-                result.append(n)
+        std_field_names = []
+        custom_field_names = []
+
+        for field in self.fields:
+            n = field.get('name')
+
+            if n in self.values and self.values[n] is not None:
+                if not field.get('custom'):
+                    std_field_names.append(n)
+                else:
+                    custom_field_names.append(n)
                 
-        return result
+        return std_field_names, custom_field_names
         
     def get_values(self, prop_names):
         result = []
@@ -492,6 +527,14 @@ class AbstractVariableFieldsObject(object):
             result.append(self.values[n])
                 
         return result
+                
+    def set_values(self, props):
+        """Sets multiple properties into this object.
+        
+        Note: this method does not keep track of property changes.
+        """
+        for n in props:
+            self.values[n] = props[n]
                 
     def _get_key_from_row(self, row):
         key = {}
@@ -519,16 +562,18 @@ class AbstractVariableFieldsObject(object):
         #try:
         cursor = db.cursor()
 
-        non_empty_names = self.get_non_empty_prop_names()
-        non_empty_values = self.get_values(non_empty_names)
+        non_empty_std_names, non_empty_custom_names = self.get_non_empty_prop_names()
+        
+        non_empty_std_values = self.get_values(non_empty_std_names)
+        non_empty_custom_values = self.get_values(non_empty_custom_names)
 
         sql_where = '1=1'
-        for k in non_empty_names:
+        for k in non_empty_std_names:
             sql_where += " AND " + k + "=%%s" 
         
         cursor.execute(("SELECT %s FROM %s WHERE " + sql_where)
                        % (','.join(self.get_key_prop_names()), self.realm), 
-                       non_empty_values)
+                       non_empty_std_values)
 
         for row in cursor:
             key = self._get_key_from_row(row)
@@ -604,6 +649,8 @@ class AbstractTestDescription(AbstractWikiPageWrapper):
 
     def __init__(self, env, realm='testdescription', id=None, page_name=None, title=None, description=None, db=None):
     
+        self.env = env
+        
         self.values = {}
 
         self.values['id'] = id
@@ -611,6 +658,9 @@ class AbstractTestDescription(AbstractWikiPageWrapper):
 
         self.title = title
         self.description = description
+
+        self.env.log.debug('Title: %s' % self.title)
+        self.env.log.debug('Description: %s' % self.description)
     
         key = self.build_key_object()
     
@@ -622,15 +672,18 @@ class AbstractTestDescription(AbstractWikiPageWrapper):
 
         # Then parse it and derive title, description and author
         self.title = get_page_title(self.wikipage.text)
-        self.description = get_page_title(self.wikipage.text)
+        self.description = get_page_description(self.wikipage.text)
         self.author = self.wikipage.author
+
+        self.env.log.debug('Title: %s' % self.title)
+        self.env.log.debug('Description: %s' % self.description)
 
     def pre_insert(self, db):
         """ Assuming the following fields have been given a value before this call:
             title, description, author, remote_addr 
         """
     
-        self.text = self.title + CRLF + CRLF + self.description
+        self.text = '== '+self.title+' ==' + CRLF + CRLF + self.description
         AbstractWikiPageWrapper.pre_insert(self, db)
 
         return True
@@ -640,7 +693,7 @@ class AbstractTestDescription(AbstractWikiPageWrapper):
             title, description, author, remote_addr 
         """
     
-        self.text = self.title + CRLF + CRLF + self.description
+        self.text = '== '+self.title+' ==' + CRLF + CRLF + self.description
         AbstractWikiPageWrapper.pre_save_changes(self, db)
         
         return True
@@ -677,7 +730,10 @@ class TestCase(AbstractTestDescription):
 
     def get_enclosing_catalog(self):
         page_name = self.values['page_name']
-        return TestCatalog(self.env, page_name.rpartition('TT')[2].rpartition('_')[0], page_name.rpartition('_TC')[0])
+        cat_id = page_name.rpartition('TT')[2].rpartition('_')[0]
+        cat_page = page_name.rpartition('_TC')[0]
+        
+        return TestCatalog(self.env, cat_id, cat_page)
         
     def create_instance(self, key):
         return TestCase(self.env, key['id'])
@@ -693,6 +749,9 @@ class TestCase(AbstractTestDescription):
         # Create new wiki page to store the test case
         new_page_name = tcat['page_name'] + '_TC' + self['id']
         new_page = WikiPage(self.env, new_page_name)
+        
+        print (text)
+        
         new_page.text = text
         new_page.save(self.author, "Moved from catalog \"%s\" (%s)" % (old_cat.title, old_cat['page_name']), '127.0.0.1')
 
@@ -785,59 +844,73 @@ def simplify_whitespace(name):
 class TestManagerModelProvider(Component):
     implements(IEnvironmentSetupParticipant)
 
-    SCHEMA = None
-    
-    def __init__(self):
-        self.SCHEMA = []
-        self.SCHEMA.append({'table':
-                                Table('testconfig', key = ('propname'))[
-                                  Column('propname'),
-                                  Column('value')],
-                             'has_custom': False,
-                             'has_change': False})        
+    SCHEMA = [
+                {'table':
+                    Table('testconfig', key = ('propname'))[
+                      Column('propname'),
+                      Column('value')],
+                 'has_custom': False,
+                 'has_change': False},
+                {'table':
+                    Table('testcatalog', key = ('id'))[
+                          Column('id'),
+                          Column('page_name')],
+                 'has_custom': True,
+                 'has_change': True},
+                {'table':
+                    Table('testcase', key = ('id'))[
+                          Column('id'),
+                          Column('page_name')],
+                 'has_custom': True,
+                 'has_change': True},
+                {'table':
+                    Table('testcaseinplan', key = ('id', 'planid'))[
+                          Column('id'),
+                          Column('planid'),
+                          Column('page_name'),
+                          Column('status')],
+                 'has_custom': True,
+                 'has_change': True},
+                {'table':
+                    Table('testcasehistory', key = ('id', 'planid', 'time'))[
+                          Column('id'),
+                          Column('planid'),
+                          Column('time', type='int64'),
+                          Column('author'),
+                          Column('status'),
+                          Index(['id', 'planid', 'time'])],
+                 'has_custom': False,
+                 'has_change': False},
+                {'table':
+                    Table('testplan', key = ('id'))[
+                          Column('id'),
+                          Column('catid'),
+                          Column('page_name'),
+                          Column('name'),
+                          Column('author'),
+                          Column('time', type='int64'),
+                          Index(['id']),
+                          Index(['catid'])],
+                 'has_custom': True,
+                 'has_change': True}
+            ]
 
-        self.SCHEMA.append({'table':
-                                Table('testcatalog', key = ('id'))[
-                                      Column('id'),
-                                      Column('page_name')],
-                             'has_custom': True,
-                             'has_change': True})
-        self.SCHEMA.append({'table':
-                                Table('testcase', key = ('id'))[
-                                      Column('id'),
-                                      Column('page_name')],
-                             'has_custom': True,
-                             'has_change': True})
-        self.SCHEMA.append({'table':
-                                Table('testcaseinplan', key = ('id', 'planid'))[
-                                      Column('id'),
-                                      Column('planid'),
-                                      Column('page_name'),
-                                      Column('status')],
-                             'has_custom': True,
-                             'has_change': True})
-        self.SCHEMA.append({'table':
-                                Table('testcasehistory', key = ('id', 'planid', 'time'))[
-                                      Column('id'),
-                                      Column('planid'),
-                                      Column('time', type='int64'),
-                                      Column('author'),
-                                      Column('status'),
-                                      Index(['id', 'planid', 'time'])],
-                             'has_custom': False,
-                             'has_change': False})
-        self.SCHEMA.append({'table':
-                                Table('testplan', key = ('id'))[
-                                      Column('id'),
-                                      Column('catid'),
-                                      Column('page_name'),
-                                      Column('name'),
-                                      Column('author'),
-                                      Column('time', type='int64'),
-                                      Index(['id']),
-                                      Index(['catid'])],
-                             'has_custom': True,
-                             'has_change': True})
+
+    # Factory method
+    def get_object(self, realm, key):
+        obj = None
+        
+        if realm == 'testcatalog':
+            obj = TestCatalog(self.env, key['id'])
+        elif realm == 'testcase':
+            obj = TestCase(self.env, key['id'])
+        elif realm == 'testcaseinplan':
+            obj = TestCaseInPlan(self.env, key['id'], key['planid'])
+        elif realm == 'testplan':
+            obj = TestPlan(self.env, key['id'])
+        
+        return obj
+        
 
     # IEnvironmentSetupParticipant methods
     def environment_created(self):
@@ -902,7 +975,6 @@ class TestManagerModelProvider(Component):
                     self.env.log.debug(stmt)
                     cursor.execute(stmt)
   
-                    
                 # Create custom fields table if required
                 if table_metadata['has_custom']:
                     cols = []
@@ -982,10 +1054,14 @@ class TestManagerModelProvider(Component):
         self.all_fields = {}
         
     def get_fields(self, realm):
+        self.env.log.debug(">>> get_fields")
+        
         fields = copy.deepcopy(self.fields()[realm])
         #label = 'label' # workaround gettext extraction bug
         #for f in fields:
         #    f[label] = gettext(f[label])
+
+        self.env.log.debug("<<< get_fields")
         return fields
         
     def get_ticket_field_labels(self):
@@ -995,6 +1071,8 @@ class TestManagerModelProvider(Component):
 
     def fields(self):
         """Return the list of fields available for every realm."""
+
+        self.env.log.debug(">>> fields")
 
         if not self.all_fields:
             fields = {}
@@ -1049,6 +1127,15 @@ class TestManagerModelProvider(Component):
 
             self.all_fields = fields
 
+            for r in self.all_fields:
+                self.env.log.debug("Fields for realm %s:" % r)
+                for f in self.all_fields[r]:
+                    self.env.log.debug("   %s : %s" % (f['name'], f['type']))
+                    if 'custom' in f:
+                        self.env.log.debug("     (custom)")
+
+        self.env.log.debug("<<< fields")
+
         return self.all_fields
 
     def append_custom_fields(self, fields, custom_fields):
@@ -1071,15 +1158,22 @@ class TestManagerModelProvider(Component):
     def custom_fields(self, realm):
         """Return the list of available custom fields."""
         
+        self.env.log.debug(">>> custom_fields")
+        
         if not realm in self.all_custom_fields:
             fields = []
-            config = self.config[realm+'-custom']
+            config = self.config[realm+'-tm_custom']
+
+            self.env.log.debug(config.options())
+    
             for name in [option for option, value in config.options()
                          if '.' not in option]:
                 if not re.match('^[a-zA-Z][a-zA-Z0-9_]+$', name):
                     self.log.warning('Invalid name for custom field: "%s" '
                                      '(ignoring)', name)
                     continue
+
+                self.env.log.debug("  Option: %s" % name)
                          
                 field = {
                     'name': name,
@@ -1104,6 +1198,8 @@ class TestManagerModelProvider(Component):
             fields.sort(lambda x, y: cmp(x['order'], y['order']))
             
             self.all_custom_fields[realm] = fields
+
+        self.env.log.debug("<<< custom_fields")
             
         return self.all_custom_fields[realm]
 
