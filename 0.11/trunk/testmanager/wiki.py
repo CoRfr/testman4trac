@@ -31,6 +31,7 @@ from testmanager.api import TestManagerSystem
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
+from testmanager.workflow import IWorkflowOperationProvider, ResourceWorkflowState, ResourceWorkflowSystem
 
 
 class WikiTestManagerInterface(Component):
@@ -141,13 +142,12 @@ class WikiTestManagerInterface(Component):
                     tc_id = tcId.rpartition('_TC')[2]
                     tc = TestCase(self.env, tc_id, tcId)
                     if tc.exists:
-                        print tc.wikipage.text
-                        tc.move_to(tcat)
+                       tc.move_to(tcat)
                     else:
-                        print("Test case not found")
+                        self.env.log.debug("Test case not found")
                 except:
-                    print "Error pasting test case!"
-                    print self._formatExceptionInfo()
+                    self.env.log.debug("Error pasting test case!")
+                    self.env.log.debug(self._formatExceptionInfo())
                     req.redirect(req.path_info)
             
                 # Redirect to test catalog, forcing a page refresh by means of a random request parameter
@@ -170,8 +170,8 @@ class WikiTestManagerInterface(Component):
                     # And save it under the new id
                     new_tc.save_as({'id': id})
                 except:
-                    print "Error duplicating test case!"
-                    print self._formatExceptionInfo()
+                    self.env.log.debug("Error duplicating test case!")
+                    self.env.log.debug(self._formatExceptionInfo())
                     req.redirect(req.path_info)
 
                 # Redirect tp allow for editing the copy test case
@@ -186,8 +186,8 @@ class WikiTestManagerInterface(Component):
                     # This also creates the Wiki page
                     new_tc.insert()
                 except:
-                    print "Error adding test case!"
-                    print self._formatExceptionInfo()
+                    self.env.log.debug("Error adding test case!")
+                    self.env.log.debug(self._formatExceptionInfo())
                     req.redirect(req.path_info)
 
                 # Redirect to edit the test case description
@@ -213,7 +213,7 @@ class WikiTestManagerInterface(Component):
             if tc.exists:
                 tc.delete(del_wiki_page=False)
             else:
-                print("Test case not found")
+                self.env.log.debug("Test case not found")
 
     def wiki_page_version_deleted(self, page):
         pass
@@ -599,4 +599,130 @@ class WikiTestManagerInterface(Component):
         excTb = traceback.format_tb(trbk, maxTBlevel)
         return (excName, excArgs, excTb)
 
+
+# Workflow support
+class TestManagerWorkflowInterface(Component):
+    """Adds workflow capabilities to the TestManager plugin."""
+    
+    implements(IWorkflowOperationProvider, ITemplateStreamFilter)
+
+    # IWorkflowOperationProvider methods
+    def get_implemented_operations(self):
+        self.log.debug(">>> TestManagerWorkflowInterface - get_implemented_operations")
+        self.log.debug("<<< TestManagerWorkflowInterface - get_implemented_operations")
+
+        yield 'sample_operation'
+
+    def get_operation_control(self, req, action, operation, res_wf_state, resource):
+        self.log.debug(">>> TestManagerWorkflowInterface - get_operation_control: %s" % operation)
+
+        if operation == 'sample_operation':
+            id = 'action_%s_operation_%s' % (action, operation)
+            speech = 'Hello World!'
+
+            control = tag.input(type='text', id=id, name=id, 
+                                    value=speech)
+            hint = "Will sing %s" % speech
+
+            self.log.debug("<<< TestManagerWorkflowInterface - get_operation_control")
+            
+            return control, hint
         
+        return None, ''
+        
+    def perform_operation(self, req, action, operation, old_state, new_state, res_wf_state, resource):
+        self.log.debug("---> Performing operation %s while transitioning from %s to %s."
+            % (operation, old_state, new_state))
+
+        speech = req.args.get('action_%s_operation_%s' % (action, operation), 'Not found!')
+
+        self.log.debug("        The speech is %s" % speech)
+
+
+    # ITemplateStreamFilter methods
+    
+    def filter_stream(self, req, method, filename, stream, data):
+        page_name = req.args.get('page', 'WikiStart')
+        planid = req.args.get('planid', '-1')
+
+        formatter = Formatter(
+            self.env, Context.from_request(req, Resource('testmanager'))
+            )
+        
+        if page_name.startswith('TC') and filename == 'wiki_view.html':
+            self.log.debug(">>> TestManagerWorkflowInterface - filter_stream")
+            req.perm.require('TEST_VIEW')
+            
+            tmmodelprovider = TestManagerModelProvider(self.env)
+            rwsystem = ResourceWorkflowSystem(self.env)
+
+            realm = None
+            if page_name.find('_TC') >= 0:
+                if not planid or planid == '-1':
+                    realm = 'testcase'
+                    key = {'id': page_name.rpartition('_TC')[2]}
+                else:
+                    realm = 'testcaseinplan'
+                    key = {'id': page_name.rpartition('_TC')[2], 'planid': planid}
+            else:
+                if not planid or planid == '-1':
+                    realm = 'testcatalog'
+                    key = {'id': page_name.rpartition('_TT')[2]}
+                else:
+                    realm = 'testplan'
+                    key = {'id': planid}
+
+            obj = tmmodelprovider.get_object(realm, key)
+
+            selected_action = req.args.get('action', '')
+        
+            # action_controls is an ordered list of "renders" tuples, where
+            # renders is a list of (action_key, label, widgets, hints) representing
+            # the user interface for each action
+            action_controls = []
+            sorted_actions = rwsystem.get_available_actions(
+                req, realm, resource=obj.resource)
+            
+            for action in sorted_actions:
+                first_label = None
+                hints = []
+                widgets = []
+
+                label, widget, hint = rwsystem.get_action_markup(req, realm, action[1], obj.resource)
+
+                if not first_label:
+                    first_label = label
+
+                widgets.append(widget)
+                hints.append(hint)
+
+                action_controls.append((action[1], first_label, tag(widgets), hints))
+
+            form = tag.form(id='resource_workflow_form', 
+                    name='resource_workflow_form', 
+                    action='../workflowtransition', 
+                    method='get')(
+                        tag.input(name='id', type='hidden', value=obj.resource.id),
+                        tag.input(name='res_realm', type='hidden', value=realm)
+                    )
+                    
+            for c in action_controls:
+                form.append(c[2])
+                form.append(c[3])
+                
+            form.append(tag.span()(
+                            tag.br(),
+                            tag.input(id='resource_workflow_form_submit_button', type='submit', value='Perform Action')
+                            ))
+
+            # The default action is the first in the action_controls list.
+            #if not selected_action:
+            #    if action_controls:
+            #        selected_action = action_controls[0][0]
+
+            self.log.debug("<<< TestManagerWorkflowInterface - filter_stream")
+
+            return stream | Transformer('//div[contains(@class,"wikipage")]').after(form) 
+
+        return stream
+

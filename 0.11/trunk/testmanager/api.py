@@ -11,6 +11,7 @@ import traceback
 from datetime import datetime
 from trac.core import *
 from trac.perm import IPermissionRequestor, PermissionError
+from trac.resource import IResourceManager
 from trac.util import get_reporter_id
 from trac.util.datefmt import utc
 from trac.util.translation import _, N_, gettext
@@ -43,7 +44,7 @@ class ITestObjectChangeListener(Interface):
 class TestManagerSystem(Component):
     """Test Manager system for Trac."""
 
-    implements(IPermissionRequestor, IRequestHandler)
+    implements(IPermissionRequestor, IRequestHandler, IResourceManager)
 
     change_listeners = ExtensionPoint(ITestObjectChangeListener)
 
@@ -71,7 +72,7 @@ class TestManagerSystem(Component):
             db.rollback()
             raise
 
-        return id
+        return str(id)
     
     def set_next_id(self, type, value):
         propname = _get_next_prop_name(type)
@@ -195,6 +196,43 @@ class TestManagerSystem(Component):
 
         
         return 'empty.html', {}, None
+
+
+    # IResourceManager methods
+    
+    def get_resource_realms(self):
+        yield 'testcatalog'
+        yield 'testcase'
+        yield 'testcaseinplan'
+        yield 'testplan'
+
+    def get_resource_url(self, resource, href, **kwargs):
+        tmmodelprovider = TestManagerModelProvider(self.env)
+        obj = tmmodelprovider.get_object(resource.realm, get_dictionary_from_string(resource.id))
+        
+        if obj.exists:
+            args = {}
+            
+            if resource.realm == 'testcaseinplan':
+                args = {'planid': obj['planid']}
+            elif resource.realm == 'testplan':
+                args = {'planid': obj['id']}
+
+            args.update(kwargs)
+                 
+            return href('wiki', obj['page_name'], **args)
+        else:
+            return href('wiki', 'TC', **kwargs)
+
+    def get_resource_description(self, resource, format='default', context=None,
+                                 **kwargs):
+        return resource.id
+
+    def resource_exists(self, resource):
+        tmmodelprovider = TestManagerModelProvider(self.env)
+        obj = tmmodelprovider.get_object(resource.realm, get_dictionary_from_string(resource.id))
+        
+        return obj.exists
 
         
     # Internal methods

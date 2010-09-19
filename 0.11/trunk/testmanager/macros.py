@@ -74,7 +74,7 @@ class TestPlanTreeMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = int(kw.get('planid', -1))
+        planid = kw.get('planid', -1)
         catpath = kw.get('catalog_path', 'TC')
         
         req = formatter.req
@@ -115,7 +115,7 @@ class TestCaseStatusMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = int(kw.get('planid', -1))
+        planid = kw.get('planid', -1)
         curpage = kw.get('page_name', 'TC')
         
         req = formatter.req
@@ -136,7 +136,7 @@ class TestCaseChangeStatusMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = int(kw.get('planid', -1))
+        planid = kw.get('planid', -1)
         curpage = kw.get('page_name', 'TC')
         
         req = formatter.req
@@ -157,7 +157,7 @@ class TestCaseStatusHistoryMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = int(kw.get('planid', -1))
+        planid = kw.get('planid', -1)
         curpage = kw.get('page_name', 'TC')
         
         req = formatter.req
