@@ -14,6 +14,8 @@ A Trac plugin to create Test Cases, organize them in catalogs, generate test pla
 =================================================================================================  
 Change History:
 
+(Refer to the tickets on trac-hacks for complete descriptions.)
+
 Release 1.2.0 (2010-09-20):
   o The data model has been completely rewritten, now using python classes for all the test objects.
     A generic object supporting programmatic definition of its standard fields, declarative 
@@ -46,10 +48,56 @@ Release 1.2.0 (2010-09-20):
       to any Trac resource.
       Test objects have been implemented as Trac resources as well, so they benefit of workflow capabilities.
 
+      Available objects 'realms' to associate workflows to are: testcatalog, testcase, testcaseinplan, testplan.
+      
+      Note that the object with realm 'resourceworkflowstate', which manages the state of any resource in a
+      workflow, also supports custom properties (see below), so plugins can augment a resource workflow state
+      with additional context information and use it inside listener callbacks, for example.
+
+      For example, add the following to your trac.ini file to associate a workflow with all Test Case objects.
+      The sample_operation is currently provided by the Test Manager system itself, as an example.
+      It just logs a debug message with the text input by the User in a text field.
+      
+        [testcase-resource_workflow]
+        leave = * -> *
+        leave.operations = sample_operation
+        leave.default = 1
+
+        accept = new -> accepted
+        accept.permissions = TEST_MODIFY
+        accept.operations = sample_operation
+
+        resolve = accepted -> closed
+        resolve.permissions = TEST_MODIFY
+        resolve.operations = sample_operation
+
   o Enhancement #7705 Add support for custom properties and change history to all of the test management objects
       A generic object supporting programmatic definition of its standard fields, declarative definition 
       of custom fields (in trac.ini) and keeping track of change history has been created, by generalizing 
       the base Ticket code.
+      
+      Only text type of properties are currently supported.
+
+      For example, add the following to your trac.ini file to add custom properties to all of the four
+      test objects.
+      Note that the available realms to augment are, as above, testcatalog, testcase, testcaseinplan and testplan, 
+      with the addition of resourceworkflowstate.
+
+        [testcatalog-tm_custom]
+        prop1 = text
+        prop1.value = Default value
+
+        [testcaseinplan-tm_custom]
+        prop_strange = text
+        prop_strange.value = windows
+
+        [testcase-tm_custom]
+        nice_prop = text
+        nice_prop.value = My friend
+
+        [testplan-tm_custom]
+        good_prop = text
+        good_prop.value = linux
 
   o Enhancement #7569 Add listener interface to let other components react to test case status change
       Added listener interface for all of the test objects lifecycle:
