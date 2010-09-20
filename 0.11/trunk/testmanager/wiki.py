@@ -31,13 +31,14 @@ from testmanager.api import TestManagerSystem
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
+from testmanager.util import *
 from testmanager.workflow import IWorkflowOperationProvider, ResourceWorkflowState, ResourceWorkflowSystem
 
 
 class WikiTestManagerInterface(Component):
     """Implement generic template provider."""
     
-    implements(ITemplateProvider, ITemplateStreamFilter, IRequestHandler, IWikiChangeListener)
+    implements(ITemplateProvider, ITemplateStreamFilter, IWikiChangeListener)
     
     # ITemplateProvider
     def get_templates_dirs(self):
@@ -62,137 +63,7 @@ class WikiTestManagerInterface(Component):
         """
         from pkg_resources import resource_filename
         return [('testmanager', resource_filename(__name__, 'htdocs'))]
-
         
-    # IRequestHandler methods
-
-    def match_request(self, req):
-        type = req.args.get('type')
-        return req.path_info.startswith('/testcreate') and (((type == 'catalog' or type == 'testcase') and ('TEST_MODIFY' in req.perm)) or 
-             (type == 'testplan' and ('TEST_PLAN_ADMIN' in req.perm))) 
-
-    def process_request(self, req):
-        type = req.args.get('type')
-        path = req.args.get('path')
-        title = req.args.get('title')
-        author = get_reporter_id(req, 'author')
-
-        autosave = req.args.get('autosave', 'false')
-        duplicate = req.args.get('duplicate')
-        paste = req.args.get('paste')
-        tcId = req.args.get('tcId')
-
-        test_manager_system = TestManagerSystem(self.env)
-        id = test_manager_system.get_next_id(type)
-
-        pagename = path
-        
-        if type == 'catalog':
-            req.perm.require('TEST_MODIFY')
-            pagename += '_TT'+str(id)
-
-            try:
-                new_tc = TestCatalog(self.env, id, pagename, title, '')
-                new_tc.author = author
-                new_tc.remote_addr = req.remote_addr
-                # This also creates the Wiki page
-                new_tc.insert()
-            except:
-                print "Error adding test catalog!"
-                print self._formatExceptionInfo()
-                req.redirect(req.path_info)
-
-            # Redirect to see the new wiki page.
-            req.redirect(req.href.wiki(pagename))
-            
-        elif type == 'testplan':
-            req.perm.require('TEST_PLAN_ADMIN')
-            
-            catid = path.rpartition('_TT')[2]
-
-            try:
-                # Add the new test plan in the database
-                new_tc = TestPlan(self.env, id, catid, pagename, title, author)
-                new_tc.insert()
-
-            except:
-                print "Error adding test plan!"
-                print self._formatExceptionInfo()
-                # Back to the catalog
-                req.redirect(req.href.wiki(path))
-
-            # Display the new test plan
-            req.redirect(req.href.wiki(path, planid=str(id)))
-                
-        elif type == 'testcase':
-            req.perm.require('TEST_MODIFY')
-            
-            pagename += '_TC'+str(id)
-            
-            if paste and paste != '':
-                # Handle move/paste of the test case into another catalog
-
-                req.perm.require('TEST_PLAN_ADMIN')
-
-                try:
-                    catid = path.rpartition('_TT')[2]
-                    tcat = TestCatalog(self.env, catid)
-                    
-                    old_pagename = tcId
-                    tc_id = tcId.rpartition('_TC')[2]
-                    tc = TestCase(self.env, tc_id, tcId)
-                    if tc.exists:
-                       tc.move_to(tcat)
-                    else:
-                        self.env.log.debug("Test case not found")
-                except:
-                    self.env.log.debug("Error pasting test case!")
-                    self.env.log.debug(self._formatExceptionInfo())
-                    req.redirect(req.path_info)
-            
-                # Redirect to test catalog, forcing a page refresh by means of a random request parameter
-                req.redirect(req.href.wiki(pagename.rpartition('_TC')[0], random=str(datetime.now(utc).microsecond)))
-                
-            elif duplicate and duplicate != '':
-                # Duplicate test case
-                old_id = tcId.rpartition('_TC')[2]
-                old_pagename = tcId
-                try:
-                    old_tc = TestCase(self.env, old_id, old_pagename)
-                    
-                    # New test case name will be the old catalog name + the newly generated test case ID
-                    author = get_reporter_id(req, 'author')
-                    
-                    # Create new test case wiki page as a copy of the old one, but change its page path
-                    new_tc = old_tc
-                    new_tc['page_name'] = pagename
-                    new_tc.remote_addr = req.remote_addr
-                    # And save it under the new id
-                    new_tc.save_as({'id': id})
-                except:
-                    self.env.log.debug("Error duplicating test case!")
-                    self.env.log.debug(self._formatExceptionInfo())
-                    req.redirect(req.path_info)
-
-                # Redirect tp allow for editing the copy test case
-                req.redirect(req.href.wiki(pagename, action='edit'))
-                
-            else:
-                # Normal creation of a new test case
-                try:
-                    new_tc = TestCase(self.env, id, pagename, title, '')
-                    new_tc.author = author
-                    new_tc.remote_addr = req.remote_addr
-                    # This also creates the Wiki page
-                    new_tc.insert()
-                except:
-                    self.env.log.debug("Error adding test case!")
-                    self.env.log.debug(self._formatExceptionInfo())
-                    req.redirect(req.path_info)
-
-                # Redirect to edit the test case description
-                req.redirect(req.href.wiki(pagename, action='edit'))
-
         
     # IWikiChangeListener methods
     
@@ -212,6 +83,9 @@ class WikiTestManagerInterface(Component):
             tc = TestCase(self.env, tc_id)
             if tc.exists:
                 tc.delete(del_wiki_page=False)
+
+                TestManagerSystem(self.env).object_deleted(tc)
+                
             else:
                 self.env.log.debug("Test case not found")
 
@@ -645,17 +519,17 @@ class TestManagerWorkflowInterface(Component):
         page_name = req.args.get('page', 'WikiStart')
         planid = req.args.get('planid', '-1')
 
-        formatter = Formatter(
-            self.env, Context.from_request(req, Resource('testmanager'))
-            )
-        
+        if page_name == 'TC':
+            # The root catalog does not have workflows
+            return stream
+
         if page_name.startswith('TC') and filename == 'wiki_view.html':
             self.log.debug(">>> TestManagerWorkflowInterface - filter_stream")
             req.perm.require('TEST_VIEW')
             
-            tmmodelprovider = TestManagerModelProvider(self.env)
-            rwsystem = ResourceWorkflowSystem(self.env)
-
+            # Determine which object is being displayed (i.e. realm), 
+            # based on Wiki page name and the presence of the planid 
+            # request parameter.
             realm = None
             if page_name.find('_TC') >= 0:
                 if not planid or planid == '-1':
@@ -672,57 +546,15 @@ class TestManagerWorkflowInterface(Component):
                     realm = 'testplan'
                     key = {'id': planid}
 
-            obj = tmmodelprovider.get_object(realm, key)
+            id = get_string_from_dictionary(key)
+            res = Resource(realm, id)
 
-            selected_action = req.args.get('action', '')
-        
-            # action_controls is an ordered list of "renders" tuples, where
-            # renders is a list of (action_key, label, widgets, hints) representing
-            # the user interface for each action
-            action_controls = []
-            sorted_actions = rwsystem.get_available_actions(
-                req, realm, resource=obj.resource)
+            rwsystem = ResourceWorkflowSystem(self.env)
+            workflow_markup = rwsystem.get_workflow_markup(req, '..', realm, res)
             
-            for action in sorted_actions:
-                first_label = None
-                hints = []
-                widgets = []
-
-                label, widget, hint = rwsystem.get_action_markup(req, realm, action[1], obj.resource)
-
-                if not first_label:
-                    first_label = label
-
-                widgets.append(widget)
-                hints.append(hint)
-
-                action_controls.append((action[1], first_label, tag(widgets), hints))
-
-            form = tag.form(id='resource_workflow_form', 
-                    name='resource_workflow_form', 
-                    action='../workflowtransition', 
-                    method='get')(
-                        tag.input(name='id', type='hidden', value=obj.resource.id),
-                        tag.input(name='res_realm', type='hidden', value=realm)
-                    )
-                    
-            for c in action_controls:
-                form.append(c[2])
-                form.append(c[3])
-                
-            form.append(tag.span()(
-                            tag.br(),
-                            tag.input(id='resource_workflow_form_submit_button', type='submit', value='Perform Action')
-                            ))
-
-            # The default action is the first in the action_controls list.
-            #if not selected_action:
-            #    if action_controls:
-            #        selected_action = action_controls[0][0]
-
             self.log.debug("<<< TestManagerWorkflowInterface - filter_stream")
 
-            return stream | Transformer('//div[contains(@class,"wikipage")]').after(form) 
+            return stream | Transformer('//div[contains(@class,"wikipage")]').after(workflow_markup) 
 
         return stream
 

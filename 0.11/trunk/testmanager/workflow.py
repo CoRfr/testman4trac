@@ -30,13 +30,14 @@ class IWorkflowTransitionListener(Interface):
     when objects transition between states.
     """
 
-    def object_transition(res_wf_state, resource, old_state, new_state):
+    def object_transition(res_wf_state, resource, action, old_state, new_state):
         """
-        Called when an object has transitionet to a new state.
+        Called when an object has transitioned to a new state.
 
         :param res_wf_state: the ResourceWorkflowState  
                              transitioned from old_state to new_state
         :param resource: the Resource object transitioned.
+        :param action: the action been performed.
         """
 
 
@@ -47,7 +48,7 @@ class IWorkflowTransitionAuthorization(Interface):
     based on the object and the current and new states.
     """
 
-    def is_authorized(res_wf_state, resource, old_state, new_state):
+    def is_authorized(res_wf_state, resource, action, old_state, new_state):
         """
         Called before allowing the transition.
         Return True to allow for the transition, False to deny it.
@@ -55,6 +56,7 @@ class IWorkflowTransitionAuthorization(Interface):
         :param res_wf_state: the ResourceWorkflowState being 
                              transitioned from old_state to new_state
         :param resource: the Resource object being transitioned.
+        :param action: the action being performed.
         """
 
 
@@ -269,6 +271,69 @@ class ResourceWorkflowSystem(Component):
 
         return (this_action['name'], tag(*controls), '. '.join(hints))
 
+    def get_workflow_markup(self, req, base_href, realm, resource):
+            rws = ResourceWorkflowState(self.env, resource.id, realm)
+
+            # action_controls is an ordered list of "renders" tuples, where
+            # renders is a list of (action_key, label, widgets, hints) representing
+            # the user interface for each action
+            action_controls = []
+            sorted_actions = self.get_available_actions(
+                req, realm, resource=resource)
+            
+            if len(sorted_actions) > 0:
+                for action in sorted_actions:
+                    first_label = None
+                    hints = []
+                    widgets = []
+
+                    label, widget, hint = self.get_action_markup(req, realm, action[1], resource)
+
+                    if not first_label:
+                        first_label = label
+
+                    widgets.append(widget)
+                    hints.append(hint)
+
+                    action_controls.append((action[1], first_label, tag(widgets), hints))
+
+                form = tag.form(id='resource_workflow_form', 
+                        name='resource_workflow_form', 
+                        action=base_href+'/workflowtransition', 
+                        method='get')(
+                            tag.input(name='id', type='hidden', value=resource.id),
+                            tag.input(name='res_realm', type='hidden', value=realm)
+                        )
+                
+                form.append(tag.div()(
+                        tag.span()("Current state: %s" % rws['state']),
+                        tag.br(), tag.br()
+                    ))
+                
+                for i, ac in enumerate(action_controls):
+                    # The default action is the first in the action_controls list.
+                    if i==0:
+                        is_checked = 'true'
+                    else:
+                        is_checked = None
+                    
+                    form.append(tag.input(name='selected_action', type='radio', value=ac[0], checked=is_checked)(
+                        ac[1],
+                        tag.div()(
+                            ac[2],
+                            ac[3]
+                            )
+                        ))
+                
+                form.append(tag.span()(
+                                tag.br(),
+                                tag.input(id='resource_workflow_form_submit_button', type='submit', value='Perform Action')
+                                ))
+            else:
+                form = tag('')
+
+            return form
+
 
     # Workflow operations management
     
@@ -322,11 +387,7 @@ class ResourceWorkflowSystem(Component):
             # Check permission
             #req.perm.require('TEST_EXECUTE')
         
-            action = ''
-            for a in req.args:
-                if a.find('action_') == 0:
-                    action = a.partition('action_')[2].partition('_operation')[0]
-                    break
+            selected_action = req.args.get('selected_action')
         
             id = req.args.get('id')
             res_realm = req.args.get('res_realm')
@@ -339,15 +400,18 @@ class ResourceWorkflowSystem(Component):
             else:
                 curr_state = 'new'
 
-            this_action = self.actions[res_realm][action]
-            new_state = this_action['newstate']        
+            this_action = self.actions[res_realm][selected_action]
+            new_state = this_action['newstate']
+            
+            if new_state == '*':
+                new_state = curr_state
 
-            self.env.log.debug("Transitioning the resource %s in realm %s from the state %s to the state %s" % (id, res_realm, curr_state, new_state))
+            self.env.log.debug("Performing action %s. Transitioning the resource %s in realm %s from the state %s to the state %s" % (selected_action, id, res_realm, curr_state, new_state))
             
             try:
                 # Check external authorizations
                 for external_auth in self.transition_authorizations:
-                    if not external_auth.is_authorized(rws, res, curr_state, new_state):
+                    if not external_auth.is_authorized(rws, res, selected_action, curr_state, new_state):
                         TracError("External authorization to the workflow transition denied.")
 
                 # Perform operations
@@ -356,28 +420,28 @@ class ResourceWorkflowSystem(Component):
                 for operation in operations:
                     provider = self.get_operation_provider(operation)
                     
-                    provider.perform_operation(req, action, operation, curr_state, new_state, rws, res)
+                    provider.perform_operation(req, selected_action, operation, curr_state, new_state, rws, res)
 
                 # Transition the resource to the new state
                 if rws.exists:
-                    # Check that the resource is still in the state it 
-                    # was when the User browsed it
-                    if rws['state'] == curr_state:
-                        rws['state'] = new_state
-                        try:
-                            rws.save_changes(author, "State changed")
-                        except:
-                            self.log.debug("Error saving the resource %s with id %s" % (realm, id))
-                    else:
-                        TracError("Resource with id %s has already changed state in the meanwhile. Current state is %s." % (id, rws['state']))
+                    if not new_state == curr_state:
+                        # Check that the resource is still in the state it 
+                        # was when the User browsed it
+                        if rws['state'] == curr_state:
+                            rws['state'] = new_state
+                            try:
+                                rws.save_changes(author, "State changed")
+                            except:
+                                self.log.debug("Error saving the resource %s with id %s" % (realm, id))
+                        else:
+                            TracError("Resource with id %s has already changed state in the meanwhile. Current state is %s." % (id, rws['state']))
                 else:
                     rws['state'] = new_state
                     rws.insert()
                 
-                
                 # Call listeners
                 for listener in self.transition_listeners:
-                    listener.object_transition(rws, res, curr_state, new_state)
+                    listener.object_transition(rws, res, selected_action, curr_state, new_state)
             except:
                 self.env.log.debug(self._formatExceptionInfo())
                 raise

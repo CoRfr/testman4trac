@@ -1007,7 +1007,7 @@ class TestCase(AbstractTestDescription):
         # Delete old wiki page
         self.wikipage.delete()
 
-        self.values['page_name'] = new_page_name
+        self['page_name'] = new_page_name
         self.wikipage = new_page
         
         
