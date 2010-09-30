@@ -11,12 +11,14 @@ Test Manager plugin for Trac
   
 A Trac plugin to create Test Cases, organize them in catalogs, generate test plans and track their execution status and outcome.
 
+Refer to INSTALL.txt for installation details.
+
 =================================================================================================  
 Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
-Release 1.2.1 (2010-10-01):
+Release 1.3.0 (2010-10-01):
   o The base Test Manager plugin has been separated and other plugins have been created to embed the functionalities of generic class framework and the workflow engine.
     Now we have four plugins:
       * Trac Generic Class plugin, providing the persistent class framework
