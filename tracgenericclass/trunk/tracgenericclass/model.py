@@ -1279,7 +1279,7 @@ def upgrade_db(env, schema, db):
                 cols.append(Column('name'))
                 cols.append(Column('value'))
                 
-                custom_key = key_names
+                custom_key = copy.deepcopy(key_names)
                 custom_key.append('name')
                 
                 table_custom = Table(tname+'_custom', key = custom_key)[cols]
@@ -1307,7 +1307,7 @@ def upgrade_db(env, schema, db):
                 cols.append(Column('newvalue'))
                 cols.append(Index(key_names))
 
-                change_key = key_names
+                change_key = copy.deepcopy(key_names)
                 change_key.append('time')
                 change_key.append('field')
 
