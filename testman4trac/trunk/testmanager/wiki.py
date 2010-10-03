@@ -18,7 +18,7 @@ from genshi import HTML
 
 from tracgenericclass.model import GenericClassModelProvider
 
-from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
+from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanTreeTableMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 
@@ -187,6 +187,8 @@ class WikiTestManagerInterface(Component):
         path_name = req.path_info
         cat_name = path_name.rpartition('/')[2]
         cat_id = cat_name.rpartition('TT')[2]
+        
+        mode = req.args.get('mode', 'tree')
 
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_plan = TestPlan(self.env, planid, cat_id, page_name)
@@ -198,12 +200,25 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
-        tree_macro = TestPlanTreeMacro(self.env)
+        if mode == 'tree':
+            tree_macro = TestPlanTreeMacro(self.env)
+        elif mode == 'tree_table':
+            tree_macro = TestPlanTreeTableMacro(self.env)
+            
         tp = TestPlan(self.env, planid)
         
         insert1 = tag.div()(
                     tag.a(href=req.href.wiki(page_name))(LABELS['back_to_catalog']),
-                    tag.br(), tag.br(), tag.br(), 
+                    tag.div(style='border: 1px, solid, gray; padding: 1px;')(
+                        tag.span()(
+                            tag.a(href=req.href.wiki(page_name, mode='tree', planid=planid))(
+                                tag.img(src='../chrome/testmanager/images/tree.png', title="Tree View"))
+                            ),
+                        tag.span()(
+                            tag.a(href=req.href.wiki(page_name, mode='tree_table', planid=planid))(
+                                tag.img(src='../chrome/testmanager/images/tree_table.png', title="Table View"))
+                            )),
+                    tag.br(), 
                     tag.h1(LABELS['test_plan']+tp['name'])
                     )
 
@@ -282,6 +297,8 @@ class WikiTestManagerInterface(Component):
         tc_name = page_name
         cat_name = page_name.partition('_TC')[0]
         
+        mode = req.args.get('mode', 'tree')
+
         has_status = True
         tp = TestPlan(self.env, planid)
         plan_name = tp['name']
@@ -301,7 +318,7 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/testmanager.js')
         
         insert1 = tag.div()(
-                    self._get_breadcrumb_markup(formatter, planid, page_name),
+                    self._get_breadcrumb_markup(formatter, planid, page_name, mode),
                     tag.br(), tag.br(), tag.br(), 
                     tag.span(style='font-size: large; font-weight: bold;')(
                         self._get_testcase_status_markup(formatter, has_status, page_name, planid),
@@ -327,14 +344,14 @@ class WikiTestManagerInterface(Component):
                     
         return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
     
-    def _get_breadcrumb_markup(self, formatter, planid, page_name):
+    def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree'):
         if planid and not planid == '-1':
             # We are in the context of a test plan
             if not page_name.rpartition('_TC')[2] == '':
                 # It's a test case
                 tp = TestPlan(self.env, planid)
                 catpath = tp['page_name']
-                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid))(LABELS['back_to_plan'])
+                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode))(LABELS['back_to_plan'])
             else:
                 # It's a test plan
                 return tag.a(href=formatter.req.href.wiki(page_name))(LABELS['back_to_catalog'])

@@ -5,6 +5,8 @@
 
 from genshi.builder import tag
 
+from datetime import datetime
+
 from trac.core import *
 from trac.wiki.macros import WikiMacroBase
 from trac.wiki.api import WikiSystem, parse_args
@@ -77,7 +79,29 @@ class TestPlanTreeMacro(WikiMacroBase):
         
         req = formatter.req
 
-        return _build_testplan_tree(self.env, req, planid, catpath)
+        return _build_testplan_tree(self.env, req, planid, catpath, mode='tree')
+
+
+class TestPlanTreeTableMacro(WikiMacroBase):
+    """Display a tree table with catalogs and test cases in a test plan. 
+       Includes test case status in the plan.
+
+    Usage:
+
+    {{{
+    [[TestPlanTreeTable(planid=<Plan ID>, catalog_path=<Catalog path>)]]
+    }}}
+    """
+    
+    def expand_macro(self, formatter, name, content):
+        args, kw = parse_args(content)
+
+        planid = kw.get('planid', -1)
+        catpath = kw.get('catalog_path', 'TC')
+        
+        req = formatter.req
+
+        return _build_testplan_tree(self.env, req, planid, catpath, mode='tree_table')
 
 
 class TestPlanListMacro(WikiMacroBase):
@@ -260,13 +284,16 @@ def _build_catalog_tree(env,req,curpage):
     text +='</div>'
     return text
     
-def _build_testplan_tree(env, req, planid, curpage):
+def _build_testplan_tree(env, req, planid, curpage, mode='tree'):
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
         cat_name = curpage.rpartition('_TC')[0].rpartition('_')[2]
     elif not curpage == 'TC':
         cat_name = curpage.rpartition('_')[2]
+
+    tp = TestPlan(env, planid)
+
     # Create the catalog subtree model
     components = {'name': curpage, 'childrenC': {},'childrenT': {}, 'tot': 0}
 
@@ -300,11 +327,18 @@ def _build_testplan_tree(env, req, planid, curpage):
                 tc_id = tc.partition('TC')[2]
                 tcip = TestCaseInPlan(env, tc_id, planid)
                 if tcip.exists:
-                    status = tcip['status']
+                    for ts, author, status in tcip.list_history():
+                        break
+                    
+                    if not isinstance(ts, datetime):
+                        ts = from_any_timestamp(ts)
+
                 else:
+                    ts = tp['time']
+                    author = tp['author']
                     status = 'TO_BE_TESTED'
                     
-                parent['childrenT'][tc]={'id':curr_path, 'title': subpage_title, 'status': status}
+                parent['childrenT'][tc]={'id':curr_path, 'title': subpage_title, 'status': status, 'ts': ts, 'author': author}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -318,13 +352,22 @@ def _build_testplan_tree(env, req, planid, curpage):
     ind = {'count': 0}
     text = ''
 
-    text +='<div style="padding: 0px 0px 10px 10px">'+LABELS['filter_label']+' <input id="tcFilter" title="'+LABELS['filter_help']+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
-    text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+LABELS['expand_all']+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+LABELS['collapse_all']+'</a></div>';
-    text +='<div id="ticketContainer">'
+    if mode == 'tree':
+        text +='<div style="padding: 0px 0px 10px 10px">'+LABELS['filter_label']+' <input id="tcFilter" title="'+LABELS['filter_help']+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+LABELS['expand_all']+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+LABELS['collapse_all']+'</a></div>';
+        text +='<div id="ticketContainer">'
+        text += _render_subtree(planid, components, ind, 0)
+        text +='</div>'
 
-    text += _render_subtree(planid, components, ind, 0)
-    
-    text +='</div>'
+    elif mode == 'tree_table':
+        text += '<form id="testPlan"><fieldset id="testPlanFields" class="expanded">'
+        text += '<table class="listing"><thead><tr>';
+        text += '<th>'+"Name"+'</th><th>'+"Status"+'</th><th>'+"Author"+'</th><th>'+"Last Change"+'</th>'
+        text += '</tr></thead><tbody>';        
+        text += _render_subtree_as_table(planid, components, ind, 0)
+        text += '</tbody></table>'
+        text += '</fieldset></form>'
+
     return text
 
 
@@ -425,7 +468,6 @@ def _render_subtree(planid, component, ind, level, path=''):
         text+='</ul>'        
     return text
 
-
 def _render_testcases(planid, data): 
     text=''
     keyList = data.keys()
@@ -450,8 +492,7 @@ def _render_testcases(planid, data):
             text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
             
     return text
-    
-    
+        
 def _build_testcase_status(env, req, planid, curpage):
     tc_id = curpage.rpartition('_TC')[2]
     
@@ -470,8 +511,65 @@ def _build_testcase_status(env, req, planid, curpage):
     text += '<img style="display: '+display['SUCCESSFUL']+';" id="tcTitleStatusIconSUCCESSFUL" src="../chrome/testmanager/images/green.png" title="'+LABELS['SUCCESSFUL']+'"></img></span>'
     
     return text
-
     
+# Render the subtree as a tree table
+def _render_subtree_as_table(planid, component, ind, level, path=''):
+    data = component
+    text = ''
+
+    if (level == 0):
+        data = component['childrenC']
+
+    keyList = data.keys()
+    sortedList = sorted(keyList)
+    for x in sortedList:
+        ind['count'] += 1
+        comp = data[x]
+        fullpath = path+x+" - "
+        if ('childrenC' in comp):
+            subcData=comp['childrenC']
+            
+            index = str(ind['count'])
+            
+            text += '<tr><td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'" title="'+LABELS['open']+'">'+comp['title']+'</a></td><td></td><td></td><td></td></tr>'
+            ind['count']+=1
+            text+=_render_subtree_as_table(planid, subcData, ind, level+1, fullpath)
+            if ('childrenT' in comp):            
+                mtData=comp['childrenT']
+                text+=_render_testcases_as_table(planid, mtData, level+1)
+
+    if (level == 0):
+        if ('childrenT' in component):            
+            cmtData=component['childrenT']
+            text+=_render_testcases_as_table(planid, cmtData, level+1)
+
+    return text
+
+def _render_testcases_as_table(planid, data, level=0): 
+    text=''
+    keyList = data.keys()
+    sortedList = sorted(keyList)
+    for x in sortedList:
+        tick = data[x]
+        status = tick['status']
+        has_status = True
+        if status == 'SUCCESSFUL':
+            statusIcon='../chrome/testmanager/images/green.png'
+        elif status == 'FAILED':
+            statusIcon='../chrome/testmanager/images/red.png'
+        elif status == 'TO_BE_TESTED':
+            statusIcon='../chrome/testmanager/images/yellow.png'
+        else:
+            has_status = False
+
+        if has_status:
+            statusLabel = LABELS[status]
+            text += '<tr><td style="padding-left: '+str(level*30)+'px;"><img class="iconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td><td>'+statusLabel+'</td><td>'+tick['author']+'</td><td>'+str(tick['ts'])+'</td></tr>'
+        else:
+            text += '<tr><td style="padding-left: '+str(level*30)+'px;">'+tick['title']+'</td></tr>'
+            
+    return text
+        
 def _build_testcase_change_status(env, req, planid, curpage):
     tc_id = curpage.rpartition('_TC')[2]
     

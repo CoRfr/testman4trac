@@ -1074,21 +1074,16 @@ class GenericClassModelProvider(Component):
         return fields
         
     def get_metadata(self, realm):
-        self.env.log.debug(">>> get_metadata")
-
         tmp_metadata = self.metadata()
         if realm in tmp_metadata:
             metadata = copy.deepcopy(tmp_metadata[realm])
         else:
             metadata = None
 
-        self.env.log.debug("<<< get_metadata")
         return metadata
         
     def fields(self):
         """Return the list of fields available for every realm."""
-
-        self.env.log.debug(">>> fields")
 
         if not self.all_fields:
             fields = {}
@@ -1112,14 +1107,10 @@ class GenericClassModelProvider(Component):
                     if 'custom' in f:
                         self.env.log.debug("     (custom)")
 
-        self.env.log.debug("<<< fields")
-
         return self.all_fields
         
     def metadata(self):
         """Return metadata information about concrete classes."""
-
-        self.env.log.debug(">>> metadata")
 
         if not self.all_metadata:
             metadata = {}
@@ -1130,8 +1121,6 @@ class GenericClassModelProvider(Component):
                     metadata[realm] = realm_metadata[realm]
 
             self.all_metadata = metadata
-
-        self.env.log.debug("<<< metadata")
 
         return self.all_metadata
 
@@ -1154,8 +1143,6 @@ class GenericClassModelProvider(Component):
 
     def custom_fields(self, realm):
         """Return the list of available custom fields."""
-        
-        self.env.log.debug(">>> custom_fields")
         
         if not realm in self.all_custom_fields:
             fields = []
@@ -1195,8 +1182,6 @@ class GenericClassModelProvider(Component):
             fields.sort(lambda x, y: cmp(x['order'], y['order']))
             
             self.all_custom_fields[realm] = fields
-
-        self.env.log.debug("<<< custom_fields")
             
         return self.all_custom_fields[realm]
 

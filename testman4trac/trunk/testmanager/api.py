@@ -152,7 +152,7 @@ class TestManagerSystem(Component):
                     tcip.save_changes(author, "Status changed")
                 else:
                     tcip['page_name'] = path
-                    tcip['status'] = status
+                    tcip.set_status(status, author)
                     tcip.insert()
                 
             except:
