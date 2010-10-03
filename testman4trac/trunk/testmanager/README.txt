@@ -18,6 +18,12 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.3.2 (2010-10-03):
+  o Added feature 3076739 (SourceForge): Full Test Plan display / print
+
+Release 1.3.1 (2010-10-02):
+  o Fixed a base-code bug that prevented test catalog modification with a PostgreSQL binding. (Thanks Rodel for reporting it).
+
 Release 1.3.0 (2010-10-01):
   o The base Test Manager plugin has been separated and other plugins have been created to embed the functionalities of generic class framework and the workflow engine.
     Now we have four plugins:
