@@ -376,7 +376,9 @@ class AbstractVariableFieldsObject(object):
 
     def get_values_as_string(self, props):
         """
-        Returns a JSON string for the specified object properties
+        Returns a JSON string for the specified object properties.
+        
+        :param props: An array of field names. 
         """
         return get_string_from_dictionary(props, self.values)
 

@@ -171,11 +171,11 @@ function toggle(id) {
     }
 }
 
-function highlight(string) {
+function highlight(str) {
     clearSelection();
-    if (string && string !== "") {
+    if (str && str !== "") {
         var res=[];
-        var tks=string.split(" ");
+        var tks=str.split(" ");
         for (var i=0;i<tks.length;i++) {
             res[res.length]=new RegExp(regexpescape(tks[i].toLowerCase()), "g");
         }
@@ -200,7 +200,7 @@ function regexpescape(text) {
 }
 
 function filterMatch(node1,node2,res) {
-    var name=(node1.innerHTML + node2.innerHTML).toLowerCase();
+    var name=(node1.innerHTML + (node2 ? node2.innerHTML : "")).toLowerCase();
     var match=true;
     for (var i=0;i<res.length;i++) {
         match=match && name.match(res[i]);
@@ -265,15 +265,15 @@ function deselect(node) {
     } while (node.id!=="ticketContainer");
 }
 
-function starthighlight(string,now) {
+function starthighlight(str,now) {
     if (htimer) {
         clearTimeout(htimer);
     } 
     if (now) {
-        highlight(string);
+        highlight(str);
     } else {
         htimer = setTimeout(function() {
-                                highlight(string);
+                                highlight(str);
                             },500);
     }
 }
@@ -281,7 +281,13 @@ function starthighlight(string,now) {
 function checkFilter(now) {
     var f=document.getElementById("tcFilter");
     if (f) {
-        starthighlight(f.value,now);
+        if (document.getElementById("ticketContainer") !== null) {
+            starthighlight(f.value,now);
+        }
+        
+        if (document.getElementById("testcaseList") !== null) {
+            starthighlightTable(f.value,now);
+        }
     }
 }
 
@@ -297,6 +303,114 @@ function removeUnderlineLink(id) {
     el.style.backgroundColor = 'white';
     el.style.color = 'black';
     el.style.textDecoration = 'none';
+}
+
+/******************************************************/
+/**                 Tree table widget                 */
+/******************************************************/
+
+function starthighlightTable(str,now) {
+    if (htimer) {
+        clearTimeout(htimer);
+    } 
+    if (now) {
+        highlightTable(str);
+    } else {
+        htimer = setTimeout(function() {
+                                highlightTable(str);
+                            },500);
+    }
+}
+
+function highlightTable(str) {
+    clearSelectionTable();
+    if (str && str !== "") {
+        var res=[];
+        var tks=str.split(" ");
+        for (var i=0;i<tks.length;i++) {
+            res[res.length]=new RegExp(regexpescape(tks[i].toLowerCase()), "g");
+        }
+        var nodes=document.getElementById("testcaseList").getElementsByTagName("tr");
+        for(var i=0;i<nodes.length;i++) {
+            var n=nodes.item(i);
+            if (filterMatchTable(n, res)) {
+                selectRow(n);
+            } else {
+                deselectRow(n);
+            }
+        }
+
+        document.getElementById('searchResultsNumberId').innerHTML = labels['results']+searchResults;
+    }
+}
+
+function filterMatchTable(node, res) {
+    var name = ""
+    
+    while (node.tagName !== "TR") {
+        node = node.parentNode;
+    }
+    
+    if (node.getAttribute("name") === "testcatalog") {
+        return false;
+    }
+    
+    node = node.firstChild;
+    while (node != null) {
+        if (node.tagName === "TD") {
+            name += node.innerHTML;
+        }
+        
+        node = node.nextSibling;
+    }
+    
+    name = name.toLowerCase();
+
+    var match=true;
+    for (var i=0;i<res.length;i++) {
+        match=match && name.match(res[i]);
+    }
+    
+    return match;
+}
+
+function clearSelectionTable() {
+    for (var i=0;i<selectData.length;i++) {
+        selectData[i].className="";
+    };
+    
+    selectData=[];
+    
+    for (var i=0;i<deselectData.length;i++) {
+        deselectData[i].className=""
+    };
+    
+    deselectData=[];
+    searchResults = 0;
+    
+    document.getElementById("searchResultsNumberId").innerHTML = '';
+}
+
+function selectRow(node) {
+    searchResults++;
+
+    while (node.tagName !== "TR") {
+        node = node.parentNode;
+    }
+
+    node.className = "rowSelected"
+
+    selectData[selectData.length]=node;
+}
+
+function deselectRow(node) {
+    while (node.tagName !== "TR") {
+        node = node.parentNode;
+    }
+
+    node.className = "rowHidden"
+    
+    deselectData[deselectData.length]=node;
 }
 
 function showPencil(id) {

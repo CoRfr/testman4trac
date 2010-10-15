@@ -18,6 +18,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.3.3 (2010-10-05):
+  o Enhanced feature 3076739 (SourceForge): Full Test Plan display / print
+
 Release 1.3.2 (2010-10-03):
   o Added feature 3076739 (SourceForge): Full Test Plan display / print
 

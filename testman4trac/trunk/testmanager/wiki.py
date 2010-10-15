@@ -18,7 +18,7 @@ from genshi import HTML
 
 from tracgenericclass.model import GenericClassModelProvider
 
-from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanTreeTableMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
+from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 
@@ -87,6 +87,9 @@ class WikiTestManagerInterface(Component):
         cat_name = path_name.rpartition('/')[2]
         cat_id = cat_name.rpartition('TT')[2]
 
+        mode = req.args.get('mode', 'tree')
+        fulldetails = req.args.get('fulldetails', 'False')
+        
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_catalog = TestCatalog(self.env, cat_id, page_name)
         
@@ -97,7 +100,6 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
-        breadcrumb_macro = TestCaseBreadcrumbMacro(self.env)
         tree_macro = TestCaseTreeMacro(self.env)
 
         if page_name == 'TC':
@@ -113,7 +115,16 @@ class WikiTestManagerInterface(Component):
             buttonLabel = LABELS['add_catalog']
         else:
             insert1 = tag.div()(
-                        HTML(breadcrumb_macro.expand_macro(formatter, None, page_name)),
+                        self._get_breadcrumb_markup(formatter, None, page_name, mode, fulldetails),
+                        tag.div(style='border: 1px, solid, gray; padding: 1px;')(
+                            tag.span()(
+                                tag.a(href=req.href.wiki(page_name, mode='tree'))(
+                                    tag.img(src='../chrome/testmanager/images/tree.png', title="Tree View"))
+                                ),
+                            tag.span()(
+                                tag.a(href=req.href.wiki(page_name, mode='tree_table', fulldetails='True'))(
+                                    tag.img(src='../chrome/testmanager/images/tree_table.png', title="Table View"))
+                                )),
                         tag.br(), 
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(
                             LABELS['select_cat_to_move2'],
@@ -126,7 +137,7 @@ class WikiTestManagerInterface(Component):
             buttonLabel = LABELS['add_subcatalog']
 
         insert2 = tag.div()(
-                    HTML(tree_macro.expand_macro(formatter, None, page_name)),
+                    HTML(tree_macro.expand_macro(formatter, None, 'mode='+mode+',fulldetails='+fulldetails+',catalog_path='+page_name)),
                     tag.div(class_='testCaseList')(
                         tag.br(), tag.br()
                     ))
@@ -189,6 +200,7 @@ class WikiTestManagerInterface(Component):
         cat_id = cat_name.rpartition('TT')[2]
         
         mode = req.args.get('mode', 'tree')
+        fulldetails = req.args.get('fulldetails', 'False')
 
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_plan = TestPlan(self.env, planid, cat_id, page_name)
@@ -200,10 +212,7 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
-        if mode == 'tree':
-            tree_macro = TestPlanTreeMacro(self.env)
-        elif mode == 'tree_table':
-            tree_macro = TestPlanTreeTableMacro(self.env)
+        tree_macro = TestPlanTreeMacro(self.env)
             
         tp = TestPlan(self.env, planid)
         
@@ -223,15 +232,14 @@ class WikiTestManagerInterface(Component):
                     )
 
         insert2 = tag.div()(
-                    HTML(tree_macro.expand_macro(formatter, None, 'planid='+str(planid)+',catalog_path='+page_name)),
+                    HTML(tree_macro.expand_macro(formatter, None, 'planid='+str(planid)+',catalog_path='+page_name+',mode='+mode+',fulldetails='+fulldetails)),
                     tag.div(class_='testCaseList')(
                     tag.br(), tag.br(),
                     self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
                     tag.br(),
                     tag.div(class_='field')(
                         tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
-                        tag.br(), tag.br(), tag.br(), tag.br(),
-                        #tag.input(type='button', value=LABELS['regenerate_plan_button'], onclick='regenerateTestPlan("'+str(planid)+'", "'+page_name+'")')
+                        tag.br(), tag.br(), tag.br(), tag.br()
                         )
                     ))
                     
@@ -244,6 +252,8 @@ class WikiTestManagerInterface(Component):
         tc_name = page_name
         cat_name = page_name.partition('_TC')[0]
         
+        mode = req.args.get('mode', 'tree')
+        fulldetails = req.args.get('fulldetails', 'False')
         is_edit = req.args.get('edit_custom', 'false')
         
         has_status = False
@@ -261,10 +271,8 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
         
-        breadcrumb_macro = TestCaseBreadcrumbMacro(self.env)
-        
         insert1 = tag.div()(
-                    self._get_breadcrumb_markup(formatter, planid, page_name),
+                    self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
                     tag.br(), tag.br(), 
                     tag.div(id='copiedTCMessage', class_='messageBox', style='display: none;')(
                         LABELS['move_tc_help_msg'],
@@ -298,6 +306,7 @@ class WikiTestManagerInterface(Component):
         cat_name = page_name.partition('_TC')[0]
         
         mode = req.args.get('mode', 'tree')
+        fulldetails = req.args.get('fulldetails', 'False')
 
         has_status = True
         tp = TestPlan(self.env, planid)
@@ -318,7 +327,7 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/testmanager.js')
         
         insert1 = tag.div()(
-                    self._get_breadcrumb_markup(formatter, planid, page_name, mode),
+                    self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
                     tag.br(), tag.br(), tag.br(), 
                     tag.span(style='font-size: large; font-weight: bold;')(
                         self._get_testcase_status_markup(formatter, has_status, page_name, planid),
@@ -344,21 +353,22 @@ class WikiTestManagerInterface(Component):
                     
         return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
     
-    def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree'):
+    def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree', fulldetails='False'):
         if planid and not planid == '-1':
             # We are in the context of a test plan
             if not page_name.rpartition('_TC')[2] == '':
-                # It's a test case
+                # It's a test case in plan
                 tp = TestPlan(self.env, planid)
                 catpath = tp['page_name']
-                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode))(LABELS['back_to_plan'])
+                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode, fulldetails=fulldetails))(LABELS['back_to_plan'])
             else:
                 # It's a test plan
                 return tag.a(href=formatter.req.href.wiki(page_name))(LABELS['back_to_catalog'])
                 
         else:
+            # It's a test catalog or test case description
             breadcrumb_macro = TestCaseBreadcrumbMacro(self.env)
-            return HTML(breadcrumb_macro.expand_macro(formatter, None, page_name))
+            return HTML(breadcrumb_macro.expand_macro(formatter, None, 'page_name='+page_name+',mode='+mode+',fulldetails='+fulldetails))
 
     def _get_testcase_status_markup(self, formatter, has_status, page_name, planid):
         if has_status:

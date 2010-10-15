@@ -24,6 +24,15 @@ li {
     font-weight: bold;
 }
 
+.rowSelected {
+    border: 1px solid #FFCC35; 
+    font-weight: bold;
+}
+
+.rowHidden {
+    display: none;
+}
+
 .ninja {
     color: black;
     visibility: hidden;
