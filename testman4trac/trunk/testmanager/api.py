@@ -34,7 +34,7 @@ class TestManagerSystem(Component):
     
         try:
             # Get next ID
-            db = self.env.get_db_cnx()
+            db, handle_ta = get_db_for_write(self.env)
             cursor = db.cursor()
             sql = "SELECT value FROM testconfig WHERE propname='"+propname+"'"
             
@@ -47,7 +47,8 @@ class TestManagerSystem(Component):
             cursor = db.cursor()
             cursor.execute("UPDATE testconfig SET value='" + str(id+1) + "' WHERE propname='"+propname+"'")
             
-            db.commit()
+            if handle_ta:
+                db.commit()
         except:
             self.env.log.debug(formatExceptionInfo())
             db.rollback()
@@ -60,11 +61,12 @@ class TestManagerSystem(Component):
         
         try:
             # Set next ID to the input value
-            db = self.env.get_db_cnx()
+            db, handle_ta = get_db_for_write(self.env)
             cursor = db.cursor()
             cursor.execute("UPDATE testconfig SET value='" + str(value) + "' WHERE propname='"+propname+"'")
            
-            db.commit()
+            if handle_ta:
+                db.commit()
         except:
             self.env.log.debug(formatExceptionInfo())
             db.rollback()
@@ -77,7 +79,7 @@ class TestManagerSystem(Component):
         result += '<tr><th>'+LABELS['timestamp']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['status']+'</th></tr>'
         result += '</thead><tbody>'
         
-        db = self.env.get_db_cnx()
+        db = get_db(self.env)
         cursor = db.cursor()
 
         sql = "SELECT time, author, status FROM testcasehistory WHERE id='"+str(id)+"' AND planid='"+str(planid)+"' ORDER BY time DESC"
@@ -99,7 +101,7 @@ class TestManagerSystem(Component):
     def list_all_testplans(self):
         """Returns a list of all test plans."""
 
-        db = self.env.get_db_cnx()
+        db = get_db(self.env)
         cursor = db.cursor()
 
         sql = "SELECT id, catid, page_name, name, author, time FROM testplan ORDER BY catid, id"
@@ -187,7 +189,7 @@ class TestManagerSystem(Component):
                 except:
                     print "Error adding test catalog!"
                     print formatExceptionInfo()
-                    req.redirect(req.path_info)
+                    req.redirect(req.href.wiki(path))
 
                 # Redirect to see the new wiki page.
                 req.redirect(req.href.wiki(pagename))
@@ -235,7 +237,7 @@ class TestManagerSystem(Component):
                     except:
                         self.env.log.debug("Error pasting test case!")
                         self.env.log.debug(formatExceptionInfo())
-                        req.redirect(req.path_info)
+                        req.redirect(req.href.wiki(pagename))
                 
                     # Redirect to test catalog, forcing a page refresh by means of a random request parameter
                     req.redirect(req.href.wiki(pagename.rpartition('_TC')[0], random=str(datetime.now(utc).microsecond)))
@@ -260,7 +262,7 @@ class TestManagerSystem(Component):
                     except:
                         self.env.log.debug("Error duplicating test case!")
                         self.env.log.debug(formatExceptionInfo())
-                        req.redirect(req.path_info)
+                        req.redirect(req.href.wiki(tcId))
 
                     # Redirect tp allow for editing the copy test case
                     req.redirect(req.href.wiki(pagename, action='edit'))

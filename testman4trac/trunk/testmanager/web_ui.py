@@ -15,7 +15,7 @@ from trac.search import ISearchSource
 from trac.util import to_unicode
 from trac.util.compat import sorted, set, any
 from trac.util.text import CRLF
-from trac.util.translation import _, tag_
+from trac.util.translation import _
 from trac.web.chrome import ITemplateProvider, INavigationContributor, \
                             add_stylesheet, add_script, add_ctxtnav
 from trac.wiki.formatter import Formatter

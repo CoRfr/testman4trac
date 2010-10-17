@@ -16,7 +16,7 @@ from trac.core import *
 from trac.db import Table, Column, Index
 from trac.resource import Resource, ResourceNotFound
 from trac.util.datefmt import utc, utcmax
-from trac.util.text import empty, CRLF
+from trac.util.text import CRLF
 from trac.util.translation import _, N_, gettext
 from trac.wiki.api import WikiSystem
 from trac.wiki.model import WikiPage
@@ -229,9 +229,6 @@ class AbstractVariableFieldsObject(object):
         
         self._old = {}
 
-    def _get_db(self, db):
-        return db or self.env.get_read_db()
-
     def get_key_prop_names(self):
         """
         Returns an array with the fields representing the identity
@@ -292,7 +289,7 @@ class AbstractVariableFieldsObject(object):
         self.env.log.debug('>>> _fetch_object')
     
         if db is None:
-            db = self._get_db(db)
+            db = get_db(self.env, db)
         
         if not self.pre_fetch_object(db):
             return
@@ -330,7 +327,7 @@ class AbstractVariableFieldsObject(object):
             if field in self.time_fields:
                 self.values[field] = from_any_timestamp(value)
             elif value is None:
-                self.values[field] = empty
+                self.values[field] = '0'
             else:
                 self.values[field] = value
 
@@ -342,7 +339,7 @@ class AbstractVariableFieldsObject(object):
         for name, value in cursor:
             if name in custom_fields:
                 if value is None:
-                    self.values[name] = empty
+                    self.values[name] = '0'
                 else:
                     self.values[name] = value
 
@@ -421,7 +418,7 @@ class AbstractVariableFieldsObject(object):
         """
         try:
             value = self.values[name]
-            if value is not empty:
+            if value is not '0':
                 return value
             field = [field for field in self.fields if field['name'] == name]
             if field:
@@ -454,7 +451,9 @@ class AbstractVariableFieldsObject(object):
         """
         self.env.log.debug('>>> insert')
 
-        assert not self.exists, 'Cannot insert an existing ticket'
+        assert not self.exists, 'Cannot insert an existing object'
+
+        db, handle_ta = get_db_for_write(self.env, db)
 
         # Add a timestamp
         if when is None:
@@ -462,12 +461,14 @@ class AbstractVariableFieldsObject(object):
         self.values['time'] = self.values['changetime'] = when
 
         # Perform type conversions
+        self.env.log.debug('  Performing type conversions')
         values = dict(self.values)
         for field in self.time_fields:
             if field in values:
                 values[field] = to_any_timestamp(values[field])
         
         # Insert record
+        self.env.log.debug('  Getting fields')
         std_fields = []
         custom_fields = []
         for f in self.fields:
@@ -478,37 +479,41 @@ class AbstractVariableFieldsObject(object):
                 else:
                     std_fields.append(fname)
 
-        @self.env.with_transaction(db)
-        def do_insert(db):
-            if not self.pre_insert(db):
-                return
-            
-            cursor = db.cursor()
-            cursor.execute("INSERT INTO %s (%s) VALUES (%s)"
-                           % (self.realm,
-                              ','.join(std_fields),
-                              ','.join(['%s'] * len(std_fields))),
-                           [values[name] for name in std_fields])
+        if not self.pre_insert(db):
+            return
 
-            # Insert custom fields
-            key_names = self.get_key_prop_names()
-            key_values = self.get_key_prop_values()
-            if custom_fields:
-                self.env.log.debug('  Inserting custom fields')
-                cursor.executemany("""
-                INSERT INTO %s_custom (%s,name,value) VALUES (%s,%%s,%%s)
-                """ 
-                % (self.realm, 
-                   ','.join(key_names),
-                   ','.join(['%s'] * len(key_names))),
-                [to_list((key_values, name, self[name])) for name in custom_fields])
+        self.env.log.debug('  Inserting record')
+        cursor = db.cursor()
+        cursor.execute("INSERT INTO %s (%s) VALUES (%s)"
+                       % (self.realm,
+                          ','.join(std_fields),
+                          ','.join(['%s'] * len(std_fields))),
+                       [values[name] for name in std_fields])
 
-            self.post_insert(db)
+        # Insert custom fields
+        key_names = self.get_key_prop_names()
+        key_values = self.get_key_prop_values()
+        if custom_fields:
+            self.env.log.debug('  Inserting custom fields')
+            cursor.executemany("""
+            INSERT INTO %s_custom (%s,name,value) VALUES (%s,%%s,%%s)
+            """ 
+            % (self.realm, 
+               ','.join(key_names),
+               ','.join(['%s'] * len(key_names))),
+            [to_list((key_values, name, self[name])) for name in custom_fields])
+
+        self.post_insert(db)
                 
+        if handle_ta:
+            db.commit()
+
+        self.env.log.debug('  Setting up internal fields')
         self.exists = True
         self.resource = self.resource(id=self.get_resource_id())
         self._old = {}
 
+        self.env.log.debug('  Calling listeners')
         from tracgenericclass.api import GenericClassSystem
         for listener in GenericClassSystem(self.env).change_listeners:
             listener.object_created(self.realm, self)
@@ -530,66 +535,69 @@ class AbstractVariableFieldsObject(object):
         if not self._old and not comment:
             return False # Not modified
 
+        db, handle_ta = get_db_for_write(self.env, db)
+
         if when is None:
             when = datetime.now(utc)
         when_ts = to_any_timestamp(when)
 
-        @self.env.with_transaction(db)
-        def do_save(db):
-            if not self.pre_save_changes(db):
-                return
-            
-            cursor = db.cursor()
+        if not self.pre_save_changes(db):
+            return
+        
+        cursor = db.cursor()
 
-            # store fields
-            custom_fields = [f['name'] for f in self.fields if f.get('custom')]
-            
-            key_names = self.get_key_prop_names()
-            key_values = self.get_key_prop_values()
-            sql_where = '1=1'
-            for k in key_names:
-                sql_where += " AND " + k + "=%%s" 
+        # store fields
+        custom_fields = [f['name'] for f in self.fields if f.get('custom')]
+        
+        key_names = self.get_key_prop_names()
+        key_values = self.get_key_prop_values()
+        sql_where = '1=1'
+        for k in key_names:
+            sql_where += " AND " + k + "=%%s" 
 
-            for name in self._old.keys():
-                if name in custom_fields:
-                    cursor.execute(("""
-                        SELECT * FROM %s_custom 
-                        WHERE name=%%s AND 
-                        """ + sql_where) % self.realm, to_list((name, key_values)))
-                        
-                    if cursor.fetchone():
-                        cursor.execute(("""
-                            UPDATE %s_custom SET value=%%s
-                            WHERE name=%%s AND 
-                            """ + sql_where) % self.realm, to_list((self[name], name, key_values)))
-                    else:
-                        cursor.execute("""
-                            INSERT INTO %s_custom (%s,name,value) 
-                            VALUES (%s,%%s,%%s)
-                            """ 
-                            % (self.realm, 
-                            ','.join(key_names),
-                            ','.join(['%s'] * len(key_names))),
-                            to_list((key_values, name, self[name])))
-                else:
-                    cursor.execute(("""
-                        UPDATE %s SET %s=%%s WHERE 
-                        """ + sql_where) 
-                        % (self.realm, name),
-                        to_list((self[name], key_values)))
-                
+        for name in self._old.keys():
+            if name in custom_fields:
                 cursor.execute(("""
-                    INSERT INTO %s_change
-                        (%s, time,author,field,oldvalue,newvalue)
-                    VALUES (%s, %%s, %%s, %%s, %%s, %%s)
-                    """
-                    % (self.realm, 
-                    ','.join(key_names),
-                    ','.join(['%s'] * len(key_names)))),
-                    to_list((key_values, when_ts, author, name, 
-                    self._old[name], self[name])))
+                    SELECT * FROM %s_custom 
+                    WHERE name=%%s AND 
+                    """ + sql_where) % self.realm, to_list((name, key_values)))
+                    
+                if cursor.fetchone():
+                    cursor.execute(("""
+                        UPDATE %s_custom SET value=%%s
+                        WHERE name=%%s AND 
+                        """ + sql_where) % self.realm, to_list((self[name], name, key_values)))
+                else:
+                    cursor.execute("""
+                        INSERT INTO %s_custom (%s,name,value) 
+                        VALUES (%s,%%s,%%s)
+                        """ 
+                        % (self.realm, 
+                        ','.join(key_names),
+                        ','.join(['%s'] * len(key_names))),
+                        to_list((key_values, name, self[name])))
+            else:
+                cursor.execute(("""
+                    UPDATE %s SET %s=%%s WHERE 
+                    """ + sql_where) 
+                    % (self.realm, name),
+                    to_list((self[name], key_values)))
             
-            self.post_save_changes(db)
+            cursor.execute(("""
+                INSERT INTO %s_change
+                    (%s, time,author,field,oldvalue,newvalue)
+                VALUES (%s, %%s, %%s, %%s, %%s, %%s)
+                """
+                % (self.realm, 
+                ','.join(key_names),
+                ','.join(['%s'] * len(key_names)))),
+                to_list((key_values, when_ts, author, name, 
+                self._old[name], self[name])))
+        
+        self.post_save_changes(db)
+
+        if handle_ta:
+            db.commit()
 
         old_values = self._old
         self._old = {}
@@ -612,35 +620,38 @@ class AbstractVariableFieldsObject(object):
 
         self.env.log.debug('>>> delete')
 
-        @self.env.with_transaction(db)
-        def do_delete(db):
-            if not self.pre_delete(db):
-                return
+        db, handle_ta = get_db_for_write(self.env, db)
+
+        if not self.pre_delete(db):
+            return
+            
+        #Attachment.delete_all(self.env, 'ticket', self.id, db)
+
+        cursor = db.cursor()
+
+        key_names = self.get_key_prop_names()
+        key_values = self.get_key_prop_values()
+
+        sql_where = 'WHERE 1=1'
+        for k in key_names:
+            sql_where += " AND " + k + "=%%s" 
+
+        self.env.log.debug("Deleting %s: %s" % (self.realm, sql_where))
+        for k in key_names:
+            self.env.log.debug("%s = %s" % (k, self[k]))
+                       
+        cursor.execute(("DELETE FROM %s " + sql_where)
+            % self.realm, key_values)
+        cursor.execute(("DELETE FROM %s_change " + sql_where)
+            % self.realm, key_values)
+        cursor.execute(("DELETE FROM %s_custom " + sql_where) 
+            % self.realm, key_values)
+
+        self.post_delete(db)
                 
-            #Attachment.delete_all(self.env, 'ticket', self.id, db)
+        if handle_ta:
+            db.commit()
 
-            cursor = db.cursor()
-
-            key_names = self.get_key_prop_names()
-            key_values = self.get_key_prop_values()
-
-            sql_where = 'WHERE 1=1'
-            for k in key_names:
-                sql_where += " AND " + k + "=%%s" 
-
-            self.env.log.debug("Deleting %s: %s" % (self.realm, sql_where))
-            for k in key_names:
-                self.env.log.debug("%s = %s" % (k, self[k]))
-                           
-            cursor.execute(("DELETE FROM %s " + sql_where)
-                % self.realm, key_values)
-            cursor.execute(("DELETE FROM %s_change " + sql_where)
-                % self.realm, key_values)
-            cursor.execute(("DELETE FROM %s_custom " + sql_where) 
-                % self.realm, key_values)
-
-            self.post_delete(db)
-                
         from tracgenericclass.api import GenericClassSystem
         for listener in GenericClassSystem(self.env).change_listeners:
             listener.object_deleted(self.realm, self)
@@ -656,6 +667,8 @@ class AbstractVariableFieldsObject(object):
         """
         self.env.log.debug('>>> save_as')
 
+        db, handle_ta = get_db_for_write(self.env, db)
+
         old_key = self.key
         if self.pre_save_as(old_key, new_key, db):
             self.key = new_key
@@ -670,6 +683,9 @@ class AbstractVariableFieldsObject(object):
             self.insert(when, db)
         
             self.post_save_as(old_key, new_key, db)
+
+            if handle_ta:
+                db.commit()
 
         self.env.log.debug('<<< save_as')
         
@@ -746,7 +762,7 @@ class AbstractVariableFieldsObject(object):
         self.env.log.debug('>>> list_matching_objects')
         
         if db is None:
-            db = self._get_db(db)
+            db = get_db(self.env, db)
 
         self.pre_list_matching_objects(db)
 

@@ -7,6 +7,8 @@ import re
 import sys
 import traceback
 
+from datetime import datetime
+
 from trac.core import *
 
     
@@ -25,6 +27,8 @@ def formatExceptionInfo(maxTBlevel=5):
 
 checked_utimestamp = False
 has_utimestamp = False
+checked_compatibility = False
+has_read_db = False
     
 def to_any_timestamp(date_obj):
     global checked_utimestamp
@@ -41,7 +45,6 @@ def to_any_timestamp(date_obj):
         from trac.util.datefmt import to_timestamp
         return to_timestamp(date_obj)
 
-
 def from_any_timestamp(ts):
     global checked_utimestamp
     global has_utimestamp
@@ -51,16 +54,45 @@ def from_any_timestamp(ts):
 
     if has_utimestamp:
         from trac.util.datefmt import from_utimestamp
-
         return from_utimestamp(ts)
     else:
         # Trac 0.11
-        import datetime
         from trac.util.datefmt import utc
 
         return datetime.fromtimestamp(ts, utc)
 
-        
+def get_db(env, db=None):
+    global checked_compatibility
+    global has_read_db
+
+    if db:
+        return db
+
+    if not checked_compatibility:
+        check_compatibility(env)
+
+    if has_read_db:
+        return env.get_read_db()
+    else:
+        # Trac 0.11
+        return env.get_db_cnx()
+
+def get_db_for_write(env, db=None):
+    global checked_compatibility
+    global has_read_db
+
+    if db:
+        return (db, False)
+
+    if not checked_compatibility:
+        check_compatibility()
+
+    if has_read_db:
+        return (env.get_read_db(), True)
+    else:
+        # Trac 0.11
+        return (env.get_db_cnx(), True)
+
 def check_utimestamp():
     global checked_utimestamp
     global has_utimestamp
@@ -73,6 +105,19 @@ def check_utimestamp():
         has_utimestamp = False
 
     checked_utimestamp = True
+
+def check_compatibility(env):
+    global checked_compatibility
+    global has_read_db
+
+    try:
+        if env.get_read_db():
+            has_read_db = True
+    except:
+        # Trac 0.11
+        has_read_db = False
+
+    checked_compatibility = True
 
 
 def to_list(params=[]):

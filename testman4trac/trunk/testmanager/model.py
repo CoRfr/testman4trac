@@ -14,7 +14,7 @@ from trac.env import IEnvironmentSetupParticipant
 from trac.perm import PermissionError
 from trac.resource import Resource, ResourceNotFound
 from trac.util.datefmt import utc, utcmax
-from trac.util.text import empty, CRLF
+from trac.util.text import CRLF
 from trac.util.translation import _, N_, gettext
 from trac.wiki.api import WikiSystem
 from trac.wiki.model import WikiPage
@@ -258,11 +258,14 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         """
         self['status'] = status
 
-        @self.env.with_transaction(db)
-        def do_set_status(db):
-            cursor = db.cursor()
-            sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, %s, %s, %s)'
-            cursor.execute(sql, (self.values['id'], self.values['planid'], to_any_timestamp(datetime.now(utc)), author, status))
+        db, handle_ta = get_db_for_write(self.env, db)
+
+        cursor = db.cursor()
+        sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, %s, %s, %s)'
+        cursor.execute(sql, (self.values['id'], self.values['planid'], to_any_timestamp(datetime.now(utc)), author, status))
+
+        if handle_ta:
+            db.commit()
 
     def list_history(self, db=None):
         """
@@ -270,7 +273,7 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         and author, starting from the most recent.
         """
         if db is None:
-            db = self._get_db(db)
+            db = get_db(self.env, db)
         
         cursor = db.cursor()
 
@@ -512,7 +515,7 @@ class TestManagerModelProvider(Component):
 
     # IEnvironmentSetupParticipant methods
     def environment_created(self):
-        self.upgrade_environment(self.env.get_db_cnx())
+        self.upgrade_environment(get_db(self.env))
 
     def environment_needs_upgrade(self, db):
         return self._need_initialization(db)
