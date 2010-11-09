@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='TestManager',
-    version='1.3.4',
+    version='1.3.6',
     packages=['testmanager'],
     package_data={'testmanager' : ['*.txt', 'templates/*.html', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
     author = 'Roberto Longobardi, Marco Cipriani',

@@ -150,17 +150,22 @@ class GenericClassSystem(Component):
         gclass_modelprovider = GenericClassModelProvider(self.env)
 
         for realm in gclass_modelprovider.get_known_realms():
-            gclass_modelprovider.get_class_provider(realm).check_permission(req, realm, key_str=None, operation='search')
+            try:
+                gclass_modelprovider.get_class_provider(realm).check_permission(req, realm, key_str=None, operation='search')
 
-            metadata = gclass_modelprovider.get_metadata(realm)
-            
-            if 'searchable' in metadata and metadata['searchable']:
-                if 'label' in metadata:
-                    label = metadata['label']
-                else:
-                    label = realm.capitalize()
+                metadata = gclass_modelprovider.get_metadata(realm)
                 
-                yield (realm, label)
+                if 'searchable' in metadata and metadata['searchable']:
+                    if 'label' in metadata:
+                        label = metadata['label']
+                    else:
+                        label = realm.capitalize()
+                    
+                    yield (realm, label)
+            
+            except:
+                self.env.log.debug("No permission to search on realm %s." % realm)
+
 
     def get_search_results(self, req, terms, filters):
         gclass_modelprovider = GenericClassModelProvider(self.env)
