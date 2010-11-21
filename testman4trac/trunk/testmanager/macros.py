@@ -47,6 +47,7 @@ class TestCaseBreadcrumbMacro(WikiMacroBase):
         args, kw = parse_args(content)
 
         page_name = kw.get('page_name', 'TC')
+        planid = kw.get('planid', '-1')
         mode = kw.get('mode', 'tree')
         fulldetails = kw.get('fulldetails', 'False')
         
@@ -54,7 +55,7 @@ class TestCaseBreadcrumbMacro(WikiMacroBase):
         
         req = formatter.req
 
-        return _build_testcases_breadcrumb(self.env, req, page_name, mode, fulldetails)
+        return _build_testcases_breadcrumb(self.env, req, page_name, planid, mode, fulldetails)
         
 
 class TestCaseTreeMacro(WikiMacroBase):
@@ -88,20 +89,21 @@ class TestPlanTreeMacro(WikiMacroBase):
     Usage:
 
     {{{
-    [[TestPlanTree(planid=<Plan ID>, catalog_path=<Catalog path>, mode={'tree'|'tree_table'})]]
+    [[TestPlanTree(planid=<Plan ID>, catalog_path=<Catalog path>, mode={'tree'|'tree_table'}, sortby={'modification_time'|'name'})]]
     }}}
     """
     
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = kw.get('planid', -1)
+        planid = kw.get('planid', '-1')
         catpath = kw.get('catalog_path', 'TC')
         mode = kw.get('mode', 'tree')
+        sortby = kw.get('sortby', 'name')
         
         req = formatter.req
 
-        return _build_testplan_tree(self.env, req, formatter.context, planid, catpath, mode)
+        return _build_testplan_tree(self.env, req, formatter.context, planid, catpath, mode, sortby)
 
 
 class TestPlanListMacro(WikiMacroBase):
@@ -118,10 +120,14 @@ class TestPlanListMacro(WikiMacroBase):
         args, kw = parse_args(content)
 
         catpath = kw.get('catalog_path', 'TC')
+        mode = kw.get('mode', 'tree')
+        fulldetails = kw.get('fulldetails', 'False')
+        
+        fulldetails = (fulldetails == 'True')
         
         req = formatter.req
 
-        return _build_testplan_list(self.env, req, catpath)
+        return _build_testplan_list(self.env, req, catpath, mode, fulldetails)
 
         
 class TestCaseStatusMacro(WikiMacroBase):
@@ -137,7 +143,7 @@ class TestCaseStatusMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = kw.get('planid', -1)
+        planid = kw.get('planid', '-1')
         curpage = kw.get('page_name', 'TC')
         
         req = formatter.req
@@ -158,7 +164,7 @@ class TestCaseChangeStatusMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = kw.get('planid', -1)
+        planid = kw.get('planid', '-1')
         curpage = kw.get('page_name', 'TC')
         
         req = formatter.req
@@ -179,7 +185,7 @@ class TestCaseStatusHistoryMacro(WikiMacroBase):
     def expand_macro(self, formatter, name, content):
         args, kw = parse_args(content)
 
-        planid = kw.get('planid', -1)
+        planid = kw.get('planid', '-1')
         curpage = kw.get('page_name', 'TC')
         
         req = formatter.req
@@ -190,7 +196,7 @@ class TestCaseStatusHistoryMacro(WikiMacroBase):
 
 # Internal methods
 
-def _build_testcases_breadcrumb(env,req,curpage, mode, fulldetails):
+def _build_testcases_breadcrumb(env, req, curpage, planid, mode, fulldetails):
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
@@ -218,7 +224,7 @@ def _build_testcases_breadcrumb(env,req,curpage, mode, fulldetails):
     text = ''
 
     text +='<div>'
-    text += _render_breadcrumb(breadcrumb, mode, fulldetails)
+    text += _render_breadcrumb(breadcrumb, planid, mode, fulldetails)
     text +='</div>'
 
     print text
@@ -241,6 +247,8 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
 
     # Create the catalog subtree model
     components = {'name': curpage, 'childrenC': {},'childrenT': {}, 'tot': 0}
+
+    unique_idx = 0
 
     for subpage_name in sorted(WikiSystem(env).get_pages(curpage+'_')):
         subpage = WikiPage(env, subpage_name)
@@ -271,7 +279,13 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
                 # It is a test case page
                 tc_id = tc.rpartition('TC')[2]
                 
-                parent['childrenT'][tc]={'id':curr_path, 'tc_id':tc_id, 'title': subpage_title, 'status': 'NONE'}
+                if subpage_title in parent['childrenT']:
+                    unique_idx += 1
+                    key = subpage_title+str(unique_idx)
+                else:
+                    key = subpage_title
+                    
+                parent['childrenT'][key]={'id':curr_path, 'tc_id':tc_id, 'title': subpage_title, 'status': 'NONE'}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -290,7 +304,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
         text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+LABELS['expand_all']+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+LABELS['collapse_all']+'</a></div>';
         text +='<div id="ticketContainer">'
 
-        text += _render_subtree(-1, components, ind, 0)
+        text += _render_subtree('-1', components, ind, 0)
         
         text +='</div>'
         
@@ -312,7 +326,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
         text += '<table id="testcaseList" class="listing"><thead><tr>';
         
         # Common columns
-        text += '<th>'+"Name"+'</th>'
+        text += '<th>'+LABELS['name_header']+'</th>'
         
         # Custom testcatalog columns
         if tcat_has_custom:
@@ -321,7 +335,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
                     text += '<th>'+f['label']+'</th>'
 
         # Base testcase columns
-        text += '<th>'+"ID"+'</th>'
+        text += '<th>'+LABELS['id_header']+'</th>'
 
         # Custom testcase columns
         if tc_has_custom:
@@ -331,7 +345,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
         
         # Test case full details
         if fulldetails:
-            text += '<th>'+"Description"+'</th>'
+            text += '<th>'+LABELS['description_header']+'</th>'
             
         text += '</tr></thead><tbody>';
         
@@ -342,7 +356,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
     
     return text
     
-def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
+def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby='name'):
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
@@ -354,6 +368,8 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
 
     # Create the catalog subtree model
     components = {'name': curpage, 'childrenC': {},'childrenT': {}, 'tot': 0}
+
+    unique_idx = 0
 
     for subpage_name in sorted(WikiSystem(env).get_pages(curpage+'_')):
         subpage = WikiPage(env, subpage_name)
@@ -395,8 +411,17 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
                     ts = tp['time']
                     author = tp['author']
                     status = 'TO_BE_TESTED'
+                
+                if sortby == 'name':
+                    key = subpage_title
+                else:
+                    key = ts.isoformat()
+
+                if key in parent['childrenT']:
+                    unique_idx += 1
+                    key = key+str(unique_idx)
                     
-                parent['childrenT'][tc]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status, 'ts': ts, 'author': author}
+                parent['childrenT'][key]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status, 'ts': ts, 'author': author}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -438,7 +463,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
         text += '<table id="testcaseList" class="listing"><thead><tr>';
 
         # Common columns
-        text += '<th>'+"Name"+'</th>'
+        text += '<th>'+LABELS['name_header']+'</th>'
         
         # Custom testcatalog columns
         if custom_ctx['testcatalog'][0]:
@@ -447,7 +472,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
                     text += '<th>'+f['label']+'</th>'
 
         # Base testcase columns
-        text += '<th>'+"ID"+'</th>'
+        text += '<th>'+LABELS['id_header']+'</th>'
 
         #Custom testcase columns
         if custom_ctx['testcase'][0]:
@@ -456,7 +481,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
                     text += '<th>'+f['label']+'</th>'
 
         # Base testcaseinplan columns
-        text += '<th>'+"Status"+'</th><th>'+"Author"+'</th><th>'+"Last Change"+'</th>'
+        text += '<th>'+LABELS['status']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['last_change_header']+'</th>'
         
         # Custom testcaseinplan columns
         if custom_ctx['testcaseinplan'][0]:
@@ -474,40 +499,53 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree'):
     return text
 
 
-def _build_testplan_list(env, req, curpage):
+def _build_testplan_list(env, req, curpage, mode, fulldetails):
     # Determine current catalog name
     cat_name = 'TC'
-    catid = -1
+    catid = '-1'
     if curpage.find('_TC') >= 0:
         cat_name = curpage.rpartition('_TC')[0].rpartition('_')[2]
         catid = cat_name.rpartition('TT')[2]
     elif not curpage == 'TC':
         cat_name = curpage.rpartition('_')[2]
         catid = cat_name.rpartition('TT')[2]
-        
-    markup, num_plans = _render_testplan_list(env, catid)
-        
+    
+    if 'TEST_PLAN_ADMIN' in req.perm:
+        show_delete_button = True
+    else:
+        show_delete_button = False
+    
+    markup, num_plans = _render_testplan_list(env, catid, mode, fulldetails, show_delete_button)
+
     text = '<form id="testPlanList"><fieldset id="testPlanListFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no4"  onclick="expandCollapseSection(\'testPlanListFields\')">'+LABELS['test_plan_list']+' ('+str(num_plans)+')</a></legend>'
     text += markup
     text += '</fieldset></form>'
 
     return text
     
-def _render_testplan_list(env, catid):
+def _render_testplan_list(env, catid, mode, fulldetails, show_delete_button):
     """Returns a test case status in a plan audit trail."""
+
+    delete_icon = '../chrome/testmanager/images/trash.png'
 
     cat = TestCatalog(env, catid)
     
     result = '<table class="listing"><thead>'
-    result += '<tr><th>'+LABELS['plan_name']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['timestamp']+'</th></tr>'
+    result += '<tr><th>'+LABELS['plan_name']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['timestamp']+'</th><th></th></tr>'
     result += '</thead><tbody>'
     
     num_plans = 0
-    for tp in cat.list_testplans():
+    for tp in sorted(cat.list_testplans(), cmp=lambda x,y: cmp(x['time'],y['time']), reverse=True):
         result += '<tr>'
         result += '<td><a title="'+LABELS['open_testplan_title']+'" href="'+tp['page_name']+'?planid='+tp['id']+'">'+tp['name']+'</a></td>'
         result += '<td>'+tp['author']+'</td>'
         result += '<td>'+str(tp['time'])+'</td>'
+        
+        if show_delete_button:
+            result += '<td style="cursor: pointer;"><img class="iconElement" alt="'+LABELS['delete']+'" title="'+LABELS['delete']+'" src="'+delete_icon+'" onclick="deleteTestPlan(\'../testdelete?type=testplan&path='+tp['page_name']+'&mode='+mode+'&fulldetails='+str(fulldetails)+'&planid='+tp['id']+'\')"/></td>'
+        else:
+            result += '<td></td>'
+        
         result += '</tr>'
         num_plans += 1
 
@@ -516,12 +554,21 @@ def _render_testplan_list(env, catid):
     return result, num_plans
     
 # Render the breadcrumb
-def _render_breadcrumb(breadcrumb, mode, fulldetails):
+def _render_breadcrumb(breadcrumb, planid, mode, fulldetails):
+    plan_ref = ''
+    if planid is not None and not planid == '-1':
+        plan_ref = '&planid='+planid
+    
     text = ''
     path_len = len(breadcrumb)
     for i, x in enumerate(breadcrumb):
-        text += '<span name="breadcrumb" style="cursor: pointer; color: #BB0000; margin-left: 10px; margin-right: 10px; font-size: 0.8em;" '
-        text += ' onclick="window.location=\''+x['id']+'?mode='+mode+'&fulldetails='+str(fulldetails)+'\'">'+x['title']
+        if i == 0:
+            plan_param = ''
+        else:
+            plan_param = plan_ref
+    
+        text += '<span name="breadcrumb" style="cursor: pointer; color: #BB0000; margin-left: 10px; margin-right: 5px; font-size: 0.8em;" '
+        text += ' onclick="window.location=\''+x['id']+'?mode='+mode+plan_param+'&fulldetails='+str(fulldetails)+'\'">'+x['title']
         
         if i < path_len-1:
             text += '&nbsp;&nbsp;->'
@@ -536,7 +583,7 @@ def _render_subtree(planid, component, ind, level):
     text = ''
     if (level == 0):
         data = component['childrenC']
-        text +='<ul style="list-style: none;">';        
+        text +='<ul style="list-style: none;">';
     keyList = data.keys()
     sortedList = sorted(keyList)
     for x in sortedList:
@@ -553,8 +600,12 @@ def _render_subtree(planid, component, ind, level):
                 toggle_icon = '../chrome/testmanager/images/empty.png'
                 
             index = str(ind['count'])
-            
-            text+='<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+'\'" title='+LABELS['open']+'>'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
+            if planid is not None and not planid == '-1':
+                plan_param = '?planid='+planid
+            else:
+                plan_param = ''
+                
+            text+='<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title='+LABELS['open']+'>'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
             text +='<ul id="b_'+index+'_list" style="display:none;list-style: none;">';
             ind['count']+=1
             text+=_render_subtree(planid, subcData, ind, level+1)
@@ -589,7 +640,7 @@ def _render_testcases(planid, data):
 
         if has_status:
             statusLabel = LABELS[status]
-            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+str(planid)+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit&planid="+str(planid)+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
         else:
             text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
             
@@ -631,9 +682,13 @@ def _render_subtree_as_table(env, context, planid, component, ind, level, custom
             subcData=comp['childrenC']
             
             index = str(ind['count'])
+            if planid is not None and not planid == '-1':
+                plan_param = '&planid='+planid
+            else:
+                plan_param = ''
             
             # Common columns
-            text += '<tr name="testcatalog"><td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+'" title="'+LABELS['open']+'">'+comp['title']+'</a></td>'
+            text += '<tr name="testcatalog"><td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+LABELS['open']+'">'+comp['title']+'</a></td>'
 
             # Custom testcatalog columns
             if custom_ctx['testcatalog'][0]:
@@ -743,21 +798,21 @@ def _build_testcase_change_status(env, req, planid, curpage):
     if status == 'SUCCESSFUL':
         border = 'border: 2px solid black;'
 
-    text += '<span id="tcStatusSUCCESSFUL" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+str(planid)+'\', \''+curpage+'\', \'SUCCESSFUL\')">'
+    text += '<span id="tcStatusSUCCESSFUL" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'SUCCESSFUL\')">'
     text += '<img src="../chrome/testmanager/images/green.png" title="'+LABELS['SUCCESSFUL']+'"></img></span>'
 
     border = ''
     if status == 'TO_BE_TESTED':
         border = 'border: 2px solid black;'
 
-    text += '<span id="tcStatusTO_BE_TESTED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+str(planid)+'\', \''+curpage+'\', \'TO_BE_TESTED\')">'
+    text += '<span id="tcStatusTO_BE_TESTED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'TO_BE_TESTED\')">'
     text += '<img src="../chrome/testmanager/images/yellow.png" title="'+LABELS['TO_BE_TESTED']+'"></img></span>'
 
     border = ''
     if status == 'FAILED':
         border = 'border: 2px solid black;'
 
-    text += '<span id="tcStatusFAILED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+str(planid)+'\', \''+curpage+'\', \'FAILED\')">'
+    text += '<span id="tcStatusFAILED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'FAILED\')">'
     text += '<img src="../chrome/testmanager/images/red.png" title="'+LABELS['FAILED']+'"></img></span>'
 
     text += '</span>'

@@ -2,10 +2,10 @@ from setuptools import setup
 
 setup(
     name='TestManager',
-    version='1.3.6',
+    version='1.3.7',
     packages=['testmanager'],
     package_data={'testmanager' : ['*.txt', 'templates/*.html', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
-    author = 'Roberto Longobardi, Marco Cipriani',
+    author = 'Roberto Longobardi',
     author_email='seccanj@gmail.com',
     license='BSD. See the file LICENSE.txt contained in the package.',
     url='http://trac-hacks.org/wiki/TestManagerForTracPlugin',

@@ -388,7 +388,10 @@ class ResourceWorkflowSystem(Component):
                 for operation in operations:
                     provider = self.get_operation_provider(operation)
                     
-                    provider.perform_operation(req, selected_action, operation, curr_state, new_state, rws, res)
+                    if provider is not None:
+                        provider.perform_operation(req, selected_action, operation, curr_state, new_state, rws, res)
+                    else:
+                        self.env.log.debug("Unable to find operation provider for operation %s" % operation)
 
                 # Transition the resource to the new state
                 if rws.exists:

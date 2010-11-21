@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='TracGenericWorkflow',
-    version='1.0.0',
+    version='1.0.1',
     packages=['tracgenericworkflow'],
     package_data={'tracgenericworkflow' : ['*.txt', 'templates/*.html', 'htdocs/*.*', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
     author = 'Roberto Longobardi',

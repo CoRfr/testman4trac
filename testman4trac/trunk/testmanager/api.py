@@ -128,6 +128,8 @@ class TestManagerSystem(Component):
             match = True
         elif (req.path_info.startswith('/teststatusupdate') and 'TEST_EXECUTE' in req.perm):
             match = True
+        elif (req.path_info.startswith('/testdelete') and (type == 'testplan' and ('TEST_PLAN_ADMIN' in req.perm))):
+            match = True
         
         return match
 
@@ -177,7 +179,6 @@ class TestManagerSystem(Component):
             
             if type == 'catalog':
                 req.perm.require('TEST_MODIFY')
-                pagename += '_TT'+str(id)
 
                 try:
                     new_tc = TestCatalog(self.env, id, pagename, title, '')
@@ -187,8 +188,8 @@ class TestManagerSystem(Component):
                     new_tc.insert()
                     
                 except:
-                    print "Error adding test catalog!"
-                    print formatExceptionInfo()
+                    self.env.log.info("Error adding test catalog!")
+                    self.env.log.info(formatExceptionInfo())
                     req.redirect(req.href.wiki(path))
 
                 # Redirect to see the new wiki page.
@@ -205,8 +206,8 @@ class TestManagerSystem(Component):
                     new_tc.insert()
 
                 except:
-                    print "Error adding test plan!"
-                    print formatExceptionInfo()
+                    self.env.log.info("Error adding test plan!")
+                    self.env.log.info(formatExceptionInfo())
                     # Back to the catalog
                     req.redirect(req.href.wiki(path))
 
@@ -235,8 +236,8 @@ class TestManagerSystem(Component):
                         else:
                             self.env.log.debug("Test case not found")
                     except:
-                        self.env.log.debug("Error pasting test case!")
-                        self.env.log.debug(formatExceptionInfo())
+                        self.env.log.info("Error pasting test case!")
+                        self.env.log.info(formatExceptionInfo())
                         req.redirect(req.href.wiki(pagename))
                 
                     # Redirect to test catalog, forcing a page refresh by means of a random request parameter
@@ -260,8 +261,8 @@ class TestManagerSystem(Component):
                         new_tc.save_as({'id': id})
                         
                     except:
-                        self.env.log.debug("Error duplicating test case!")
-                        self.env.log.debug(formatExceptionInfo())
+                        self.env.log.info("Error duplicating test case!")
+                        self.env.log.info(formatExceptionInfo())
                         req.redirect(req.href.wiki(tcId))
 
                     # Redirect tp allow for editing the copy test case
@@ -277,12 +278,42 @@ class TestManagerSystem(Component):
                         new_tc.insert()
                         
                     except:
-                        self.env.log.debug("Error adding test case!")
-                        self.env.log.debug(formatExceptionInfo())
+                        self.env.log.info("Error adding test case!")
+                        self.env.log.info(formatExceptionInfo())
                         req.redirect(req.path_info)
 
                     # Redirect to edit the test case description
                     req.redirect(req.href.wiki(pagename, action='edit'))
+
+        elif req.path_info.startswith('/testdelete'):
+            type = req.args.get('type')
+            path = req.args.get('path')
+            author = get_reporter_id(req, 'author')
+            mode = req.args.get('mode', 'tree')
+            fulldetails = req.args.get('fulldetails', 'False')
+
+            if type == 'testplan':
+                req.perm.require('TEST_PLAN_ADMIN')
+                
+                planid = req.args.get('planid')
+                catid = path.rpartition('_TT')[2]
+
+                self.env.log.debug("About to delete test plan %s on catalog %s" % (planid, catid))
+
+                try:
+                    # Add the new test plan in the database
+                    tp = TestPlan(self.env, planid, catid)
+                    tp.delete()
+
+                except:
+                    self.env.log.info("Error deleting test plan!")
+                    self.env.log.info(formatExceptionInfo())
+                    # Back to the catalog
+                    req.redirect(req.href.wiki(path))
+
+                # Redirect to test catalog, forcing a page refresh by means of a random request parameter
+                req.redirect(req.href.wiki(path, mode=mode, fulldetails=fulldetails, random=str(datetime.now(utc).microsecond)))
+                    
         
         return 'empty.html', {}, None
 

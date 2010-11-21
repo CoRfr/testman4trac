@@ -1,6 +1,6 @@
 /*- coding: utf-8
  *
- * Copyright (C) 2010 Roberto Longopbardi - seccanj@gmail.com, Marco Cipriani
+ * Copyright (C) 2010 Roberto Longobardi - seccanj@gmail.com
  */
 
 /******************************************************/
@@ -77,6 +77,19 @@ function regenerateTestPlan(planId, path) {
 function creaTicket(tcName, planId, planName){ 
 	var url = baseLocation+'/newticket?testCaseNumber='+tcName+'&planId='+planId+'&planName='+planName+'&description=Test%20Case:%20[wiki:'+tcName+'?planid='+planId+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
 	window.location = url;
+}
+
+function duplicateTestCatalog(catName){
+    if (confirm(messages['duplicate_catalog_confirm'])) {
+        var url = baseLocation+'/testcreate?type=catalog&duplicate=true&path='+catName; 
+        window.location = url;
+    }
+}
+
+function deleteTestPlan(url){
+    if (confirm(messages['delete_plan_confirm'])) {
+        window.location = url;
+    }
 }
 
 /******************************************************/

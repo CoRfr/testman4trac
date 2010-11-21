@@ -85,7 +85,7 @@ def get_db_for_write(env, db=None):
         return (db, False)
 
     if not checked_compatibility:
-        check_compatibility()
+        check_compatibility(env)
 
     if has_read_db:
         return (env.get_read_db(), True)
@@ -118,7 +118,6 @@ def check_compatibility(env):
         has_read_db = False
 
     checked_compatibility = True
-
 
 def to_list(params=[]):
     result = []

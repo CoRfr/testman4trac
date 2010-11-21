@@ -50,5 +50,11 @@ LABELS = {
     'duplicate_tc_button': "Duplicate the Test Case",
     'edit_test_case_label': "Edit the Test Case",
     'edit_label': "Edit",
-    'update_button': "Save"
+    'update_button': "Save",
+    'name_header': "Name",
+    'id_header': "ID",
+    'description_header': "Description",
+    'last_change_header': "Last Change",
+    'delete': "Delete",
+    'duplicate_catalog': "Duplicate the Catalog"
 }

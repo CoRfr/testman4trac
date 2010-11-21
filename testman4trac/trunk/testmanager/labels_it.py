@@ -18,7 +18,7 @@ LABELS = {
     'move_tc_help_msg': "Il Caso di Test e' stato copiato. Adesso seleziona il catalogo dove spostarlo e clicca su 'Sposta il Caso di Test copiato qui'. ",
     'cancel': "Annulla",
     'move_tc_button': "Sposta il Caso di Test in altro catalogo",
-    'test_case': "Casi di Test",
+    'test_case': "Caso di Test",
     'open_ticket_button': "Apri un Ticket su questo Caso di Test",
     'add_tc_button': "Aggiungi un Caso di Test",
     'new_tc_label': "Nuovo Caso di Test:",
@@ -50,5 +50,11 @@ LABELS = {
     'duplicate_tc_button': "Duplica il Caso di Test",
     'edit_test_case_label': "Modifica il Caso di Test",
     'edit_label': "Modifica",
-    'update_button': "Salva"
+    'update_button': "Salva",
+    'name_header': "Nome",
+    'id_header': "ID",
+    'description_header': "Descrizione",
+    'last_change_header': "Ultima Modifica",
+    'delete': "Elimina",
+    'duplicate_catalog': "Duplica il Catalogo"
 }

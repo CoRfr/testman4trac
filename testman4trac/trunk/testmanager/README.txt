@@ -8,7 +8,7 @@ Test Manager plugin for Trac
   
   Project web page on Pypi: http://pypi.python.org/pypi/TestManager
 
-  
+
 A Trac plugin to create Test Cases, organize them in catalogs, generate test plans and track their execution status and outcome.
 
 Refer to INSTALL.txt for installation details.
@@ -16,7 +16,20 @@ Refer to INSTALL.txt for installation details.
 =================================================================================================  
 Change History:
 
-(Refer to the tickets on trac-hacks for complete descriptions.)
+(Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
+
+Release 1.3.7 (2010-11-20):
+  o Enhancement #7704 (Track-Hacks): Add ability to delete a Test Plan
+  o Fixet Ticket #8084 (Track-Hacks): Ordering issue
+
+Release 1.3.6 (2010-11-09):
+  o Fixed Ticket #8004 (Track-Hacks): Cannot search if an admin
+
+Release 1.3.5 (2010-10-17):
+  o Restored compatibility with Trac 0.11. Now again both 0.11 and 0.12 are supported.
+
+Release 1.3.4 (2010-10-15):
+  o Added tabular view to catalogs and plans. Search now works with custom properties in tabular views.
 
 Release 1.3.3 (2010-10-05):
   o Enhanced feature 3076739 (SourceForge): Full Test Plan display / print
@@ -65,7 +78,7 @@ Release 1.2.0 (2010-09-20):
           (even non-key fields), applying the "dynamic record" pattern. 
           See the method list_matching_objects.
     
-  o Enhancement #7704 Add workflow capabilities, with custom states, transitions and operations, and state transition listeners support
+  o Enhancement #7704 (Track-Hacks): Add workflow capabilities, with custom states, transitions and operations, and state transition listeners support
       A generic Trac Resource workflow system has been implemented, allowing to add workflow capabilities 
       to any Trac resource.
       Test objects have been implemented as Trac resources as well, so they benefit of workflow capabilities.
@@ -93,7 +106,7 @@ Release 1.2.0 (2010-09-20):
         resolve.permissions = TEST_MODIFY
         resolve.operations = sample_operation
 
-  o Enhancement #7705 Add support for custom properties and change history to all of the test management objects
+  o Enhancement #7705 (Track-Hacks): Add support for custom properties and change history to all of the test management objects
       A generic object supporting programmatic definition of its standard fields, declarative definition 
       of custom fields (in trac.ini) and keeping track of change history has been created, by generalizing 
       the base Ticket code.
@@ -121,7 +134,7 @@ Release 1.2.0 (2010-09-20):
         good_prop = text
         good_prop.value = linux
 
-  o Enhancement #7569 Add listener interface to let other components react to test case status change
+  o Enhancement #7569 (Track-Hacks): Add listener interface to let other components react to test case status change
       Added listener interface for all of the test objects lifecycle:
        * Object created
        * Object modified (including custom properties)
@@ -129,22 +142,22 @@ Release 1.2.0 (2010-09-20):
       This applies to test catalogs, test cases, test plans and test cases in a plan (i.e. with a status).
   
 Release 1.1.2 (2010-08-25):
-  o Enhancement #7552 Export test statistics in CSV and bookmark this chart features in the test stats chart
-  o Fixed Ticket #7551 Test statistics don't work on Trac 0.11
+  o Enhancement #7552 (Track-Hacks): Export test statistics in CSV and bookmark this chart features in the test stats chart
+  o Fixed Ticket #7551 (Track-Hacks): Test statistics don't work on Trac 0.11
 
 Release 1.1.1 (2010-08-20):
-  o Enhancement #7526 Add ability to duplicate a test case
-  o Enhancement #7536 Add test management statistics
+  o Enhancement #7526 (Track-Hacks): Add ability to duplicate a test case
+  o Enhancement #7536 (Track-Hacks): Add test management statistics
   o Added "autosave=true" parameter to the RESTful API to create test catalogs 
     and test cases programmatically without need to later submit the wiki editing form.
 
 Release 1.1.0 (2010-08-18):
-  o Enhancement #7487 Add multiple test plans capability
-  o Enhancement #7507 Implement security permissions
-  o Enhancement #7484 Reverse the order of changes in the test case status change history
+  o Enhancement #7487 (Track-Hacks): Add multiple test plans capability
+  o Enhancement #7507 (Track-Hacks): Implement security permissions
+  o Enhancement #7484 (Track-Hacks): Reverse the order of changes in the test case status change history
 
 Release 1.0.2 (2010-08-17):
-  o Fixed Ticket #7485 "Open ticket on this test case" should work without a patched TracTicketTemplatePlugin
+  o Fixed Ticket #7485 (Track-Hacks): "Open ticket on this test case" should work without a patched TracTicketTemplatePlugin
 
 Release 1.0.1 (2010-08-12):
   o First attempt at externalizing strings

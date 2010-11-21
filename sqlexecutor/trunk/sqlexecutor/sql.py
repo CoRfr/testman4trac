@@ -11,6 +11,7 @@ import traceback
 from datetime import datetime
 from trac.core import *
 from trac.perm import IPermissionRequestor
+from trac.util.text import CRLF
 from trac.util.translation import _, N_, gettext
 from trac.web.api import IRequestHandler
 from trac.web.chrome import ITemplateProvider
@@ -52,6 +53,7 @@ class SqlExecutor(Component):
             for row in cursor:
                 for i in row:
                     result += str(i) + ', '
+                result += CRLF
 
             db.commit()
             

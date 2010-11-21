@@ -70,7 +70,7 @@ class AbstractTestDescription(AbstractWikiPageWrapper):
         self.author = self.wikipage.author
 
         self.env.log.debug('Title: %s' % self.title)
-        self.env.log.debug('Description: %s' % self.description)
+        #self.env.log.debug('Description: %s' % self.description)
 
     def pre_insert(self, db):
         """ Assuming the following fields have been given a value before this call:
@@ -123,6 +123,20 @@ class TestCatalog(AbstractTestDescription):
     
         AbstractTestDescription.__init__(self, env, 'testcatalog', id, page_name, title, description, db)
 
+    def get_enclosing_catalog(self):
+        """
+        Returns the catalog containing this test catalog, or None if its a root catalog.
+        """
+        page_name = self.values['page_name']
+        cat_page = page_name.rpartition('_TT')[0]
+
+        if cat_page == 'TC':
+            return None
+        else:
+            cat_id = page_name.rpartition('TT')[0].page_name.rpartition('TT')[2].rpartition('_')[0]
+
+            return TestCatalog(self.env, cat_id, cat_page)
+        
     def list_subcatalogs(self):
         """
         Returns a list of the sub catalogs of this catalog.
@@ -150,8 +164,8 @@ class TestCatalog(AbstractTestDescription):
 
     def create_instance(self, key):
         return TestCatalog(self.env, key['id'])
-        
-    
+
+   
 class TestCase(AbstractTestDescription):
     def __init__(self, env, id=None, page_name=None, title=None, description=None, db=None):
     
@@ -329,6 +343,18 @@ class TestPlan(AbstractVariableFieldsObject):
 
     def create_instance(self, key):
         return TestPlan(self.env, key['id'])
+
+    def post_delete(self, db):
+        self.env.log.debug("Deleting this test plan %s" % self['id'])
+        
+        # Remove all test cases (in plan) from this plan
+        self.env.log.debug("Deleting all test cases in the plan...")
+        tcip_search = TestCaseInPlan(self.env)
+        tcip_search['planid'] = self.values['id']
+        for tcip in tcip_search.list_matching_objects(db):
+            self.env.log.debug("Deleting test case in plan, with id %s" % tcip['id'])
+            tcip.delete(db)
+
 
         
 class TestManagerModelProvider(Component):

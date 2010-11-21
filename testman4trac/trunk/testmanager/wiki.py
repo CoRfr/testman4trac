@@ -28,6 +28,36 @@ class WikiTestManagerInterface(Component):
     
     implements(ITemplateStreamFilter, IWikiChangeListener)
     
+    _config_properties = {}
+    
+    def __init__(self, *args, **kwargs):
+        """
+        Parses the configuration file for the section 'testmanager'.
+        
+        Available properties are:
+        
+          testplan.sortby = {modification_time|name}    (default is name)
+        """
+        
+        Component.__init__(self, *args, **kwargs)
+
+        for section in self.config.sections():
+            if section == 'testmanager':
+                self.log.debug("WikiTestManagerInterface - parsing config section %s" % section)
+                options = list(self.config.options(section))
+                
+                self._parse_config_options(options)
+                break
+
+    
+    def _parse_config_options(self, options):
+        for option in options:
+            name = option[0]
+            value = option[1]
+            self.env.log.debug("  %s = %s" % (name, value))
+            
+            self._config_properties[name] = value
+    
     # IWikiChangeListener methods
     def wiki_page_added(self, page):
         #page_on_db = WikiPage(self.env, page.name)
@@ -151,7 +181,7 @@ class WikiTestManagerInterface(Component):
             insert2.append(tag.div(id='pasteTCHereDiv')(
                         tag.input(type='button', id='pasteTCHereButton', value=LABELS['move_here'], onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
                     ))
-                    
+                                        
         insert2.append(tag.div(class_='field')(
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     tag.br(), tag.br(), tag.br(),
@@ -186,7 +216,7 @@ class WikiTestManagerInterface(Component):
                             tag.input(type='button', value=LABELS['add_test_plan_button'], onclick='creaTestPlan("'+cat_name+'")')
                             ),
                         tag.br(), 
-                        self._get_testplan_list_markup(formatter, cat_name),
+                        self._get_testplan_list_markup(formatter, cat_name, mode, fulldetails),
                         ))
                     
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
@@ -201,6 +231,11 @@ class WikiTestManagerInterface(Component):
         
         mode = req.args.get('mode', 'tree')
         fulldetails = req.args.get('fulldetails', 'False')
+
+        if 'testplan.sortby' in self._config_properties:
+            sortby = self._config_properties['testplan.sortby']
+        else:
+            sortby = 'name'
 
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_plan = TestPlan(self.env, planid, cat_id, page_name)
@@ -232,7 +267,7 @@ class WikiTestManagerInterface(Component):
                     )
 
         insert2 = tag.div()(
-                    HTML(tree_macro.expand_macro(formatter, None, 'planid='+str(planid)+',catalog_path='+page_name+',mode='+mode+',fulldetails='+fulldetails)),
+                    HTML(tree_macro.expand_macro(formatter, None, 'planid='+str(planid)+',catalog_path='+page_name+',mode='+mode+',fulldetails='+fulldetails+',sortby='+sortby)),
                     tag.div(class_='testCaseList')(
                     tag.br(), tag.br(),
                     self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
@@ -393,9 +428,9 @@ class WikiTestManagerInterface(Component):
         else:
             return tag.span()()
 
-    def _get_testplan_list_markup(self, formatter, cat_name):
+    def _get_testplan_list_markup(self, formatter, cat_name, mode, fulldetails):
         testplan_list_macro = TestPlanListMacro(self.env)
-        return HTML(testplan_list_macro.expand_macro(formatter, None, 'catalog_path='+cat_name))
+        return HTML(testplan_list_macro.expand_macro(formatter, None, 'catalog_path='+cat_name+',mode='+mode+',fulldetails='+str(fulldetails)))
 
     def _get_custom_fields_markup(self, obj, fields, props=None):
         obj_key = obj.gey_key_string()
