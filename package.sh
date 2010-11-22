@@ -5,6 +5,8 @@ zip -r testman4trac.$VER.zip bin
 mkdir testman4trac.$VER
 
 cp *.sh testman4trac.$VER
+cp *.txt testman4trac.$VER
+cp *.cmd testman4trac.$VER
 cp -R sqlexecutor testman4trac.$VER
 cp -R testman4trac testman4trac.$VER
 cp -R tracgenericclass testman4trac.$VER

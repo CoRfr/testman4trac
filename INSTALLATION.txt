@@ -1,0 +1,16 @@
+Installation:
+
+The functionalities are divided in three plugins, which must be installed in this order:
+
+    1) Trac Generic Class => TracGenericClass
+
+    2) Trac Generic Workflow => TracGenericWorkflow
+
+    3) Test Manager => TestManager
+
+
+An additional plugin is only useful for debugging and should not be installed in a production environment.
+
+    *  SQL Executor => SQLExecutor
+
+

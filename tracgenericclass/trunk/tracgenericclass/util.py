@@ -82,7 +82,7 @@ def get_db_for_write(env, db=None):
     global has_read_db
 
     if db:
-        return (db, False)
+        return (db, True)
 
     if not checked_compatibility:
         check_compatibility(env)

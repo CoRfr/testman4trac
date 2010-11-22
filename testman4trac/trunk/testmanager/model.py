@@ -188,34 +188,45 @@ class TestCase(AbstractTestDescription):
         """ 
         Moves the test case into a different catalog.
         
-        Note: the test case keeps its ID, but the old wiki page is
-        deleted and a new page is created with the new "path".
-        This means the page change history is lost.
+        Note: the test case keeps its ID, and the wiki page is moved 
+        into the new name. This way, the page change history is kept.
         """
-        
-        text = self.wikipage.text
-        
-        old_cat = self.get_enclosing_catalog()
-        
-        # Create new wiki page to store the test case
-        new_page_name = tcat['page_name'] + '_TC' + self['id']
-        new_page = WikiPage(self.env, new_page_name)
-               
-        new_page.text = text
-        new_page.save(self.author, "Moved from catalog \"%s\" (%s)" % (old_cat.title, old_cat['page_name']), '127.0.0.1')
 
+        db, handle_ta = get_db_for_write(self.env, db)
+
+        # Rename the wiki page
+        new_page_name = tcat['page_name'] + '_TC' + self['id']
+
+        cursor = db.cursor()
+        cursor.execute("UPDATE wiki SET name = %s WHERE name = %s", 
+            (new_page_name, self['page_name']))
+
+        if handle_ta:
+            db.commit()
+
+        # Invalidate Trac 0.12 page name cache
+        try:
+            del WikiSystem(self.env).pages
+        except:
+            pass
+
+        # TODO Move wiki page attachments
+        #from trac.attachment import Attachment
+        #Attachment.delete_all(self.env, 'wiki', self.name, db)
+        
         # Remove test case from all the plans
         tcip_search = TestCaseInPlan(self.env)
         tcip_search['id'] = self.values['id']
         for tcip in tcip_search.list_matching_objects(db):
             tcip.delete(db)
 
-        # Delete old wiki page
-        self.wikipage.delete()
-
+        # Update self properties and save
         self['page_name'] = new_page_name
-        self.wikipage = new_page
+        self.wikipage = WikiPage(self.env, new_page_name)
         
+        self.save_changes('System', "Moved to a different catalog", 
+            datetime.now(utc), db)
+
         
 class TestCaseInPlan(AbstractVariableFieldsObject):
     """

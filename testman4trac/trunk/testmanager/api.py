@@ -179,6 +179,7 @@ class TestManagerSystem(Component):
             
             if type == 'catalog':
                 req.perm.require('TEST_MODIFY')
+                pagename += '_TT'+str(id)
 
                 try:
                     new_tc = TestCatalog(self.env, id, pagename, title, '')
@@ -231,6 +232,8 @@ class TestManagerSystem(Component):
                         old_pagename = tcId
                         tc_id = tcId.rpartition('_TC')[2]
                         tc = TestCase(self.env, tc_id, tcId)
+                        tc.author = author
+                        tc.remote_addr = req.remote_addr
                         if tc.exists:
                             tc.move_to(tcat)                            
                         else:

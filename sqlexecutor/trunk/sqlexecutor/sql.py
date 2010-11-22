@@ -52,7 +52,10 @@ class SqlExecutor(Component):
             result = ''
             for row in cursor:
                 for i in row:
-                    result += str(i) + ', '
+                    if isinstance(i, basestring):
+                        result += i + u', '
+                    else:
+                        result += str(i) + u', '
                 result += CRLF
 
             db.commit()
