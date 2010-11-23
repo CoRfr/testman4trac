@@ -44,30 +44,55 @@ class SqlExecutor(Component):
         sql = req.args.get('sql')
         self.env.log.debug(sql)
 
+        strdata = """
+            <html>
+              <body>
+                <p>Result:</p>
+                <br />
+                <div id="response">
+                    <table><tbody>
+            """
+    
         try:
             db = self.env.get_db_cnx()
             cursor = db.cursor()
             cursor.execute(sql)
             
-            result = ''
             for row in cursor:
+                strdata += '<tr>'
                 for i in row:
+                    strdata += '<td>'
                     if isinstance(i, basestring):
-                        result += i + u', '
+                        strdata += i.encode('utf-8')
+                    elif isinstance(i, long):
+                        strdata += from_any_timestamp(i).isoformat() + ' (' + str(i) + ')'
                     else:
-                        result += str(i) + u', '
-                result += CRLF
+                        strdata += str(i).encode('utf-8')
+                    strdata += '<td>'
+
+                strdata += '<tr>'
 
             db.commit()
             
-            self.env.log.debug(result)
+            self.env.log.debug(strdata)
         except:
-            result = formatExceptionInfo()
+            strdata = formatExceptionInfo()
             db.rollback()
             self.env.log.debug("SqlExecutor - Exception: ")
-            self.env.log.debug(result)
+            self.env.log.debug(strdata)
+
+        strdata += """
+                    </tbody></table>
+                </div>
+              </body>
+            </html>
+            """
         
-        return 'result.html', {'result': result}, None
+        req.send_header("Content-Length", len(strdata))
+        req.write(strdata)
+        
+        #return 'result.html', {'result': result}, None
+        return
 
 
     # ITemplateProvider methods

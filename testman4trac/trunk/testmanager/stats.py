@@ -18,7 +18,7 @@ from trac.perm import IPermissionRequestor
 
 from datetime import date, datetime, time, timedelta
 from time import strptime
-from trac.util.datefmt import utc, to_timestamp
+from trac.util.datefmt import utc
 
 from tracgenericclass.util import *
 
@@ -107,7 +107,9 @@ class TestStatsPlugin(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
-        cursor.execute("SELECT COUNT(*) from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s %s" % (status, to_timestamp(from_date), to_timestamp(at_date), testplan_filter))
+        #self.log.debug("From %s to %s, status=%s, plan=%s" % (from_date.isoformat(), at_date.isoformat(), status, testplan))
+        #self.log.debug("SELECT COUNT(*) from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s %s" % (status, to_any_timestamp(from_date), to_any_timestamp(at_date), testplan_filter))
+        cursor.execute("SELECT COUNT(*) from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s %s" % (status, to_any_timestamp(from_date), to_any_timestamp(at_date), testplan_filter))
 
         row = cursor.fetchone()
         
