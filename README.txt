@@ -20,6 +20,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.3.9 (2010-11-23):
+  o Fixed Ticket #8144 (Track-Hacks): Test statistical charts don't show successful and failed figures
+
 Release 1.3.8 (2010-11-23):
   o Fixed Ticket #8121 (Track-Hacks): Catalog Wiki Page not added
   o Fixed Ticket #8123 (Track-Hacks): Can't move testcase more than one time into different catalog
