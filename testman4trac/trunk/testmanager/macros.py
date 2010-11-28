@@ -227,8 +227,6 @@ def _build_testcases_breadcrumb(env, req, curpage, planid, mode, fulldetails):
     text += _render_breadcrumb(breadcrumb, planid, mode, fulldetails)
     text +='</div>'
 
-    print text
-
     return text    
             
 
@@ -763,7 +761,6 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
                 text += _get_custom_fields_columns(tcip, custom_ctx['testcaseinplan'][1])
 
         if fulldetails:
-            print(tc.description)
             wikidom = WikiParser(env).parse(tc.description)
             out = StringIO()
             f = Formatter(env, context)

@@ -20,10 +20,13 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
-Release 1.3.9 (2010-11-23):
-  o Fixed Ticket #8144 (Track-Hacks): Test statistical charts don't show successful and failed figures
+Release 1.3.10 (2010-11-28):
+  o Fixed Ticket #8154 (Track-Hacks): LookupError: unknown encoding: cp0
 
-Release 1.3.8 (2010-11-23):
+Release 1.3.9 (2010-11-23):
+  o Fixed Ticket #8144 (Track-Hacks): Test statistical charts don't show successful and failed figures.
+
+Release 1.3.8 (2010-11-22):
   o Fixed Ticket #8121 (Track-Hacks): Catalog Wiki Page not added
   o Fixed Ticket #8123 (Track-Hacks): Can't move testcase more than one time into different catalog
   o Fixed Ticket #8124 (Track-Hacks): AttributeError: 'NoneType' object has no attribute 'splitlines'
