@@ -223,9 +223,9 @@ class ResourceWorkflowSystem(Component):
         hints = []
         
         for operation in operations:
-            print (">>>>>>>>>>>>>>> "+operation)
+            self.env.log.debug(">>>>>>>>>>>>>>> "+operation)
             provider = self.get_operation_provider(operation)
-            print (provider)
+            self.env.log.debug (provider)
             
             if provider is not None:
                 control, hint = provider.get_operation_control(req, action, operation, rws, resource)
@@ -235,7 +235,7 @@ class ResourceWorkflowSystem(Component):
         
         if 'leave_status' not in operations:
             if status != '*':
-                hints.append(_("Next status will be '%(name)s'", name=status))
+                hints.append(_(" Next status will be '%(name)s'", name=status))
 
         return (this_action['name'], tag(*controls), '. '.join(hints))
 

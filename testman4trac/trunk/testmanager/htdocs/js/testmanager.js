@@ -79,6 +79,11 @@ function creaTicket(tcName, planId, planName){
 	window.location = url;
 }
 
+function showTickets(tcName, planId, planName){ 
+	var url = baseLocation+'/query?description=~'+tcName+'?planId='+planId; 
+	window.location = url;
+}
+
 function duplicateTestCatalog(catName){
     if (confirm(messages['duplicate_catalog_confirm'])) {
         var url = baseLocation+'/testcreate?type=catalog&duplicate=true&path='+catName; 
@@ -463,7 +468,7 @@ function changestate(tc, planid, path, newStatus) {
 /******************************************************/
 
 function expandCollapseSection(nodeId) {
-    toggleClass(nodeId, "collapsed");
+    $(nodeId).toggleClass("collapsed");
 }
 
 function stripSpecialChars(str) {

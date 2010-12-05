@@ -20,6 +20,10 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.3.11 (2010-12-02):
+  o Added out of the box operation to workflow engine: set_owner and set_owner_to_self
+  o Enhancement #8259 (Track-Hacks): Add navigation from a test case to its related tickets
+
 Release 1.3.10 (2010-11-28):
   o Fixed Ticket #8154 (Track-Hacks): LookupError: unknown encoding: cp0
 

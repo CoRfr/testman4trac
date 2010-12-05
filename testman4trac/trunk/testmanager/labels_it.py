@@ -56,5 +56,6 @@ LABELS = {
     'description_header': "Descrizione",
     'last_change_header': "Ultima Modifica",
     'delete': "Elimina",
-    'duplicate_catalog': "Duplica il Catalogo"
+    'duplicate_catalog': "Duplica il Catalogo",
+    'show_tickets_button': "Mostra i Tickets Correlati"
 }

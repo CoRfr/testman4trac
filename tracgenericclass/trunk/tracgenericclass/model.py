@@ -1228,7 +1228,7 @@ def need_db_upgrade(env, schema, db):
         return False
     except:
         db.rollback()
-        print("Need to create db tables for class '%s'." % realm)
+        env.log.debug("Need to create db tables for class '%s'." % realm)
         return True
 
         
