@@ -15,15 +15,19 @@ from trac.search import ISearchSource
 from trac.util import to_unicode
 from trac.util.compat import sorted, set, any
 from trac.util.text import CRLF
-from trac.util.translation import _
 from trac.web.chrome import ITemplateProvider, INavigationContributor, \
                             add_stylesheet, add_script, add_ctxtnav
 from trac.wiki.formatter import Formatter
 from trac.wiki.model import WikiPage
 
 from testmanager.api import TestManagerSystem
-from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
+
+try:
+    from testmanager.api import _, tag_, N_
+except ImportError:
+	from trac.util.translation import _, N_
+	tag_ = _
 
 class TestManagerTemplateProvider(Component):
     """Provides templates and static resources for the TestManager plugin."""
@@ -60,6 +64,6 @@ class TestManager(Component):
     def get_navigation_items(self, req):
         if 'TEST_VIEW' in req.perm:
             yield ('mainnav', 'testmanager',
-                tag.a(LABELS['main_tab_title'], href=req.href.wiki()+'/TC', accesskey='M'))
+                tag.a(_("Test Manager"), href=req.href.wiki()+'/TC', accesskey='M'))
 
 

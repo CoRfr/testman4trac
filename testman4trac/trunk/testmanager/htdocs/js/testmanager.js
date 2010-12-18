@@ -1,4 +1,4 @@
-/*- coding: utf-8
+﻿/*- coding: utf-8
  *
  * Copyright (C) 2010 Roberto Longobardi - seccanj@gmail.com
  */
@@ -12,12 +12,12 @@ function creaTestCatalog(path) {
 	var catalogName = tcInput.value;
     
     if (catalogName == null || catalogName.length == 0) {
-		document.getElementById('catErrorMsgSpan').innerHTML = messages['name_help'];
+		document.getElementById('catErrorMsgSpan').innerHTML = _("You must specify a name. Length between 4 and 90 characters.");
     } else {
     	var catName = stripLessSpecialChars(catalogName);
     	
     	if (catName.length > 90 || catName.length < 4) {
-    		document.getElementById('catErrorMsgSpan').innerHTML = messages['length_error'];
+    		document.getElementById('catErrorMsgSpan').innerHTML = _("Length between 4 and 90 characters.");
     	} else { 
     		document.getElementById('catErrorMsgSpan').innerHTML = ''; 
     		var url = baseLocation+"/testcreate?type=catalog&path="+path+"&title="+catName;
@@ -31,12 +31,12 @@ function creaTestCase(catName){
 	var testCaseName = tcInput.value; 
 
     if (testCaseName == null || testCaseName.length == 0) {
-		document.getElementById('errorMsgSpan').innerHTML = messages['name_help'];
+		document.getElementById('errorMsgSpan').innerHTML = _("You must specify a name. Length between 4 and 90 characters.");
     } else {
     	var tcName = stripLessSpecialChars(testCaseName); 
     	
     	if (tcName.length > 90 || tcName.length < 4) {
-    		document.getElementById('errorMsgSpan').innerHTML = messages['length_error'];
+    		document.getElementById('errorMsgSpan').innerHTML = _("Length between 4 and 90 characters.");
     	} else { 
     		document.getElementById('errorMsgSpan').innerHTML = ''; 
     		var url = baseLocation+"/testcreate?type=testcase&path="+catName+"&title="+tcName;
@@ -50,12 +50,12 @@ function creaTestPlan(catName){
 	var testPlanName = planInput.value; 
 
     if (testPlanName == null || testPlanName.length == 0) {
-		document.getElementById('errorMsgSpan2').innerHTML = messages['name_help'];
+		document.getElementById('errorMsgSpan2').innerHTML = _("You must specify a name. Length between 4 and 90 characters.");
     } else {
     	var tplanName = stripLessSpecialChars(testPlanName); 
     	
     	if (tplanName.length > 90 || tplanName.length < 4) {
-    		document.getElementById('errorMsgSpan2').innerHTML = messages['length_error'];
+    		document.getElementById('errorMsgSpan2').innerHTML = _("Length between 4 and 90 characters.");
     	} else { 
     		document.getElementById('errorMsgSpan2').innerHTML = ''; 
     		var url = baseLocation+"/testcreate?type=testplan&path="+catName+"&title="+tplanName;
@@ -85,14 +85,14 @@ function showTickets(tcName, planId, planName){
 }
 
 function duplicateTestCatalog(catName){
-    if (confirm(messages['duplicate_catalog_confirm'])) {
+    if (confirm(_("Are you sure you want to duplicate the test catalog and all its contained test cases?"))) {
         var url = baseLocation+'/testcreate?type=catalog&duplicate=true&path='+catName; 
         window.location = url;
     }
 }
 
 function deleteTestPlan(url){
-    if (confirm(messages['delete_plan_confirm'])) {
+    if (confirm(_("Are you sure you want to delete the test plan and the state of all its contained test cases?"))) {
         window.location = url;
     }
 }
@@ -209,7 +209,7 @@ function highlight(str) {
             }
         }
 
-        document.getElementById('searchResultsNumberId').innerHTML = labels['results']+searchResults;
+        document.getElementById('searchResultsNumberId').innerHTML = _("Results: ")+searchResults;
     }
 }
 
@@ -358,7 +358,7 @@ function highlightTable(str) {
             }
         }
 
-        document.getElementById('searchResultsNumberId').innerHTML = labels['results']+searchResults;
+        document.getElementById('searchResultsNumberId').innerHTML = _("Results: ")+searchResults;
     }
 }
 
@@ -468,11 +468,12 @@ function changestate(tc, planid, path, newStatus) {
 /******************************************************/
 
 function expandCollapseSection(nodeId) {
-    $(nodeId).toggleClass("collapsed");
+    /* In Trac 0.12 should do nothing, because a listener is
+     * already in charge of handling sections */
 }
 
 function stripSpecialChars(str) {
-    result = str.replace(/[ ',;:àèéìòù£§<>!"%&=@#��\[\]\-\\\\^\$\.\|\?\*\+\(\)\{\}]/g, '');
+    result = str.replace(/[ ',;:àèéìòù£§<>!"%&=@#\[\]\-\\\\^\$\.\|\?\*\+\(\)\{\}]/g, '');
     return result;
 }
 
@@ -485,15 +486,6 @@ function displayNode(id, show) {
     var msgNode = document.getElementById(id);
     if (msgNode) {
         msgNode.style.display = show ? "block" : "none";
-    }
-}
-
-function toggleClass(nodeId, className) {
-    var node = document.getElementById(nodeId);
-    if (node.className === "") {
-        node.className = className;
-    } else {
-        node.className = "";
     }
 }
 
@@ -541,6 +533,38 @@ function sendUpdate(realm, name) {
     displayNode('update_button_'+name, false);
 }
 
+function getLocale() {
+	if ( navigator ) {
+		if ( navigator.language ) {
+			return navigator.language;
+		}
+		else if ( navigator.browserLanguage ) {
+			return navigator.browserLanguage;
+		}
+		else if ( navigator.systemLanguage ) {
+			return navigator.systemLanguage;
+		}
+		else if ( navigator.userLanguage ) {
+			return navigator.userLanguage;
+		}
+	}
+}
+
+function include(filename) {
+	var head = document.getElementsByTagName('head')[0];
+	
+	script = document.createElement('script');
+	script.src = filename;
+	script.type = 'text/javascript';
+	
+	head.appendChild(script)
+}
+
+function loadMessageCatalog() {
+	var lc = getLocale();
+	include('../chrome/testmanager/js/' + lc + '.js');
+}
+
 /**
  * Adds the specified function, by name or by pointer, to the window.onload() queue.
  * 
@@ -564,7 +588,7 @@ function addLoadHandler(func) {
             func(); 
         } 
     } 
-} 
+}
 
 /**
  * Do some checks as soon as the page is loaded.
@@ -572,4 +596,5 @@ function addLoadHandler(func) {
 addLoadHandler(function() {
         checkFilter(true);
         checkMoveTCDisplays();
+		/* loadMessageCatalog(); */
     });

@@ -6,7 +6,6 @@
 from trac.core import *
 from trac.resource import Resource
 from trac.util.datefmt import utc
-from trac.util.translation import _, N_, gettext
 from trac.web.api import ITemplateStreamFilter
 
 from genshi.builder import tag
@@ -17,9 +16,6 @@ from tracgenericclass.util import *
 
 from tracgenericworkflow.model import ResourceWorkflowState
 from tracgenericworkflow.api import IWorkflowOperationProvider, ResourceWorkflowSystem
-
-from testmanager.labels import *
-
 
 # Workflow support
 class TestManagerWorkflowInterface(Component):

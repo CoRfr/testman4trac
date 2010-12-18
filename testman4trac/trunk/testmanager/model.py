@@ -15,7 +15,6 @@ from trac.perm import PermissionError
 from trac.resource import Resource, ResourceNotFound
 from trac.util.datefmt import utc, utcmax
 from trac.util.text import CRLF
-from trac.util.translation import _, N_, gettext
 from trac.wiki.api import WikiSystem
 from trac.wiki.model import WikiPage
 
@@ -24,6 +23,11 @@ from tracgenericclass.util import *
 
 from testmanager.util import *
 
+try:
+    from testmanager.api import _, tag_, N_
+except ImportError:
+	from trac.util.translation import _, N_
+	tag_ = _
 
 class AbstractTestDescription(AbstractWikiPageWrapper):
     """

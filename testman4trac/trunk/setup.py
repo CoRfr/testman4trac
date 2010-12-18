@@ -1,10 +1,41 @@
 from setuptools import setup
 
+extra = {} 
+
+try:
+    from trac.util.dist import get_l10n_js_cmdclass 
+    cmdclass = get_l10n_js_cmdclass() 
+    if cmdclass: # OK, Babel is there
+        extra['cmdclass'] = cmdclass 
+        extractors = [ 
+            ('**.py',                'python', None), 
+            ('**/templates/**.html', 'genshi', None), 
+            ('**/templates/**.txt',  'genshi', { 
+                'template_class': 'genshi.template:TextTemplate' 
+            }), 
+        ] 
+        extra['message_extractors'] = { 
+            'testmanager': extractors, 
+        }
+except ImportError: 
+    pass
+
 setup(
     name='TestManager',
-    version='1.3.11',
+    version='1.3.12',
     packages=['testmanager'],
-    package_data={'testmanager' : ['*.txt', 'templates/*.html', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
+    package_data={
+        'testmanager' : [
+            '*.txt', 
+            'templates/*.html', 
+            'htdocs/js/*.js', 
+            'htdocs/css/*.css', 
+            'htdocs/images/*.*', 
+            'locale/*.*', 
+            'locale/*/LC_MESSAGES/*.mo',
+            'htdocs/testmanager/*.js'
+        ]
+    },
     author = 'Roberto Longobardi',
     author_email='seccanj@gmail.com',
     license='BSD. See the file LICENSE.txt contained in the package.',
@@ -16,4 +47,5 @@ setup(
     entry_points = {'trac.plugins': ['testmanager = testmanager']},
     dependency_links=['http://svn.edgewall.org/repos/genshi/trunk#egg=Genshi-dev'],
     install_requires=['Genshi >= 0.5'],
+    **extra
     )

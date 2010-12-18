@@ -15,6 +15,14 @@ python setup.py bdist_egg
 cp dist/*.egg ../../bin
 
 cd ../../testman4trac/trunk
+
+#python setup.py extract_messages
+#python setup.py extract_messages_js
+#python ./setup.py update_catalog -l it_IT
+#python ./setup.py update_catalog_js -l it_IT
+#python ./setup.py compile_catalog -f -l it_IT
+#python ./setup.py compile_catalog_js -f -l it_IT
+
 python setup.py bdist_egg
 cp dist/*.egg ../../bin
 

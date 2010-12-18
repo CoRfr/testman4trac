@@ -100,7 +100,7 @@ class GenericWorkflowModelProvider(Component):
             
     # IConcreteClassProvider methods
     def get_realms(self):
-        yield 'resourceworkflowstate'
+            yield 'resourceworkflowstate'
 
     def get_data_models(self):
         return self.SCHEMA

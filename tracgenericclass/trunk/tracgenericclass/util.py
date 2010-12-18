@@ -165,3 +165,6 @@ def get_string_from_dictionary(dictionary, values=None):
 def remove_quotes(str, quote='\''):
     return str.partition(quote)[2].rpartition(quote)[0]
 
+
+def compatible_domain_functions(domain, function_name_list):
+    return lambda x: x, lambda x: x, lambda x: x, lambda x: x

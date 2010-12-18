@@ -10,6 +10,7 @@ from StringIO import StringIO
 
 from trac.core import *
 from trac.mimeview.api import Context
+from trac.util import format_datetime
 from trac.wiki.macros import WikiMacroBase
 from trac.wiki.api import WikiSystem, parse_args
 from trac.wiki.formatter import Formatter, format_to_html
@@ -23,10 +24,15 @@ from genshi.core import Stream, Markup, escape
 from tracgenericclass.model import GenericClassModelProvider
 from tracgenericclass.util import *
 
-from testmanager.labels import *
+from testmanager.api import TestManagerSystem
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 from testmanager.util import *
 
+try:
+    from testmanager.api import _, tag_, N_
+except ImportError:
+	from trac.util.translation import _, N_
+	tag_ = _
 
 # Macros
 
@@ -209,7 +215,7 @@ def _build_testcases_breadcrumb(env, req, curpage, planid, mode, fulldetails):
     tokens = path_name.split("_")
     curr_path = 'TC'
     
-    breadcrumb = [{'name': 'TC', 'title': LABELS['all_catalogs'], 'id': 'TC'}]
+    breadcrumb = [{'name': 'TC', 'title': _("All Catalogs"), 'id': 'TC'}]
 
     for i, tc in enumerate(tokens):
         curr_path += '_'+tc
@@ -298,11 +304,11 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
     text = ''
 
     if mode == 'tree':
-        text +='<div style="padding: 0px 0px 10px 10px">'+LABELS['filter_label']+' <input id="tcFilter" title="'+LABELS['filter_help']+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
-        text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+LABELS['expand_all']+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+LABELS['collapse_all']+'</a></div>';
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+_("Expand all")+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+_("Collapse all")+'</a></div>';
         text +='<div id="ticketContainer">'
 
-        text += _render_subtree('-1', components, ind, 0)
+        text += _render_subtree(env, '-1', components, ind, 0)
         
         text +='</div>'
         
@@ -319,12 +325,12 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
             'testcaseinplan': [False, None]
             }
 
-        text +='<div style="padding: 0px 0px 10px 10px">'+LABELS['filter_label']+' <input id="tcFilter" title="'+LABELS['filter_help']+'" type="text" size="40" onkeyup="starthighlightTable(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text += '<form id="testCatalogRunBook"><fieldset id="testCatalogRunBookFields" class="expanded">'
         text += '<table id="testcaseList" class="listing"><thead><tr>';
         
         # Common columns
-        text += '<th>'+LABELS['name_header']+'</th>'
+        text += '<th>'+_("Name")+'</th>'
         
         # Custom testcatalog columns
         if tcat_has_custom:
@@ -333,7 +339,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
                     text += '<th>'+f['label']+'</th>'
 
         # Base testcase columns
-        text += '<th>'+LABELS['id_header']+'</th>'
+        text += '<th>'+_("ID")+'</th>'
 
         # Custom testcase columns
         if tc_has_custom:
@@ -343,7 +349,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
         
         # Test case full details
         if fulldetails:
-            text += '<th>'+LABELS['description_header']+'</th>'
+            text += '<th>'+_("Description")+'</th>'
             
         text += '</tr></thead><tbody>';
         
@@ -355,6 +361,9 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
     return text
     
 def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby='name'):
+    testmanagersystem = TestManagerSystem(env)
+    default_status = testmanagersystem.get_default_tc_status()
+    
     # Determine current catalog name
     cat_name = 'TC'
     if curpage.find('_TC') >= 0:
@@ -408,7 +417,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                 else:
                     ts = tp['time']
                     author = tp['author']
-                    status = 'TO_BE_TESTED'
+                    status = default_status
                 
                 if sortby == 'name':
                     key = subpage_title
@@ -434,10 +443,10 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
     text = ''
 
     if mode == 'tree':
-        text +='<div style="padding: 0px 0px 10px 10px">'+LABELS['filter_label']+' <input id="tcFilter" title="'+LABELS['filter_help']+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
-        text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+LABELS['expand_all']+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+LABELS['collapse_all']+'</a></div>';
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+_("Expand all")+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+_("Collapse all")+'</a></div>';
         text +='<div id="ticketContainer">'
-        text += _render_subtree(planid, components, ind, 0)
+        text += _render_subtree(env, planid, components, ind, 0)
         text +='</div>'
 
     elif mode == 'tree_table':
@@ -456,12 +465,12 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
             'testcaseinplan': [tcip_has_custom, tcip_fields]
             }
 
-        text +='<div style="padding: 0px 0px 10px 10px">'+LABELS['filter_label']+' <input id="tcFilter" title="'+LABELS['filter_help']+'" type="text" size="40" onkeyup="starthighlightTable(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text += '<form id="testPlan"><fieldset id="testPlanFields" class="expanded">'
         text += '<table id="testcaseList" class="listing"><thead><tr>';
 
         # Common columns
-        text += '<th>'+LABELS['name_header']+'</th>'
+        text += '<th>'+_("Name")+'</th>'
         
         # Custom testcatalog columns
         if custom_ctx['testcatalog'][0]:
@@ -470,7 +479,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                     text += '<th>'+f['label']+'</th>'
 
         # Base testcase columns
-        text += '<th>'+LABELS['id_header']+'</th>'
+        text += '<th>'+_("ID")+'</th>'
 
         #Custom testcase columns
         if custom_ctx['testcase'][0]:
@@ -479,7 +488,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                     text += '<th>'+f['label']+'</th>'
 
         # Base testcaseinplan columns
-        text += '<th>'+LABELS['status']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['last_change_header']+'</th>'
+        text += '<th>'+_("Status")+'</th><th>'+_("Author")+'</th><th>'+_("Last Change")+'</th>'
         
         # Custom testcaseinplan columns
         if custom_ctx['testcaseinplan'][0]:
@@ -515,7 +524,7 @@ def _build_testplan_list(env, req, curpage, mode, fulldetails):
     
     markup, num_plans = _render_testplan_list(env, catid, mode, fulldetails, show_delete_button)
 
-    text = '<form id="testPlanList"><fieldset id="testPlanListFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no4"  onclick="expandCollapseSection(\'testPlanListFields\')">'+LABELS['test_plan_list']+' ('+str(num_plans)+')</a></legend>'
+    text = '<form id="testPlanList"><fieldset id="testPlanListFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no4"  onclick="expandCollapseSection(\'testPlanListFields\')">'+_("Available Test Plans")+' ('+str(num_plans)+')</a></legend>'
     text += markup
     text += '</fieldset></form>'
 
@@ -529,18 +538,18 @@ def _render_testplan_list(env, catid, mode, fulldetails, show_delete_button):
     cat = TestCatalog(env, catid)
     
     result = '<table class="listing"><thead>'
-    result += '<tr><th>'+LABELS['plan_name']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['timestamp']+'</th><th></th></tr>'
+    result += '<tr><th>'+_("Plan Name")+'</th><th>'+_("Author")+'</th><th>'+_("Timestamp")+'</th><th></th></tr>'
     result += '</thead><tbody>'
     
     num_plans = 0
     for tp in sorted(cat.list_testplans(), cmp=lambda x,y: cmp(x['time'],y['time']), reverse=True):
         result += '<tr>'
-        result += '<td><a title="'+LABELS['open_testplan_title']+'" href="'+tp['page_name']+'?planid='+tp['id']+'">'+tp['name']+'</a></td>'
+        result += '<td><a title="'+_("Open Test Plan")+'" href="'+tp['page_name']+'?planid='+tp['id']+'">'+tp['name']+'</a></td>'
         result += '<td>'+tp['author']+'</td>'
-        result += '<td>'+str(tp['time'])+'</td>'
+        result += '<td>'+format_datetime(tp['time'])+'</td>'
         
         if show_delete_button:
-            result += '<td style="cursor: pointer;"><img class="iconElement" alt="'+LABELS['delete']+'" title="'+LABELS['delete']+'" src="'+delete_icon+'" onclick="deleteTestPlan(\'../testdelete?type=testplan&path='+tp['page_name']+'&mode='+mode+'&fulldetails='+str(fulldetails)+'&planid='+tp['id']+'\')"/></td>'
+            result += '<td style="cursor: pointer;"><img class="iconElement" alt="'+_("Delete")+'" title="'+_("Delete")+'" src="'+delete_icon+'" onclick="deleteTestPlan(\'../testdelete?type=testplan&path='+tp['page_name']+'&mode='+mode+'&fulldetails='+str(fulldetails)+'&planid='+tp['id']+'\')"/></td>'
         else:
             result += '<td></td>'
         
@@ -576,7 +585,7 @@ def _render_breadcrumb(breadcrumb, planid, mode, fulldetails):
     return text
  
 # Render the subtree
-def _render_subtree(planid, component, ind, level):
+def _render_subtree(env, planid, component, ind, level):
     data = component
     text = ''
     if (level == 0):
@@ -603,23 +612,27 @@ def _render_subtree(planid, component, ind, level):
             else:
                 plan_param = ''
                 
-            text+='<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title='+LABELS['open']+'>'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
+            text+='<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title='+_("Open")+'>'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
             text +='<ul id="b_'+index+'_list" style="display:none;list-style: none;">';
             ind['count']+=1
-            text+=_render_subtree(planid, subcData, ind, level+1)
+            text+=_render_subtree(env, planid, subcData, ind, level+1)
             if ('childrenT' in comp):            
                 mtData=comp['childrenT']
-                text+=_render_testcases(planid, mtData)
+                text+=_render_testcases(env, planid, mtData)
         text+='</ul>'
         text+='</li>'
     if (level == 0):
         if ('childrenT' in component):            
             cmtData=component['childrenT']
-            text+=_render_testcases(planid, cmtData)
+            text+=_render_testcases(env, planid, cmtData)
         text+='</ul>'        
     return text
 
-def _render_testcases(planid, data): 
+def _render_testcases(env, planid, data): 
+    
+    testmanagersystem = TestManagerSystem(env)
+    tc_statuses = testmanagersystem.get_tc_statuses()
+    
     text=''
     keyList = data.keys()
     sortedList = sorted(keyList)
@@ -627,39 +640,47 @@ def _render_testcases(planid, data):
         tick = data[x]
         status = tick['status']
         has_status = True
-        if status == 'SUCCESSFUL':
-            statusIcon='../chrome/testmanager/images/green.png'
-        elif status == 'FAILED':
-            statusIcon='../chrome/testmanager/images/red.png'
-        elif status == 'TO_BE_TESTED':
-            statusIcon='../chrome/testmanager/images/yellow.png'
+        if status is not None and len(status) > 0 and status != 'NONE':
+            stat_meaning = tc_statuses[status][2]
+            if stat_meaning == 0:
+                statusIcon='../chrome/testmanager/images/green.png'
+            elif stat_meaning == 1:
+                statusIcon='../chrome/testmanager/images/yellow.png'
+            elif stat_meaning == 2:
+                statusIcon='../chrome/testmanager/images/red.png'
         else:
             has_status = False
 
         if has_status:
-            statusLabel = LABELS[status]
-            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            statusLabel = tc_statuses[status][1]
+            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
         else:
-            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+LABELS['edit_test_case_label']+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
             
     return text
         
 def _build_testcase_status(env, req, planid, curpage):
+    testmanagersystem = TestManagerSystem(env)
+    tc_statuses = testmanagersystem.get_tc_statuses()
+    
     tc_id = curpage.rpartition('_TC')[2]
     
     tcip = TestCaseInPlan(env, tc_id, planid)
     if tcip.exists:
         status = tcip['status']
     else:
-        status = 'TO_BE_TESTED'
+        status = testmanagersystem.get_default_tc_status()
     
-    display = {'SUCCESSFUL': 'none', 'TO_BE_TESTED': 'none', 'FAILED': 'none'}
-    display[status] = 'block'
+    # Hide all icons except the one relative to the current test
+    # case status
+    display = {'0': 'none', '1': 'none', '2': 'none'}
+    display[str(tc_statuses[status][2])] = 'block'
     
     text = ''
-    text += '<img style="display: '+display['TO_BE_TESTED']+';" id="tcTitleStatusIconTO_BE_TESTED" src="../chrome/testmanager/images/yellow.png" title="'+LABELS['TO_BE_TESTED']+'"></img></span>'
-    text += '<img style="display: '+display['FAILED']+';" id="tcTitleStatusIconFAILED" src="../chrome/testmanager/images/red.png" title="'+LABELS['FAILED']+'"></img></span>'
-    text += '<img style="display: '+display['SUCCESSFUL']+';" id="tcTitleStatusIconSUCCESSFUL" src="../chrome/testmanager/images/green.png" title="'+LABELS['SUCCESSFUL']+'"></img></span>'
+    # TODO: Replace 'SUCCESSFUL' and others with generic mapping
+    text += '<img style="display: '+display['0']+';" id="tcTitleStatusIconSUCCESSFUL" src="../chrome/testmanager/images/green.png" title="'+_(tc_statuses['SUCCESSFUL'][0])+'"></img></span>'
+    text += '<img style="display: '+display['1']+';" id="tcTitleStatusIconTO_BE_TESTED" src="../chrome/testmanager/images/yellow.png" title="'+_(tc_statuses['TO_BE_TESTED'][0])+'"></img></span>'
+    text += '<img style="display: '+display['2']+';" id="tcTitleStatusIconFAILED" src="../chrome/testmanager/images/red.png" title="'+_(tc_statuses['FAILED'][0])+'"></img></span>'
     
     return text
     
@@ -686,7 +707,7 @@ def _render_subtree_as_table(env, context, planid, component, ind, level, custom
                 plan_param = ''
             
             # Common columns
-            text += '<tr name="testcatalog"><td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+LABELS['open']+'">'+comp['title']+'</a></td>'
+            text += '<tr name="testcatalog"><td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+_("Open")+'">'+comp['title']+'</a></td>'
 
             # Custom testcatalog columns
             if custom_ctx['testcatalog'][0]:
@@ -710,6 +731,10 @@ def _render_subtree_as_table(env, context, planid, component, ind, level, custom
     return text
 
 def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=None, fulldetails=False): 
+
+    testmanagersystem = TestManagerSystem(env)
+    tc_statuses = testmanagersystem.get_tc_statuses()
+    
     text=''
     keyList = data.keys()
     sortedList = sorted(keyList)
@@ -717,12 +742,14 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
         tick = data[x]
         status = tick['status']
         has_status = True
-        if status == 'SUCCESSFUL':
-            statusIcon='../chrome/testmanager/images/green.png'
-        elif status == 'FAILED':
-            statusIcon='../chrome/testmanager/images/red.png'
-        elif status == 'TO_BE_TESTED':
-            statusIcon='../chrome/testmanager/images/yellow.png'
+        if status is not None and len(status) > 0 and status != 'NONE':
+            stat_meaning = tc_statuses[status][2]
+            if stat_meaning == 0:
+                statusIcon='../chrome/testmanager/images/green.png'
+            elif stat_meaning == 1:
+                statusIcon='../chrome/testmanager/images/yellow.png'
+            elif stat_meaning == 2:
+                statusIcon='../chrome/testmanager/images/red.png'
         else:
             has_status = False
 
@@ -734,7 +761,7 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
 
         # Common columns
         if has_status:
-            statusLabel = LABELS[status]
+            statusLabel = tc_statuses[status][1]
             text += '<td style="padding-left: '+str(level*30)+'px;"><img class="iconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td>'
         else:
             text += '<td style="padding-left: '+str(level*30)+'px;"><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+'" target="_blank">'+tick['title']+'</a></td>'
@@ -753,7 +780,7 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
 
         if has_status:
             # Base testcaseinplan columns
-            text += '<td>'+statusLabel+'</td><td>'+tick['author']+'</td><td>'+str(tick['ts'])+'</td>'
+            text += '<td>'+statusLabel+'</td><td>'+tick['author']+'</td><td>'+format_datetime(tick['ts'])+'</td>'
 
             # Custom testcaseinplan columns
             if custom_ctx['testcaseinplan'][0]:
@@ -775,63 +802,74 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
     return text
         
 def _build_testcase_change_status(env, req, planid, curpage):
+    testmanagersystem = TestManagerSystem(env)
+    tc_statuses = testmanagersystem.get_tc_statuses()
+
     tc_id = curpage.rpartition('_TC')[2]
     
     tcip = TestCaseInPlan(env, tc_id, planid)
     if tcip.exists:
         status = tcip['status']
     else:
-        status = 'TO_BE_TESTED'
+        status = testmanagersystem.get_default_tc_status()
+
+    status_meaning = tc_statuses[status][2]
     
     text = ''
     
     text += '<script type="text/javascript">var currStatus = "'+status+'";</script>'
 
-    text += LABELS['change_status_label']
+    text += _("Change the Status:")
     
     text += '<span style="margin-left: 15px;">'
 
     border = ''
-    if status == 'SUCCESSFUL':
+    if status_meaning == 0:
         border = 'border: 2px solid black;'
 
+    # TODO: Replace "SUCCESSFUL" with generic mapping
     text += '<span id="tcStatusSUCCESSFUL" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'SUCCESSFUL\')">'
-    text += '<img src="../chrome/testmanager/images/green.png" title="'+LABELS['SUCCESSFUL']+'"></img></span>'
+    text += '<img src="../chrome/testmanager/images/green.png" title="'+tc_statuses["SUCCESSFUL"][1]+'"></img></span>'
 
     border = ''
-    if status == 'TO_BE_TESTED':
+    if status_meaning == 1:
         border = 'border: 2px solid black;'
 
+    # TODO: Replace "TO_BE_TESTED" with generic mapping
     text += '<span id="tcStatusTO_BE_TESTED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'TO_BE_TESTED\')">'
-    text += '<img src="../chrome/testmanager/images/yellow.png" title="'+LABELS['TO_BE_TESTED']+'"></img></span>'
+    text += '<img src="../chrome/testmanager/images/yellow.png" title="'+tc_statuses["TO_BE_TESTED"][1]+'"></img></span>'
 
     border = ''
-    if status == 'FAILED':
+    if status_meaning == 2:
         border = 'border: 2px solid black;'
 
+    # TODO: Replace "FAILED" with generic mapping
     text += '<span id="tcStatusFAILED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'FAILED\')">'
-    text += '<img src="../chrome/testmanager/images/red.png" title="'+LABELS['FAILED']+'"></img></span>'
+    text += '<img src="../chrome/testmanager/images/red.png" title="'+tc_statuses["FAILED"][1]+'"></img></span>'
 
     text += '</span>'
     
     return text
     
 def _build_testcase_status_history(env,req,planid,curpage):
+    testmanagersystem = TestManagerSystem(env)
+    tc_statuses = testmanagersystem.get_tc_statuses()
+
     tc_id = curpage.rpartition('_TC')[2]
     
     tcip = TestCaseInPlan(env, tc_id, planid)
     
-    text = '<form id="testCaseHistory"><fieldset id="testCaseHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no3"  onclick="expandCollapseSection(\'testCaseHistoryFields\')">'+LABELS['status_change_hist']+'</a></legend>'
+    text = '<form id="testCaseHistory"><fieldset id="testCaseHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no3"  onclick="expandCollapseSection(\'testCaseHistoryFields\')">'+_("Status change history")+'</a></legend>'
     
     text += '<table class="listing"><thead>'
-    text += '<tr><th>'+LABELS['timestamp']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['status']+'</th></tr>'
+    text += '<tr><th>'+_("Timestamp")+'</th><th>'+_("Author")+'</th><th>'+_("Status")+'</th></tr>'
     text += '</thead><tbody>'
 
     for ts, author, status in tcip.list_history():
         text += '<tr>'
-        text += '<td>'+str(from_any_timestamp(ts))+'</td>'
+        text += '<td>'+format_datetime(from_any_timestamp(ts))+'</td>'
         text += '<td>'+author+'</td>'
-        text += '<td>'+LABELS[status]+'</td>'
+        text += '<td>'+tc_statuses[status][1]+'</td>'
         text += '</tr>'
         
     text += '</tbody></table>'

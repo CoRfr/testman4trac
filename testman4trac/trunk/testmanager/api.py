@@ -4,6 +4,7 @@
 #
 
 import re
+import pkg_resources
 import sys
 import time
 import traceback
@@ -14,20 +15,31 @@ from trac.perm import IPermissionRequestor, PermissionError
 from trac.resource import Resource, IResourceManager, render_resource_link, get_resource_url
 from trac.util import get_reporter_id
 from trac.util.datefmt import utc
-from trac.util.translation import _, N_, gettext
 from trac.web.api import IRequestHandler
 
 from tracgenericclass.model import GenericClassModelProvider
 from tracgenericclass.util import *
 
-from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 
+try:
+    from trac.util.translation import domain_functions
+    _, tag_, N_, add_domain = domain_functions('testmanager', ('_', 'tag_', 'N_', 'add_domain'))
+except ImportError:
+	from trac.util.translation import _, N_
+	tag_ = _
+	add_domain = lambda env_path, locale_dir: None
 
 class TestManagerSystem(Component):
     """Test Manager system for Trac."""
 
     implements(IPermissionRequestor, IRequestHandler, IResourceManager)
+
+    def __init__(self):
+        import pkg_resources
+        # bind the 'testmanager' catalog to the specified locale directory
+        locale_dir = pkg_resources.resource_filename(__name__, 'locale')
+        add_domain(self.env.path, locale_dir)
 
     def get_next_id(self, type):
         propname = _get_next_prop_name(type)
@@ -72,11 +84,41 @@ class TestManagerSystem(Component):
             db.rollback()
             raise
     
+    def get_default_tc_status(self):
+        """Returns the default test case in plan status"""
+        
+        return 'TO_BE_TESTED'
+    
+    def get_tc_statuses(self):
+        """
+        Returns the available test case in plan statuses, along with
+        their base locale captions and meaning:
+          0: successful, green
+          1: to be tested, yellow
+          2: failed, red
+        """
+        
+        result = {
+            'SUCCESSFUL': ["Successful", _("Successful"), 0],
+            'TO_BE_TESTED': ["Untested", _("Untested"), 1],
+            'FAILED': ["Failed", _("Failed"), 2]
+        }
+        
+        return result
+    
+    def get_tc_status_caption(self, req, status):
+        """
+        Returns the caption for the given test case status in the
+        request's locale (Trac 0.12+)
+        """
+        
+        return _(self.get_tc_statuses()[status])
+    
     def get_testcase_status_history_markup(self, id, planid):
         """Returns a test case status in a plan audit trail."""
 
         result = '<table class="listing"><thead>'
-        result += '<tr><th>'+LABELS['timestamp']+'</th><th>'+LABELS['author']+'</th><th>'+LABELS['status']+'</th></tr>'
+        result += '<tr><th>'+_("Timestamp")+'</th><th>'+_("Author")+'</th><th>'+_("Status")+'</th></tr>'
         result += '</thead><tbody>'
         
         db = get_db(self.env)
@@ -89,7 +131,7 @@ class TestManagerSystem(Component):
             result += '<tr>'
             result += '<td>'+str(from_any_timestamp(ts))+'</td>'
             result += '<td>'+author+'</td>'
-            result += '<td>'+LABELS[status]+'</td>'
+            result += '<td>'+_("Status")+'</td>'
             result += '</tr>'
 
         result += '</tbody></table>'

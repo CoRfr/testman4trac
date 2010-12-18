@@ -20,6 +20,11 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.3.12 (2010-12-19):
+  o Enhancement #8321 (Track-Hacks): Add standard internationalization support (i18n)
+  o Enhancement #8322 (Track-Hacks): Show timestamps according to User's locale
+  o Fixed Ticket #8323 (Track-Hacks): Unable to expand Available plans and Test case status change history collapsable sections
+
 Release 1.3.11 (2010-12-02):
   o Added out of the box operation to workflow engine: set_owner and set_owner_to_self
   o Enhancement #8259 (Track-Hacks): Add navigation from a test case to its related tickets

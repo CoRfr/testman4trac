@@ -19,9 +19,13 @@ from genshi import HTML
 from tracgenericclass.model import GenericClassModelProvider
 
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
-from testmanager.labels import *
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 
+try:
+    from testmanager.api import _, tag_, N_
+except ImportError:
+	from trac.util.translation import _, N_
+	tag_ = _
 
 class WikiTestManagerInterface(Component):
     """Implement generic template provider."""
@@ -130,19 +134,29 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
+        if self.env.get_version() < 25:
+            add_script(req, 'testmanager/js/compatibility.js')
+        
+        try:
+            if req.locale is not None:
+                add_script(req, 'testmanager/js/%s.js' % req.locale)
+        except:
+            # Trac 0.11
+			pass
+
         tree_macro = TestCaseTreeMacro(self.env)
 
         if page_name == 'TC':
             # Root of all catalogs
             insert1 = tag.div()(
-                        tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(LABELS['select_cat_to_move'],
-                            tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(LABELS['cancel'])
+                        tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(_("Select the catalog into which to paste the Test Case and click on 'Move the copied Test Case here'. "),
+                            tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
                             ),
-                        tag.h1(LABELS['tc_list']),
+                        tag.h1(_("Test Catalogs List")),
                         tag.br(), tag.br()
                         )
-            fieldLabel = LABELS['new_catalog']
-            buttonLabel = LABELS['add_catalog']
+            fieldLabel = _("New Catalog:")
+            buttonLabel = _("Add a Catalog")
         else:
             insert1 = tag.div()(
                         self._get_breadcrumb_markup(formatter, None, page_name, mode, fulldetails),
@@ -157,14 +171,14 @@ class WikiTestManagerInterface(Component):
                                 )),
                         tag.br(), 
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(
-                            LABELS['select_cat_to_move2'],
-                            tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(LABELS['cancel'])
+                            _("Select the catalog (even this one) into which to paste the Test Case and click on 'Move the copied Test Case here'. "),
+                            tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
                             ),
                         tag.br(),
-                        tag.h1(LABELS['tc_catalog'])
+                        tag.h1(_("Test Catalog"))
                         )
-            fieldLabel = LABELS['new_subcatalog']
-            buttonLabel = LABELS['add_subcatalog']
+            fieldLabel = _("New Sub-Catalog:")
+            buttonLabel = _("Add a Sub-Catalog")
 
         insert2 = tag.div()(
                     HTML(tree_macro.expand_macro(formatter, None, 'mode='+mode+',fulldetails='+fulldetails+',catalog_path='+page_name)),
@@ -179,7 +193,7 @@ class WikiTestManagerInterface(Component):
                         tag.br()
                     ))
             insert2.append(tag.div(id='pasteTCHereDiv')(
-                        tag.input(type='button', id='pasteTCHereButton', value=LABELS['move_here'], onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
+                        tag.input(type='button', id='pasteTCHereButton', value=_("Move the copied Test Case here"), onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
                     ))
                                         
         insert2.append(tag.div(class_='field')(
@@ -201,19 +215,19 @@ class WikiTestManagerInterface(Component):
                         tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                         tag.br(),
                         tag.label(
-                            LABELS['new_tc_label'],
+                            _("New Test Case:"),
                             tag.span(id='errorMsgSpan', style='color: red;'),
                             tag.br(),
                             tag.input(id='tcName', type='text', name='tcName', size='50'),
-                            tag.input(type='button', value=LABELS['add_tc_button'], onclick='creaTestCase("'+cat_name+'")')
+                            tag.input(type='button', value=_("Add a Test Case"), onclick='creaTestCase("'+cat_name+'")')
                             ),
                         tag.br(), tag.br(), tag.br(),
                         tag.label(
-                            LABELS['new_plan_label'],
+                            _("New Test Plan:"),
                             tag.span(id='errorMsgSpan2', style='color: red;'),
                             tag.br(),
                             tag.input(id='planName', type='text', name='planName', size='50'),
-                            tag.input(type='button', value=LABELS['add_test_plan_button'], onclick='creaTestPlan("'+cat_name+'")')
+                            tag.input(type='button', value=_("Generate a new Test Plan"), onclick='creaTestPlan("'+cat_name+'")')
                             ),
                         tag.br(), 
                         self._get_testplan_list_markup(formatter, cat_name, mode, fulldetails),
@@ -247,12 +261,22 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
+        if self.env.get_version() < 25:
+            add_script(req, 'testmanager/js/compatibility.js')
+        
+        try:
+            if req.locale is not None:
+                add_script(req, 'testmanager/js/%s.js' % req.locale)
+        except:
+            # Trac 0.11
+			pass
+
         tree_macro = TestPlanTreeMacro(self.env)
             
         tp = TestPlan(self.env, planid)
         
         insert1 = tag.div()(
-                    tag.a(href=req.href.wiki(page_name))(LABELS['back_to_catalog']),
+                    tag.a(href=req.href.wiki(page_name))(_("Back to the Catalog")),
                     tag.div(style='border: 1px, solid, gray; padding: 1px;')(
                         tag.span()(
                             tag.a(href=req.href.wiki(page_name, mode='tree', planid=planid))(
@@ -263,7 +287,7 @@ class WikiTestManagerInterface(Component):
                                 tag.img(src='../chrome/testmanager/images/tree_table.png', title="Table View"))
                             )),
                     tag.br(), 
-                    tag.h1(LABELS['test_plan']+tp['name'])
+                    tag.h1(_("Test Plan: ")+tp['name'])
                     )
 
         insert2 = tag.div()(
@@ -305,18 +329,28 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/cookies.js')
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
+
+        if self.env.get_version() < 25:
+            add_script(req, 'testmanager/js/compatibility.js')
+        
+        try:
+            if req.locale is not None:
+                add_script(req, 'testmanager/js/%s.js' % req.locale)
+        except:
+            # Trac 0.11
+			pass
         
         insert1 = tag.div()(
                     self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
                     tag.br(), tag.br(), 
                     tag.div(id='copiedTCMessage', class_='messageBox', style='display: none;')(
-                        LABELS['move_tc_help_msg'],
-                        tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(LABELS['cancel'])
+                        _("The Test Case has been copied. Now select the catalog into which to move the Test Case and click on 'Move the copied Test Case here'. "),
+                        tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
                         ),
                     tag.br(),
                     tag.span(style='font-size: large; font-weight: bold;')(
                         tag.span()(
-                            LABELS['test_case']
+                            _("Test Case")
                             )
                         )
                     )
@@ -326,13 +360,13 @@ class WikiTestManagerInterface(Component):
                     self._get_custom_fields_markup(test_case, tmmodelprovider.get_custom_fields_for_realm('testcase')),
                     tag.br(),
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
-                    tag.input(type='button', value=LABELS['open_ticket_button'], onclick='creaTicket("'+tc_name+'", "", "")'),
+                    tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "", "")'),
                     HTML('&nbsp;&nbsp;'), 
-                    tag.input(type='button', value=LABELS['show_tickets_button'], onclick='showTickets("'+tc_name+'", "", "")'),
+                    tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "", "")'),
                     HTML('&nbsp;&nbsp;'), 
-                    tag.input(type='button', id='moveTCButton', value=LABELS['move_tc_button'], onclick='copyTestCaseToClipboard("'+tc_name+'")'),
+                    tag.input(type='button', id='moveTCButton', value=_("Move the Test Case into another catalog"), onclick='copyTestCaseToClipboard("'+tc_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
-                    tag.input(type='button', id='duplicateTCButton', value=LABELS['duplicate_tc_button'], onclick='duplicateTestCase("'+tc_name+'", "'+cat_name+'")'),
+                    tag.input(type='button', id='duplicateTCButton', value=_("Duplicate the Test Case"), onclick='duplicateTestCase("'+tc_name+'", "'+cat_name+'")'),
                     tag.br(), tag.br()
                     )
                     
@@ -362,6 +396,16 @@ class WikiTestManagerInterface(Component):
         add_script(req, 'testmanager/js/cookies.js')
         add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
+
+        if self.env.get_version() < 25:
+            add_script(req, 'testmanager/js/compatibility.js')
+        
+        try:
+            if req.locale is not None:
+                add_script(req, 'testmanager/js/%s.js' % req.locale)
+        except:
+            # Trac 0.11
+			pass
         
         insert1 = tag.div()(
                     self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
@@ -369,7 +413,7 @@ class WikiTestManagerInterface(Component):
                     tag.span(style='font-size: large; font-weight: bold;')(
                         self._get_testcase_status_markup(formatter, has_status, page_name, planid),
                         tag.span()(                            
-                            LABELS['test_case']
+                            _("Test Case")
                             )
                         )
                     )
@@ -381,9 +425,9 @@ class WikiTestManagerInterface(Component):
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     self._get_testcase_change_status_markup(formatter, has_status, page_name, planid),
                     tag.br(), tag.br(),
-                    tag.input(type='button', value=LABELS['open_ticket_button'], onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
+                    tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
-                    tag.input(type='button', value=LABELS['show_tickets_button'], onclick='showTickets("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
+                    tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.br(), tag.br(), 
                     self._get_testcase_status_history_markup(formatter, has_status, page_name, planid),
@@ -399,10 +443,10 @@ class WikiTestManagerInterface(Component):
                 # It's a test case in plan
                 tp = TestPlan(self.env, planid)
                 catpath = tp['page_name']
-                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode, fulldetails=fulldetails))(LABELS['back_to_plan'])
+                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode, fulldetails=fulldetails))(_("Back to the Test Plan"))
             else:
                 # It's a test plan
-                return tag.a(href=formatter.req.href.wiki(page_name))(LABELS['back_to_catalog'])
+                return tag.a(href=formatter.req.href.wiki(page_name))(_("Back to the Catalog"))
                 
         else:
             # It's a test catalog or test case description
@@ -467,11 +511,11 @@ class WikiTestManagerInterface(Component):
                 result += '</td>'
 
                 result += '<td>'
-                result += '<span class="rightIcon" style="display: none;" title="'+LABELS['edit_label']+'" onclick="editField(\''+f['name']+'\')" id="field_pencilIcon'+f['name']+'"></span>'
+                result += '<span class="rightIcon" style="display: none;" title="'+_("Edit")+'" onclick="editField(\''+f['name']+'\')" id="field_pencilIcon'+f['name']+'"></span>'
                 result += '</td>'
 
                 result += '<td>'
-                result += '<input style="display: none;" type="button" onclick="sendUpdate(\''+obj.realm+'\', \'' + f['name']+'\')" id="update_button_'+f['name']+'" name="update_button_'+f['name']+'" value="'+LABELS['update_button']+'"></input>'
+                result += '<input style="display: none;" type="button" onclick="sendUpdate(\''+obj.realm+'\', \'' + f['name']+'\')" id="update_button_'+f['name']+'" name="update_button_'+f['name']+'" value="'+_("Save")+'"></input>'
                 result += '</td>'
 
             # TODO Support other field types

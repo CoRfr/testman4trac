@@ -1,0 +1,334 @@
+# Translations template for TestManager.
+# Copyright (C) 2010 Roberto Longobardi
+# This file is distributed under the same license as the TestManager
+# project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2010.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: TestManager 1.3.12\n"
+"Report-Msgid-Bugs-To: seccanj@gmail.com\n"
+"POT-Creation-Date: 2010-12-18 21:34+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 0.9.5\n"
+
+#: testmanager/api.py:102
+msgid "Successful"
+msgstr ""
+
+#: testmanager/api.py:103
+msgid "Untested"
+msgstr ""
+
+#: testmanager/api.py:104
+msgid "Failed"
+msgstr ""
+
+#: testmanager/api.py:121 testmanager/macros.py:540
+#: testmanager/macros.py:864
+msgid "Timestamp"
+msgstr ""
+
+#: testmanager/api.py:121 testmanager/macros.py:490
+#: testmanager/macros.py:540 testmanager/macros.py:864
+#: testmanager/model.py:471
+msgid "Author"
+msgstr ""
+
+#: testmanager/api.py:121 testmanager/api.py:134 testmanager/macros.py:490
+#: testmanager/macros.py:864 testmanager/model.py:464
+msgid "Status"
+msgstr ""
+
+#: testmanager/macros.py:217
+msgid "All Catalogs"
+msgstr ""
+
+#: testmanager/macros.py:306 testmanager/macros.py:327
+#: testmanager/macros.py:445 testmanager/macros.py:467
+msgid "Filter:"
+msgstr ""
+
+#: testmanager/macros.py:306 testmanager/macros.py:327
+#: testmanager/macros.py:445 testmanager/macros.py:467
+msgid ""
+"Type the test to search for, even more than one word. You can also "
+"filter on the test case status (untested, successful, failed)."
+msgstr ""
+
+#: testmanager/macros.py:307 testmanager/macros.py:446
+msgid "Expand all"
+msgstr ""
+
+#: testmanager/macros.py:307 testmanager/macros.py:446
+msgid "Collapse all"
+msgstr ""
+
+#: testmanager/macros.py:332 testmanager/macros.py:472
+#: testmanager/model.py:470
+msgid "Name"
+msgstr ""
+
+#: testmanager/macros.py:341 testmanager/macros.py:481
+#: testmanager/model.py:453 testmanager/model.py:457
+#: testmanager/model.py:461 testmanager/model.py:467
+msgid "ID"
+msgstr ""
+
+#: testmanager/macros.py:351
+msgid "Description"
+msgstr ""
+
+#: testmanager/macros.py:490
+msgid "Last Change"
+msgstr ""
+
+#: testmanager/macros.py:526
+msgid "Available Test Plans"
+msgstr ""
+
+#: testmanager/macros.py:540
+msgid "Plan Name"
+msgstr ""
+
+#: testmanager/macros.py:546
+msgid "Open Test Plan"
+msgstr ""
+
+#: testmanager/macros.py:551
+msgid "Delete"
+msgstr ""
+
+#: testmanager/macros.py:614 testmanager/macros.py:709
+msgid "Open"
+msgstr ""
+
+#: testmanager/macros.py:655 testmanager/macros.py:657
+msgid "Edit the Test Case"
+msgstr ""
+
+#: testmanager/macros.py:821
+msgid "Change the Status:"
+msgstr ""
+
+#: testmanager/macros.py:831
+msgid "SUCCESSFUL"
+msgstr ""
+
+#: testmanager/macros.py:839
+msgid "TO_BE_TESTED"
+msgstr ""
+
+#: testmanager/macros.py:847
+msgid "FAILED"
+msgstr ""
+
+#: testmanager/macros.py:861
+msgid "Status change history"
+msgstr ""
+
+#: testmanager/model.py:454 testmanager/model.py:458
+#: testmanager/model.py:463 testmanager/model.py:469
+msgid "Wiki page name"
+msgstr ""
+
+#: testmanager/model.py:462
+msgid "Plan ID"
+msgstr ""
+
+#: testmanager/model.py:468
+msgid "Catalog ID"
+msgstr ""
+
+#: testmanager/model.py:472
+msgid "Created"
+msgstr ""
+
+#: testmanager/web_ui.py:67
+msgid "Test Manager"
+msgstr ""
+
+#: testmanager/wiki.py:152
+msgid ""
+"Select the catalog into which to paste the Test Case and click on "
+"'Move the copied Test Case here'. "
+msgstr ""
+
+#: testmanager/wiki.py:153 testmanager/wiki.py:175 testmanager/wiki.py:348
+msgid "Cancel"
+msgstr ""
+
+#: testmanager/wiki.py:155
+msgid "Test Catalogs List"
+msgstr ""
+
+#: testmanager/wiki.py:158
+msgid "New Catalog:"
+msgstr ""
+
+#: testmanager/wiki.py:159
+msgid "Add a Catalog"
+msgstr ""
+
+#: testmanager/wiki.py:174
+msgid ""
+"Select the catalog (even this one) into which to paste the Test Case "
+"and click on 'Move the copied Test Case here'. "
+msgstr ""
+
+#: testmanager/wiki.py:178
+msgid "Test Catalog"
+msgstr ""
+
+#: testmanager/wiki.py:180
+msgid "New Sub-Catalog:"
+msgstr ""
+
+#: testmanager/wiki.py:181
+msgid "Add a Sub-Catalog"
+msgstr ""
+
+#: testmanager/wiki.py:196
+msgid "Move the copied Test Case here"
+msgstr ""
+
+#: testmanager/wiki.py:218
+msgid "New Test Case:"
+msgstr ""
+
+#: testmanager/wiki.py:222
+msgid "Add a Test Case"
+msgstr ""
+
+#: testmanager/wiki.py:226
+msgid "New Test Plan:"
+msgstr ""
+
+#: testmanager/wiki.py:230
+msgid "Generate a new Test Plan"
+msgstr ""
+
+#: testmanager/wiki.py:279 testmanager/wiki.py:449
+msgid "Back to the Catalog"
+msgstr ""
+
+#: testmanager/wiki.py:290
+msgid "Test Plan: "
+msgstr ""
+
+#: testmanager/wiki.py:347
+msgid ""
+"The Test Case has been copied. Now select the catalog into which to "
+"move the Test Case and click on 'Move the copied Test Case here'. "
+msgstr ""
+
+#: testmanager/wiki.py:353 testmanager/wiki.py:416
+msgid "Test Case"
+msgstr ""
+
+#: testmanager/wiki.py:363 testmanager/wiki.py:428
+msgid "Open a Ticket on this Test Case"
+msgstr ""
+
+#: testmanager/wiki.py:365 testmanager/wiki.py:430
+msgid "Show Related Tickets"
+msgstr ""
+
+#: testmanager/wiki.py:367
+msgid "Move the Test Case into another catalog"
+msgstr ""
+
+#: testmanager/wiki.py:369
+msgid "Duplicate the Test Case"
+msgstr ""
+
+#: testmanager/wiki.py:446
+msgid "Back to the Test Plan"
+msgstr ""
+
+#: testmanager/wiki.py:514
+msgid "Edit"
+msgstr ""
+
+#: testmanager/wiki.py:518
+msgid "Save"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:53
+msgid "Test Management Statistics"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:83
+msgid "Settings"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:85
+msgid "Start Date:"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:87
+msgid "End Date:"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:89
+msgid "Resolution:"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:92
+msgid "1 Day"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:93
+msgid "1 Week"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:94
+msgid "2 Weeks"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:95
+msgid "1 Month"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:96
+msgid "2 Months"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:97
+msgid "3 Months"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:98
+msgid "6 Months"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:99
+msgid "1 Year"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:101
+msgid "Test Plan:"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:103
+msgid "All Test Plans"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:112
+msgid "URL to bookmark:"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:126
+msgid "Export this data to Excel"
+msgstr ""
+
+#: testmanager/templates/testmanagerstats.html:126
+msgid "(CSV format)"
+msgstr ""
+

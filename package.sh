@@ -14,7 +14,7 @@ cp -R tracgenericworkflow testman4trac.$VER
 
 cd testman4trac.$VER
 
-./clean.sh
+. ./clean.sh
 find . -type d -name .svn -print -exec rm -rf {} \;
 
 cd ..
