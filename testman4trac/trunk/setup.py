@@ -22,7 +22,7 @@ except ImportError:
 
 setup(
     name='TestManager',
-    version='1.3.12',
+    version='1.4.1',
     packages=['testmanager'],
     package_data={
         'testmanager' : [
@@ -30,6 +30,7 @@ setup(
             'templates/*.html', 
             'htdocs/js/*.js', 
             'htdocs/css/*.css', 
+            'htdocs/css/images/*.*', 
             'htdocs/images/*.*', 
             'locale/*.*', 
             'locale/*/LC_MESSAGES/*.mo',

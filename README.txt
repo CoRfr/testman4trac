@@ -20,6 +20,10 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.1 (2010-12-27):
+  o Enhancement #7846 (Track-Hacks): Customizable test case outcomes (aka verdicts)
+  o Enhancement #7570 (Track-Hacks): Add a relationship table between tickets and test cases in plan, and corresponding API
+
 Release 1.3.12 (2010-12-19):
   o Enhancement #8321 (Track-Hacks): Add standard internationalization support (i18n)
   o Enhancement #8322 (Track-Hacks): Show timestamps according to User's locale

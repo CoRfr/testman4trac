@@ -35,11 +35,66 @@ class TestManagerSystem(Component):
 
     implements(IPermissionRequestor, IRequestHandler, IResourceManager)
 
-    def __init__(self):
+    outcomes_by_color = {}
+    outcomes_by_name = {}
+    default_outcome = None
+
+    def __init__(self, *args, **kwargs):
+        """
+        Parses the configuration file to find all the test case states
+        defined.
+        
+        Test case outcomes are triple:
+        (color, name, label)
+        
+        Where color = green, yellow, red
+        
+        To define a set of test case outcomes (a.k.a. verdicts), specify
+        each one on a different line in the trac.ini file, as in the 
+        following example:
+        
+        [test-outcomes]
+        green.SUCCESSFUL = Successful
+        yellow.TO_BE_TESTED = Untested
+        red.FAILED = Failed
+        default = TO_BE_TESTED
+        """
+        Component.__init__(self, *args, **kwargs)
+
         import pkg_resources
         # bind the 'testmanager' catalog to the specified locale directory
         locale_dir = pkg_resources.resource_filename(__name__, 'locale')
         add_domain(self.env.path, locale_dir)
+
+        # Search for custom test case outcomes (a.k.a. verdicts) definitions
+        self.log.debug("TestManagerSystem - Looking for custom test outcomes...")
+        section_name = 'test-outcomes'
+        
+        if section_name in self.config.sections():
+            self.log.debug("TestManagerSystem - parsing config section %s" % section_name)
+            tmp_outcomes = list(self.config.options(section_name))
+
+            for row in tmp_outcomes:
+                self.log.debug("  --> Found option: %s = %s" % (row[0], row[1]))
+
+                if row[0] == 'default':
+                    self.default_outcome = row[1].lower()
+                else:
+                    color = row[0].partition('.')[0]
+                    outcome = row[0].partition('.')[2].lower()
+                    caption = row[1]
+
+                    if color not in self.outcomes_by_color:
+                        self.outcomes_by_color[color] = {}
+                        
+                    self.outcomes_by_color[color][outcome] = caption
+        else:
+            raise TracError("Configuration section 'test-outcomes' missing in trac.ini file.")
+
+        # Build a reverse map to easily lookup an outcome's color and label
+        for color in self.outcomes_by_color:
+            for outcome in self.outcomes_by_color[color]:
+                self.outcomes_by_name[outcome] = [color, self.outcomes_by_color[color][outcome]]
 
     def get_next_id(self, type):
         propname = _get_next_prop_name(type)
@@ -87,33 +142,38 @@ class TestManagerSystem(Component):
     def get_default_tc_status(self):
         """Returns the default test case in plan status"""
         
-        return 'TO_BE_TESTED'
+        return self.default_outcome
     
-    def get_tc_statuses(self):
+    def get_tc_statuses_by_name(self):
         """
         Returns the available test case in plan statuses, along with
-        their base locale captions and meaning:
-          0: successful, green
-          1: to be tested, yellow
-          2: failed, red
+        their captions and meaning:
+          'green': successful
+          'yellow': to be tested
+          'red': failed
+          
+        For example:
+            {'SUCCESSFUL': ['green', "Successful"], 
+             'TO_BE_TESTED': ['yellow', "Untested"], 
+             'FAILED': ['red', "Failed"]}
         """
+        return self.outcomes_by_name
         
-        result = {
-            'SUCCESSFUL': ["Successful", _("Successful"), 0],
-            'TO_BE_TESTED': ["Untested", _("Untested"), 1],
-            'FAILED': ["Failed", _("Failed"), 2]
-        }
-        
-        return result
-    
-    def get_tc_status_caption(self, req, status):
+    def get_tc_statuses_by_color(self):
         """
-        Returns the caption for the given test case status in the
-        request's locale (Trac 0.12+)
+        Returns the available test case in plan statuses, along with
+        their captions and meaning:
+          'green': successful
+          'yellow': to be tested
+          'red': failed
+          
+        For example:
+            {'green': {'SUCCESSFUL': "Successful"}, 
+             'yellow': {'TO_BE_TESTED': "Untested"}, 
+             'red': {'FAILED': "Failed"}}
         """
+        return self.outcomes_by_color
         
-        return _(self.get_tc_statuses()[status])
-    
     def get_testcase_status_history_markup(self, id, planid):
         """Returns a test case status in a plan audit trail."""
 
@@ -164,6 +224,9 @@ class TestManagerSystem(Component):
         type = req.args.get('type', '')
         
         match = False
+        
+        if req.path_info.startswith('/testman4debug'):
+            match = True
         
         if req.path_info.startswith('/testcreate') and (((type == 'catalog' or type == 'testcase') and ('TEST_MODIFY' in req.perm)) or 
              (type == 'testplan' and ('TEST_PLAN_ADMIN' in req.perm))):
@@ -358,7 +421,26 @@ class TestManagerSystem(Component):
 
                 # Redirect to test catalog, forcing a page refresh by means of a random request parameter
                 req.redirect(req.href.wiki(path, mode=mode, fulldetails=fulldetails, random=str(datetime.now(utc).microsecond)))
-                    
+
+        elif req.path_info.startswith('/testman4debug'):
+            id = req.args.get('id')
+            path = req.args.get('path')
+            planid = req.args.get('planid')
+            
+            result = ''
+            
+            if planid is None or len(planid) == 0:
+                tc = TestCase(self.env, id, path)
+                for t in tc.get_related_tickets():
+                    result += str(t) + ', '
+            else:
+                tc = TestCaseInPlan(self.env, id, planid, path)
+                for t in tc.get_related_tickets():
+                    result += str(t) + ', '
+            
+            req.send_header("Content-Length", len(result))
+            req.write(result)
+            return 
         
         return 'empty.html', {}, None
 

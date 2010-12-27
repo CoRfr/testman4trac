@@ -289,7 +289,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
                 else:
                     key = subpage_title
                     
-                parent['childrenT'][key]={'id':curr_path, 'tc_id':tc_id, 'title': subpage_title, 'status': 'NONE'}
+                parent['childrenT'][key]={'id':curr_path, 'tc_id':tc_id, 'title': subpage_title, 'status': '__none__'}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -428,7 +428,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                     unique_idx += 1
                     key = key+str(unique_idx)
                     
-                parent['childrenT'][key]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status, 'ts': ts, 'author': author}
+                parent['childrenT'][key]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status.lower(), 'ts': ts, 'author': author}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -631,7 +631,7 @@ def _render_subtree(env, planid, component, ind, level):
 def _render_testcases(env, planid, data): 
     
     testmanagersystem = TestManagerSystem(env)
-    tc_statuses = testmanagersystem.get_tc_statuses()
+    tc_statuses = testmanagersystem.get_tc_statuses_by_name()
     
     text=''
     keyList = data.keys()
@@ -640,13 +640,13 @@ def _render_testcases(env, planid, data):
         tick = data[x]
         status = tick['status']
         has_status = True
-        if status is not None and len(status) > 0 and status != 'NONE':
-            stat_meaning = tc_statuses[status][2]
-            if stat_meaning == 0:
+        if status is not None and len(status) > 0 and status != '__none__':
+            stat_meaning = tc_statuses[status][0]
+            if stat_meaning == 'green':
                 statusIcon='../chrome/testmanager/images/green.png'
-            elif stat_meaning == 1:
+            elif stat_meaning == 'yellow':
                 statusIcon='../chrome/testmanager/images/yellow.png'
-            elif stat_meaning == 2:
+            elif stat_meaning == 'red':
                 statusIcon='../chrome/testmanager/images/red.png'
         else:
             has_status = False
@@ -661,26 +661,26 @@ def _render_testcases(env, planid, data):
         
 def _build_testcase_status(env, req, planid, curpage):
     testmanagersystem = TestManagerSystem(env)
-    tc_statuses = testmanagersystem.get_tc_statuses()
+    tc_statuses = testmanagersystem.get_tc_statuses_by_name()
     
     tc_id = curpage.rpartition('_TC')[2]
     
     tcip = TestCaseInPlan(env, tc_id, planid)
     if tcip.exists:
-        status = tcip['status']
+        status = tcip['status'].lower()
     else:
         status = testmanagersystem.get_default_tc_status()
     
     # Hide all icons except the one relative to the current test
     # case status
-    display = {'0': 'none', '1': 'none', '2': 'none'}
-    display[str(tc_statuses[status][2])] = 'block'
+    display = {'green': 'none', 'yellow': 'none', 'red': 'none'}
+    
+    display[tc_statuses[status][0]] = 'block'
     
     text = ''
-    # TODO: Replace 'SUCCESSFUL' and others with generic mapping
-    text += '<img style="display: '+display['0']+';" id="tcTitleStatusIconSUCCESSFUL" src="../chrome/testmanager/images/green.png" title="'+_(tc_statuses['SUCCESSFUL'][0])+'"></img></span>'
-    text += '<img style="display: '+display['1']+';" id="tcTitleStatusIconTO_BE_TESTED" src="../chrome/testmanager/images/yellow.png" title="'+_(tc_statuses['TO_BE_TESTED'][0])+'"></img></span>'
-    text += '<img style="display: '+display['2']+';" id="tcTitleStatusIconFAILED" src="../chrome/testmanager/images/red.png" title="'+_(tc_statuses['FAILED'][0])+'"></img></span>'
+    text += '<img style="display: '+display['green']+';" id="tcTitleStatusIcongreen" src="../chrome/testmanager/images/green.png" title="'+_(tc_statuses[status][1])+'"></img></span>'
+    text += '<img style="display: '+display['yellow']+';" id="tcTitleStatusIconyellow" src="../chrome/testmanager/images/yellow.png" title="'+_(tc_statuses[status][1])+'"></img></span>'
+    text += '<img style="display: '+display['red']+';" id="tcTitleStatusIconred" src="../chrome/testmanager/images/red.png" title="'+_(tc_statuses[status][1])+'"></img></span>'
     
     return text
     
@@ -733,7 +733,7 @@ def _render_subtree_as_table(env, context, planid, component, ind, level, custom
 def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=None, fulldetails=False): 
 
     testmanagersystem = TestManagerSystem(env)
-    tc_statuses = testmanagersystem.get_tc_statuses()
+    tc_statuses = testmanagersystem.get_tc_statuses_by_name()
     
     text=''
     keyList = data.keys()
@@ -742,13 +742,13 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
         tick = data[x]
         status = tick['status']
         has_status = True
-        if status is not None and len(status) > 0 and status != 'NONE':
-            stat_meaning = tc_statuses[status][2]
-            if stat_meaning == 0:
+        if status is not None and len(status) > 0 and status != '__none__':
+            stat_meaning = tc_statuses[status][0]
+            if stat_meaning == 'green':
                 statusIcon='../chrome/testmanager/images/green.png'
-            elif stat_meaning == 1:
+            elif stat_meaning == 'yellow':
                 statusIcon='../chrome/testmanager/images/yellow.png'
-            elif stat_meaning == 2:
+            elif stat_meaning == 'red':
                 statusIcon='../chrome/testmanager/images/red.png'
         else:
             has_status = False
@@ -803,49 +803,48 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
         
 def _build_testcase_change_status(env, req, planid, curpage):
     testmanagersystem = TestManagerSystem(env)
-    tc_statuses = testmanagersystem.get_tc_statuses()
+    tc_statuses = testmanagersystem.get_tc_statuses_by_name()
+    tc_statuses_by_color = testmanagersystem.get_tc_statuses_by_color()
 
     tc_id = curpage.rpartition('_TC')[2]
     
     tcip = TestCaseInPlan(env, tc_id, planid)
     if tcip.exists:
-        status = tcip['status']
+        status = tcip['status'].lower()
     else:
         status = testmanagersystem.get_default_tc_status()
 
-    status_meaning = tc_statuses[status][2]
+    status_meaning = tc_statuses[status][0]
     
     text = ''
+    text += '<div id="copyright" style="display: none;">Copyright &copy; 2010 <a href="http://apycom.com/">Apycom jQuery Menus</a></div>'
     
-    text += '<script type="text/javascript">var currStatus = "'+status+'";</script>'
+    text += '<script type="text/javascript">'
+    text += 'var currStatus = "'+status+'";'
+    text += 'var currStatusColor = "'+status_meaning+'";'
+    
+    text += '</script>'
 
     text += _("Change the Status:")
     
     text += '<span style="margin-left: 15px;">'
 
-    border = ''
-    if status_meaning == 0:
-        border = 'border: 2px solid black;'
+    text += '<div id="menu"><ul class="menu">'
+    
+    for color in ['green', 'yellow', 'red']:
+        border = ''
+        if status_meaning == color:
+            border = 'border: 2px solid black;'
+        
+        text += '<li><a href="#" class="parent"><span id="tcStatus%s" style="%s"><img src="../chrome/testmanager/images/%s.png"></img></span></a><div><ul>' % (color, border, color) 
 
-    # TODO: Replace "SUCCESSFUL" with generic mapping
-    text += '<span id="tcStatusSUCCESSFUL" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'SUCCESSFUL\')">'
-    text += '<img src="../chrome/testmanager/images/green.png" title="'+tc_statuses["SUCCESSFUL"][1]+'"></img></span>'
+        for outcome in tc_statuses_by_color[color]:
+            label = tc_statuses_by_color[color][outcome]
+            text += '<li><a href="#" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \''+outcome+'\', \''+color+'\', \'%s\')"><span>%s</span></a></li>' % (label, label)
 
-    border = ''
-    if status_meaning == 1:
-        border = 'border: 2px solid black;'
-
-    # TODO: Replace "TO_BE_TESTED" with generic mapping
-    text += '<span id="tcStatusTO_BE_TESTED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'TO_BE_TESTED\')">'
-    text += '<img src="../chrome/testmanager/images/yellow.png" title="'+tc_statuses["TO_BE_TESTED"][1]+'"></img></span>'
-
-    border = ''
-    if status_meaning == 2:
-        border = 'border: 2px solid black;'
-
-    # TODO: Replace "FAILED" with generic mapping
-    text += '<span id="tcStatusFAILED" style="padding: 3px; cursor: pointer;'+border+'" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'FAILED\')">'
-    text += '<img src="../chrome/testmanager/images/red.png" title="'+tc_statuses["FAILED"][1]+'"></img></span>'
+        text += '</ul></div></li>'
+    
+    text += '</ul></div>'
 
     text += '</span>'
     
@@ -853,7 +852,7 @@ def _build_testcase_change_status(env, req, planid, curpage):
     
 def _build_testcase_status_history(env,req,planid,curpage):
     testmanagersystem = TestManagerSystem(env)
-    tc_statuses = testmanagersystem.get_tc_statuses()
+    tc_statuses = testmanagersystem.get_tc_statuses_by_name()
 
     tc_id = curpage.rpartition('_TC')[2]
     

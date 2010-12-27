@@ -75,7 +75,7 @@ function regenerateTestPlan(planId, path) {
 }
 
 function creaTicket(tcName, planId, planName){ 
-	var url = baseLocation+'/newticket?testCaseNumber='+tcName+'&planId='+planId+'&planName='+planName+'&description=Test%20Case:%20[wiki:'+tcName+'?planid='+planId+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
+	var url = baseLocation+'/newticket?testcaseid='+tcName+'&planid='+planId+'&planname='+planName+'&description=Test%20Case:%20[wiki:'+tcName+'?planid='+planId+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
 	window.location = url;
 }
 
@@ -445,22 +445,24 @@ function hidePencil(id) {
 /**        Test case in plan status management        */
 /******************************************************/
 
-function changestate(tc, planid, path, newStatus) {
+function changestate(tc, planid, path, newStatus, newStatusColor, newLabel) {
 
     var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus+"&path="+path;
     
     result = doAjaxCall(url); 
     
-    oldIconSpan = document.getElementById("tcStatus"+currStatus);
+    oldIconSpan = document.getElementById("tcStatus"+currStatusColor);
     oldIconSpan.style.border="";
     
-    newIconSpan = document.getElementById("tcStatus"+newStatus);
+    newIconSpan = document.getElementById("tcStatus"+newStatusColor);
     newIconSpan.style.border="2px solid black";
     
-    displayNode("tcTitleStatusIcon"+currStatus, false);
-    displayNode("tcTitleStatusIcon"+newStatus, true);
-    
+    displayNode("tcTitleStatusIcon"+currStatusColor, false);
+    displayNode("tcTitleStatusIcon"+newStatusColor, true);
+    document.getElementById("tcStatus"+newStatusColor).title = newLabel;
+
     currStatus = newStatus; 
+    currStatusColor = newStatusColor;
 }
 
 /******************************************************/

@@ -18,6 +18,7 @@ from genshi import HTML
 
 from tracgenericclass.model import GenericClassModelProvider
 
+from testmanager.api import TestManagerSystem
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
 
@@ -131,7 +132,6 @@ class WikiTestManagerInterface(Component):
         add_stylesheet(req, 'common/css/report.css')
 
         add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
         if self.env.get_version() < 25:
@@ -258,7 +258,6 @@ class WikiTestManagerInterface(Component):
         add_stylesheet(req, 'common/css/report.css')
 
         add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
         if self.env.get_version() < 25:
@@ -327,7 +326,6 @@ class WikiTestManagerInterface(Component):
         add_stylesheet(req, 'common/css/report.css')
 
         add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/labels.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
         if self.env.get_version() < 25:
@@ -386,15 +384,16 @@ class WikiTestManagerInterface(Component):
         tc_id = tc_name.partition('_TC')[2]
         # Note that assigning a default status here is functional. If the tcip actually exists,
         # the real status will override this value.
-        tcip = TestCaseInPlan(self.env, tc_id, planid, page_name, 'TO_BE_TESTED')
+        tcip = TestCaseInPlan(self.env, tc_id, planid, page_name, TestManagerSystem(self.env).get_default_tc_status())
         
         tmmodelprovider = GenericClassModelProvider(self.env)
     
-        add_stylesheet(req, 'testmanager/css/testmanager.css')
         add_stylesheet(req, 'common/css/report.css')
+        add_stylesheet(req, 'testmanager/css/testmanager.css')
+        add_stylesheet(req, 'testmanager/css/menu.css')
 
         add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/labels.js')
+        add_script(req, 'testmanager/js/menu.js')
         add_script(req, 'testmanager/js/testmanager.js')
 
         if self.env.get_version() < 25:

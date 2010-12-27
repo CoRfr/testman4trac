@@ -231,6 +231,27 @@ class TestCase(AbstractTestDescription):
         self.save_changes('System', "Moved to a different catalog", 
             datetime.now(utc), db)
 
+    def get_related_tickets(self, db=None):
+        """
+        Returns an iterator over the IDs of the ticket opened against 
+        this test case.
+        """
+        self.env.log.debug('>>> get_related_tickets')
+    
+        if db is None:
+            db = get_db(self.env, db)
+        
+        cursor = db.cursor()
+        cursor.execute("SELECT id FROM ticket WHERE id in " +
+            "(SELECT ticket FROM ticket_custom WHERE name='testcaseid' AND value=%s)",
+            (self.values['page_name'],))
+            
+        for row in cursor:
+            self.env.log.debug('    ---> Found ticket %s' % row[0])
+            yield row[0]
+
+        self.env.log.debug('<<< get_related_tickets')
+
         
 class TestCaseInPlan(AbstractVariableFieldsObject):
     """
@@ -285,6 +306,7 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         test case in plan.
         You need to call 'save_changes' to achieve that.
         """
+        status = status.lower()
         self['status'] = status
 
         db, handle_ta = get_db_for_write(self.env, db)
@@ -310,7 +332,30 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         
         cursor.execute(sql, (self.values['id'], self.values['planid']))
         for ts, author, status in cursor:
-            yield ts, author, status
+            yield ts, author, status.lower()
+
+    def get_related_tickets(self, db=None):
+        """
+        Returns an iterator over the IDs of the ticket opened against 
+        this test case and this test plan.
+        """
+        self.env.log.debug('>>> get_related_tickets')
+    
+        if db is None:
+            db = get_db(self.env, db)
+
+        cursor = db.cursor()
+        cursor.execute("SELECT id FROM ticket WHERE id in " +
+            "(SELECT ticket FROM ticket_custom WHERE name='testcaseid' AND value=%s) " +
+            "AND id in " +
+            "(SELECT ticket FROM ticket_custom WHERE name='planid' AND value=%s) ",
+            (self.values['page_name'], self.values['planid']))
+            
+        for row in cursor:
+            self.env.log.debug('    ---> Found ticket %s' % row[0])
+            yield row[0]
+
+        self.env.log.debug('<<< get_related_tickets')
 
     
 class TestPlan(AbstractVariableFieldsObject):
@@ -370,6 +415,8 @@ class TestPlan(AbstractVariableFieldsObject):
             self.env.log.debug("Deleting test case in plan, with id %s" % tcip['id'])
             tcip.delete(db)
 
+    def get_related_tickets(self, db):
+        pass
 
         
 class TestManagerModelProvider(Component):
@@ -559,7 +606,7 @@ class TestManagerModelProvider(Component):
         self.upgrade_environment(get_db(self.env))
 
     def environment_needs_upgrade(self, db):
-        return self._need_initialization(db)
+        return (self._need_initialization(db) or self._need_upgrade(db))
 
     def upgrade_environment(self, db):
         # Create db
@@ -582,10 +629,45 @@ class TestManagerModelProvider(Component):
 
             except:
                 db.rollback()
-                self.env.log.debug("Esxception during upgrade")
+                self.env.log.debug("Exception during upgrade")
                 raise
-                
+
+        if self._need_upgrade(db):
+            # Set custom ticket field to hold related test case
+            custom = self.config['ticket-custom']
+            config_dirty = False
+            if 'testcaseid' not in custom:
+                custom.set('testcaseid', 'text')
+                custom.set('testcaseid.label', _("Test Case"))
+                config_dirty = True
+            if 'planid' not in custom:
+                custom.set('planid', 'text')
+                custom.set('planid.label', _("Test Plan"))
+                config_dirty = True
+
+            # Set config section for test case outcomes
+            if 'test-outcomes' not in self.config:
+                self.config.set('test-outcomes', 'green.SUCCESSFUL', _("Successful"))
+                self.config.set('test-outcomes', 'yellow.TO_BE_TESTED', _("Untested"))
+                self.config.set('test-outcomes', 'red.FAILED', _("Failed"))
+                self.config.set('test-outcomes', 'default', 'TO_BE_TESTED')
+                config_dirty = True
+
+            if config_dirty:
+                self.config.save()
 
     def _need_initialization(self, db):
         return need_db_upgrade(self.env, self.SCHEMA, db)
+
+    def _need_upgrade(self, db):
+        # Check for custom ticket field to hold related test case
+        custom = self.config['ticket-custom']
+        if 'testcaseid' not in custom or 'planid' not in custom:
+            return True
+
+        # Check for config section for test case outcomes
+        if 'test-outcomes' not in self.config:
+            return True
+        
+        return False
       
