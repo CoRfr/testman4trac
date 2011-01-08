@@ -12,13 +12,14 @@ from genshi.builder import tag
 
 from trac.core import *
 from trac.config import Option, IntOption
+from trac.util import format_date, format_datetime
 from trac.web import IRequestHandler
 from trac.web.chrome import INavigationContributor, ITemplateProvider
 from trac.perm import IPermissionRequestor
 
 from datetime import date, datetime, time, timedelta
 from time import strptime
-from trac.util.datefmt import utc
+from trac.util.datefmt import utc, parse_date
 
 from tracgenericclass.util import *
 
@@ -26,16 +27,17 @@ from testmanager.api import TestManagerSystem
 from testmanager.util import *
 
 
+
 # ************************
-DEFAULT_DAYS_BACK = 30*6 
-DEFAULT_INTERVAL = 30
+DEFAULT_DAYS_BACK = 30*3 
+DEFAULT_INTERVAL = 7
 # ************************
 
 class TestStatsPlugin(Component):
     implements(INavigationContributor, IRequestHandler, ITemplateProvider, IPermissionRequestor)
 
     yui_base_url = Option('teststats', 'yui_base_url',
-            default='http://yui.yahooapis.com/2.5.2',
+            default='http://yui.yahooapis.com/2.8.2r1',
             doc='Location of YUI API')
 
     default_days_back = IntOption('teststats', 'default_days_back',
@@ -68,9 +70,9 @@ class TestStatsPlugin(Component):
         '''
 
         if catpath == None or catpath == '':
-            path_filter = "TC_%"
+            path_filter = "TC_%_TC%"
         else:
-            path_filter = catpath + "_%" 
+            path_filter = catpath + "%_TC%" 
 
         dates_condition = ''
 
@@ -83,7 +85,6 @@ class TestStatsPlugin(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
         
-        # TODO: Fix this query because it also counts test catalogs
         cursor.execute("SELECT COUNT(*) FROM wiki WHERE name LIKE '%s' AND version = 1 %s" % (path_filter, dates_condition))
 
         row = cursor.fetchone()
@@ -107,8 +108,6 @@ class TestStatsPlugin(Component):
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
-        #self.log.debug("From %s to %s, status=%s, plan=%s" % (from_date.isoformat(), at_date.isoformat(), status, testplan))
-        #self.log.debug("SELECT COUNT(*) from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s %s" % (status, to_any_timestamp(from_date), to_any_timestamp(at_date), testplan_filter))
         cursor.execute("SELECT COUNT(*) from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s %s" % (status, to_any_timestamp(from_date), to_any_timestamp(at_date), testplan_filter))
 
         row = cursor.fetchone()
@@ -124,8 +123,8 @@ class TestStatsPlugin(Component):
         return re.match(r'/teststats(?:_trac)?(?:/.*)?$', req.path_info)
 
     def process_request(self, req):
-        test_manager_system = TestManagerSystem(self.env)
-        #test_manager_system.report_testcase_status()
+        testmanagersystem = TestManagerSystem(self.env)
+        tc_statuses = testmanagersystem.get_tc_statuses_by_color()
         
         req_content = req.args.get('content')
         testplan = None
@@ -154,35 +153,18 @@ class TestStatsPlugin(Component):
             if not grab_resolution.isdigit():
                 raise TracError('The graph interval field must be an integer, days.')
 
-            # TODO: I'm letting the exception raised by 
-            #  strptime() appear as the Trac error.
-            #  Maybe a wrapper should be written.
-
-            at_date = datetime(*strptime(grab_at_date, "%m/%d/%Y")[0:6])
-            at_date = datetime.combine(at_date, time(11,59,59,0,utc)) # Add tzinfo
-
-            from_date = datetime(*strptime(grab_from_date, "%m/%d/%Y")[0:6])
-            from_date = datetime.combine(from_date, time(0,0,0,0,utc)) # Add tzinfo
+            at_date = parse_date(grab_at_date, req.tz)
+            from_date = parse_date(grab_from_date, req.tz)
 
             graph_res = int(grab_resolution)
 
         else:
             # default data
-            todays_date = date.today()
-            at_date = datetime.combine(todays_date,time(11,59,59,0,utc))
+            todays_date = datetime.today()
+            at_date = todays_date #+ timedelta(1) # datetime.combine(todays_date,time(23,59,59,0,req.tz))
+            at_date = at_date.replace(tzinfo = req.tz)
             from_date = at_date - timedelta(self.default_days_back)
             graph_res = self.default_interval
-    
-            at_date_str = at_date.strftime("%m/%d/%Y")
-            from_date_str=  from_date.strftime("%m/%d/%Y")
-
-            # 2.5 only: at_date = datetime.strptime(at_date_str, "%m/%d/%Y")
-            at_date = datetime(*strptime(at_date_str, "%m/%d/%Y")[0:6])
-            at_date = datetime.combine(at_date, time(11,59,59,0,utc)) # Add tzinfo
-            
-            # 2.5 only: from_date = datetime.strptime(from_date_str, "%m/%d/%Y")
-            from_date = datetime(*strptime(from_date_str, "%m/%d/%Y")[0:6])
-            from_date = datetime.combine(from_date, time(0,0,0,0,utc)) # Add tzinfo
             
         count = []
 
@@ -191,21 +173,34 @@ class TestStatsPlugin(Component):
 
         # Calculate remaining points
         for cur_date in daterange(from_date, at_date, graph_res):
+            # Handling custom test case outcomes here
             num_new = self._get_num_testcases(last_date, cur_date, catpath, testplan, req)
-            num_successful = self._get_num_tcs_by_status(last_date, cur_date, 'SUCCESSFUL', testplan, req)
-            num_failed = self._get_num_tcs_by_status(last_date, cur_date, 'FAILED', testplan, req)
+            
+            num_successful = 0
+            for tc_outcome in tc_statuses['green']:
+                num_successful += self._get_num_tcs_by_status(last_date, cur_date, tc_outcome, testplan, req)
+
+            num_failed = 0
+            for tc_outcome in tc_statuses['red']:
+                num_failed += self._get_num_tcs_by_status(last_date, cur_date, tc_outcome, testplan, req)
             
             num_all = self._get_num_testcases(None, cur_date, catpath, testplan, req)
-            num_all_successful = self._get_num_tcs_by_status(from_date, cur_date, 'SUCCESSFUL', testplan, req)
-            num_all_failed = self._get_num_tcs_by_status(from_date, cur_date, 'FAILED', testplan, req)
+
+            num_all_successful = 0
+            for tc_outcome in tc_statuses['green']:
+                num_all_successful += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
+
+            num_all_failed = 0
+            for tc_outcome in tc_statuses['red']:
+                num_all_failed += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
 
             num_all_untested = num_all - num_all_successful - num_all_failed
 
-            datestr = cur_date.strftime("%m/%d/%Y") 
+            datestr = format_date(cur_date) 
             if graph_res != 1:
-                datestr = "%s thru %s" % (last_date.strftime("%m/%d/%Y"), datestr) 
-            count.append( {'from_date': last_date.strftime("%m/%d/%Y"),
-                         'to_date': cur_date.strftime("%m/%d/%Y"),
+                datestr = "%s thru %s" % (format_date(last_date), datestr) 
+            count.append( {'from_date': format_date(last_date),
+                         'to_date': datestr,
                          'date'  : datestr,
                          'new_tcs'    : num_new,
                          'successful': num_successful,
@@ -220,6 +215,7 @@ class TestStatsPlugin(Component):
         # for templating
         if (not req_content == None) and (req_content == "chartdata"):
             jsdstr = '{"chartdata": [\n'
+
             for x in count:
                 jsdstr += '{"date": "%s",' % x['date']
                 jsdstr += ' "new_tcs": %s,' % x['new_tcs']
@@ -230,9 +226,13 @@ class TestStatsPlugin(Component):
                 jsdstr += ' "all_untested": %s,' % x['all_untested']
                 jsdstr += ' "all_failed": %s},\n' % x['all_failed']
             jsdstr = jsdstr[:-2] +'\n]}'
+
+            if isinstance(jsdstr, unicode): 
+                jsdstr = jsdstr.encode('utf-8') 
+
             req.send_header("Content-Length", len(jsdstr))
             req.write(jsdstr)
-            return 
+            return
         elif (not req_content == None) and (req_content == "downloadcsv"):
             csvstr = "Date from;Date to;New Test Cases;Successful;Failed;Total Test Cases;Total Successful;Total Untested;Total Failed\r\n"
             for x in count:
@@ -245,22 +245,26 @@ class TestStatsPlugin(Component):
                 csvstr += '%s;' % x['all_successful']
                 csvstr += '%s;' % x['all_untested']
                 csvstr += '%s\r\n' % x['all_failed']
+                
+            if isinstance(csvstr, unicode): 
+                csvstr = csvstr.encode('utf-8') 
+
             req.send_header("Content-Length", len(csvstr))
             req.send_header("Content-Disposition", "attachment;filename=Test_stats.csv")
             req.write(csvstr)
-            return 
+            return
         else:
             db = self.env.get_db_cnx()
             showall = req.args.get('show') == 'all'
 
             testplan_list = []
-            for planid, catid, catpath, name, author, ts_str in test_manager_system.list_all_testplans():
+            for planid, catid, catpath, name, author, ts_str in testmanagersystem.list_all_testplans():
                 testplan_list.append({'planid': planid, 'catpath': catpath, 'name': name})
 
             data = {}
             data['testcase_data'] = count
-            data['start_date'] = from_date.strftime("%m/%d/%Y")
-            data['end_date'] = at_date.strftime("%m/%d/%Y")
+            data['start_date'] = format_date(from_date)
+            data['end_date'] = format_date(at_date)
             data['resolution'] = str(graph_res)
             data['baseurl'] = req.base_url
             data['testplans'] = testplan_list

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010 Roberto Longobardi, Marco Cipriani
+# Copyright (C) 2010 Roberto Longobardi
 #
 
 import copy
@@ -10,7 +10,7 @@ from StringIO import StringIO
 
 from trac.core import *
 from trac.mimeview.api import Context
-from trac.util import format_datetime
+from trac.util import format_datetime, format_date
 from trac.wiki.macros import WikiMacroBase
 from trac.wiki.api import WikiSystem, parse_args
 from trac.wiki.formatter import Formatter, format_to_html

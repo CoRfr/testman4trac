@@ -20,6 +20,10 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.2 (2011-01-09):
+  o Fixed Ticket #8378 (Track-Hacks): Set date and time format correctly in Test Stats page
+  Also added support for custom test case outcomes in the Test Stats page
+
 Release 1.4.1 (2010-12-27):
   o Enhancement #7846 (Track-Hacks): Customizable test case outcomes (aka verdicts)
   o Enhancement #7570 (Track-Hacks): Add a relationship table between tickets and test cases in plan, and corresponding API

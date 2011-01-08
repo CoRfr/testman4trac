@@ -21,7 +21,7 @@ from tracgenericclass.util import *
 class ResourceWorkflowState(AbstractVariableFieldsObject):
     """
     This object represents the current workflow state of the associated
-    resorce.
+    resource.
     """
     
     # Fields that must not be modified directly by the user

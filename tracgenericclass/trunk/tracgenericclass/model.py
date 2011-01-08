@@ -122,11 +122,10 @@ class IConcreteClassProvider(Interface):
             'search': search for objects of this class.
         
         :param key_str: optional, the object's key, in the form of a string representing 
-                        a dictionary. To get this string, use the 
-                        get_string_from_dictionary() function in the
+                        a dictionary. To get a dictionary back from this string, use the 
+                        get_dictionary_from_string() function in the
                         tracgenericclass.util package.
-        :param operation: optional, the operatyion to be performed on the object.
-                          TODO: specify the list of available operations.
+        :param operation: optional, the operation to be performed on the object.
         :param name: optional property name, valid for the 'set' operation type
         :param value: optional property value, valid for the 'set' operation type
         """
@@ -791,7 +790,7 @@ class AbstractVariableFieldsObject(object):
     def get_search_results(self, req, terms, filters):
         """
         Called in the context of the trac search API, to return a list
-        of objects of this class matching the specified terms.ù
+        of objects of this class matching the specified terms.
         
         Concrete classes should override this method to perform class-specific
         searches.
