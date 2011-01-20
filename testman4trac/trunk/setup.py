@@ -22,7 +22,7 @@ except ImportError:
 
 setup(
     name='TestManager',
-    version='1.4.2',
+    version='1.4.3',
     packages=['testmanager'],
     package_data={
         'testmanager' : [

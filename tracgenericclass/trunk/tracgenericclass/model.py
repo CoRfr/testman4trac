@@ -746,7 +746,7 @@ class AbstractVariableFieldsObject(object):
         """
         pass
             
-    def list_matching_objects(self, db=None):
+    def list_matching_objects(self, exact_match=True, db=None):
         """
         List the objects that match the current values of this object's
         fields.
@@ -755,6 +755,9 @@ class AbstractVariableFieldsObject(object):
         match on, then call this method.
         A collection of objects found in the database matching the 
         fields you had provided values for will be returned.
+        An exact match, i.e. an SQL '=' operator, will be used, unless you
+        specify exact_match=False, in which case the SQL 'LIKE' operator
+        will be used.
         
         The `db` argument is deprecated in favor of `with_transaction()`.
         """
@@ -772,11 +775,15 @@ class AbstractVariableFieldsObject(object):
         non_empty_std_values = self.get_values(non_empty_std_names)
         non_empty_custom_values = self.get_values(non_empty_custom_names)
 
+        operator = '='
+        if not exact_match:
+            operator = ' LIKE '
+        
         sql_where = '1=1'
         for k in non_empty_std_names:
-            sql_where += " AND " + k + "=%%s" 
+            sql_where += " AND " + k + operator + '%%s'
         
-        cursor.execute(("SELECT %s FROM %s WHERE " + sql_where)
+        cursor.execute(('SELECT %s FROM %s WHERE ' + sql_where)
                        % (','.join(self.get_key_prop_names()), self.realm), 
                        non_empty_std_values)
 
@@ -939,6 +946,8 @@ class AbstractWikiPageWrapper(AbstractVariableFieldsObject):
         wikipage = WikiPage(self.env, self.values['page_name'])
         wikipage.text = self.text
         wikipage.save(self.author, '', self.remote_addr)
+    
+        print("YEEEES!!!")
     
         self.wikipage = wikipage
 

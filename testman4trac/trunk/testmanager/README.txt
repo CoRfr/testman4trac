@@ -20,6 +20,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.3 (2011-01-20):
+  o Enhancement #8427 (Track-Hacks): Add XML-RPC complete interface for remote management of test objects
+
 Release 1.4.2 (2011-01-09):
   o Fixed Ticket #8378 (Track-Hacks): Set date and time format correctly in Test Stats page
   Also added support for custom test case outcomes in the Test Stats page

@@ -141,19 +141,43 @@ class TestCatalog(AbstractTestDescription):
 
             return TestCatalog(self.env, cat_id, cat_page)
         
-    def list_subcatalogs(self):
+    def list_subcatalogs(self, db=None):
         """
         Returns a list of the sub catalogs of this catalog.
         """
-        # TODO: Implement method
-        return ()
+        tc_search = TestCatalog(self.env)
+        tc_search['page_name'] = self.values['page_name'] + '_TT%'
         
-    def list_testcases(self):
+        cat_re = re.compile('^TT[0-9]*$')
+        
+        for tc in tc_search.list_matching_objects(exact_match=False, db=db):
+            # Only return direct sub-catalogs and exclude test cases
+            if cat_re.match(tc['page_name'].partition(self.values['page_name']+'_')[2]) :
+                yield tc
+        
+    def list_testcases(self, plan_id=None, db=None):
         """
         Returns a list of the test cases in this catalog.
+        If plan_id is provided, returns a list of TestCaseInPlan objects,
+        otherwise, of TestCase objects.
         """
-        # TODO: Implement method
-        return ()
+
+        if plan_id is not None:
+            from testmanager.api import TestManagerSystem
+            default_status = TestManagerSystem(self.env).get_default_tc_status()
+        
+        tc_search = TestCase(self.env)
+        tc_search['page_name'] = self.values['page_name'] + '_TC%'
+        
+        for tc in tc_search.list_matching_objects(False, db):
+            if plan_id is None:
+                yield tc
+            else:
+                tcip = TestCaseInPlan(self.env, tc['id'], plan_id)
+                if not tcip.exists:
+                    tcip['status'] = default_status
+
+                yield tcip
 
     def list_testplans(self, db=None):
         """
@@ -163,7 +187,7 @@ class TestCatalog(AbstractTestDescription):
         tp_search = TestPlan(self.env)
         tp_search['catid'] = self.values['id']
         
-        for tp in tp_search.list_matching_objects(db):
+        for tp in tp_search.list_matching_objects(db=db):
             yield tp
 
     def create_instance(self, key):
@@ -221,7 +245,7 @@ class TestCase(AbstractTestDescription):
         # Remove test case from all the plans
         tcip_search = TestCaseInPlan(self.env)
         tcip_search['id'] = self.values['id']
-        for tcip in tcip_search.list_matching_objects(db):
+        for tcip in tcip_search.list_matching_objects(db=db):
             tcip.delete(db)
 
         # Update self properties and save
@@ -411,7 +435,7 @@ class TestPlan(AbstractVariableFieldsObject):
         self.env.log.debug("Deleting all test cases in the plan...")
         tcip_search = TestCaseInPlan(self.env)
         tcip_search['planid'] = self.values['id']
-        for tcip in tcip_search.list_matching_objects(db):
+        for tcip in tcip_search.list_matching_objects(db=db):
             self.env.log.debug("Deleting test case in plan, with id %s" % tcip['id'])
             tcip.delete(db)
 

@@ -58,6 +58,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.0.4 (2011-01-17):
+  o Added support for LIKE match in list_matching_objects.
+
 Release 1.0.0 (2010-10-01):
   o First release publicly available apart from the core Test Manager plugin
   
