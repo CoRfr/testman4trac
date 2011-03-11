@@ -653,9 +653,9 @@ def _render_testcases(env, planid, data):
 
         if has_status:
             statusLabel = tc_statuses[status][1]
-            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            text+="<li name='tc_node' style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
         else:
-            text+="<li style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            text+="<li name='tc_node' style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><input name='select_tc_checkbox' value='"+tick['id']+"' type='checkbox' style='display: none;float: left; position: relative; top: 3px;' /><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
             
     return text
         

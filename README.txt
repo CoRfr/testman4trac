@@ -20,6 +20,10 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.4 (2011-02-11):
+  o Fixed Ticket #8567 (Track-Hacks): Javascript error when deleting test plans
+  o Enhancement #8596 (Track-Hacks): Remove hard dependency on XML RPC plugin for Trac 0.11
+
 Release 1.4.3 (2011-01-20):
   o Enhancement #8427 (Track-Hacks): Add XML-RPC complete interface for remote management of test objects
 

@@ -275,6 +275,7 @@ class TestManagerSystem(Component):
 
             autosave = req.args.get('autosave', 'false')
             duplicate = req.args.get('duplicate')
+            multiple = req.args.get('multiple')
             paste = req.args.get('paste')
             tcId = req.args.get('tcId')
 
@@ -330,21 +331,40 @@ class TestManagerSystem(Component):
 
                     req.perm.require('TEST_PLAN_ADMIN')
 
+                    if multiple and multiple != '':
+                        delete_old = False
+                        tcIdsList = tcId.split(',')
+                    else:
+                        delete_old = True
+                        tcIdsList = [tcId]
+                    
                     try:
                         catid = path.rpartition('_TT')[2]
                         tcat = TestCatalog(self.env, catid)
                         
-                        old_pagename = tcId
-                        tc_id = tcId.rpartition('_TC')[2]
-                        tc = TestCase(self.env, tc_id, tcId)
-                        tc.author = author
-                        tc.remote_addr = req.remote_addr
-                        if tc.exists:
-                            tc.move_to(tcat)                            
-                        else:
-                            self.env.log.debug("Test case not found")
+                        for tcId in tcIdsList:
+                            if tcId is not None and tcId != '':
+                                old_pagename = tcId
+                                tc_id = tcId.rpartition('_TC')[2]
+
+                                tc = TestCase(self.env, tc_id, tcId)
+                                tc.author = author
+                                tc.remote_addr = req.remote_addr
+                                if tc.exists:
+                                    if delete_old:
+                                        tc.move_to(tcat)                            
+                                    else:
+                                        tc['page_name'] = pagename
+                                        tc.save_as({'id': id})
+                                else:
+                                    self.env.log.debug("Test case not found")
+
+                            # Generate a new Id for the next iteration
+                            id = self.get_next_id(type)
+                            pagename = path + '_TC'+str(id)
+                                    
                     except:
-                        self.env.log.info("Error pasting test case!")
+                        self.env.log.info("Error pasting test cases!")
                         self.env.log.info(formatExceptionInfo())
                         req.redirect(req.href.wiki(pagename))
                 

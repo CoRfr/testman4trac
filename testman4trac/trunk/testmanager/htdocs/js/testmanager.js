@@ -98,13 +98,17 @@ function deleteTestPlan(url){
 }
 
 /******************************************************/
-/**         Move test case into another catalog       */
+/**    Move or copy test case into another catalog    */
 /******************************************************/
 
 function checkMoveTCDisplays() {
     displayNode('copiedTCMessage', isPasteEnabled());
     displayNode('pasteTCHereMessage', isPasteEnabled());
-    displayNode('pasteTCHereDiv', isPasteEnabled());
+    displayNode('pasteTCHereButton', isPasteEnabled(), 'inline');
+
+    displayNode('copiedMultipleTCsMessage', isMultiplePasteEnabled());
+    displayNode('pasteMultipleTCsHereMessage', isMultiplePasteEnabled());
+    displayNode('pasteMultipleTCsHereButton', isMultiplePasteEnabled(), 'inline');
 }
 
 function isPasteEnabled() {
@@ -115,8 +119,47 @@ function isPasteEnabled() {
     return false;
 }
 
+function isMultiplePasteEnabled() {
+    if (getCookie('TestManager_MultipleTestCases')) {
+        return true;
+    }
+    
+    return false;
+}
+
+function showSelectionCheckboxes(id) {
+	/* toggleAll(true); */
+
+    var nodes=document.getElementById("ticketContainer").getElementsByTagName('input');
+	for (var i=0;i<nodes.length;i++) {
+		var el=nodes.item(i);
+		
+		if (el.getAttribute("name") && el.getAttribute("name") == "select_tc_checkbox") {
+			el.style.display = "block";
+		}
+	}
+}
+
 function copyTestCaseToClipboard(tcId) {
     setCookie('TestManager_TestCase', tcId, 1, '/', '', '');
+    setTimeout('window.location="'+window.location+'"', 100);
+}
+
+function copyMultipleTestCasesToClipboard() {
+	var selectedTickets = "";
+
+    var nodes=document.getElementById("ticketContainer").getElementsByTagName('input');
+	for (var i=0;i<nodes.length;i++) {
+		var el=nodes.item(i);
+		
+		if (el.getAttribute("name") && el.getAttribute("name") == "select_tc_checkbox") {
+			if (el.checked) {
+				selectedTickets += el.value + ','
+			}
+		}
+	}
+
+    setCookie('TestManager_MultipleTestCases', selectedTickets, 1, '/', '', '');
     setTimeout('window.location="'+window.location+'"', 100);
 }
 
@@ -130,8 +173,23 @@ function pasteTestCaseIntoCatalog(catName) {
     }
 }
 
+function pasteMultipleTestCasesIntoCatalog(catName) {
+    var tcIds = getCookie('TestManager_MultipleTestCases');
+    
+    if (tcIds != null) {
+        deleteCookie('TestManager_MultipleTestCases', '/', '');
+        var url = baseLocation+"/testcreate?type=testcase&paste=true&multiple=true&path="+catName+"&tcId="+tcIds;
+        window.location = url;
+    }
+}
+
 function cancelTCMove() {
     deleteCookie('TestManager_TestCase', '/', '');
+    setTimeout('window.location="'+window.location+'"', 100);
+}
+
+function cancelTCsCopy() {
+    deleteCookie('TestManager_MultipleTestCases', '/', '');
     setTimeout('window.location="'+window.location+'"', 100);
 }
 
@@ -484,10 +542,10 @@ function stripLessSpecialChars(str) {
     return result;
 }
 
-function displayNode(id, show) {
+function displayNode(id, show, mode) {
     var msgNode = document.getElementById(id);
     if (msgNode) {
-        msgNode.style.display = show ? "block" : "none";
+       msgNode.style.display = show ? (mode ? mode : "block") : "none";
     }
 }
 

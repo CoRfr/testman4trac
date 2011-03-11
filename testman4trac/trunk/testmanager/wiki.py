@@ -149,6 +149,10 @@ class WikiTestManagerInterface(Component):
         if page_name == 'TC':
             # Root of all catalogs
             insert1 = tag.div()(
+                        tag.div(id='pasteMultipleTCsHereMessage', class_='messageBox', style='display: none;')(_("Select the catalog into which to paste the Test Cases and click on 'Paste the copied Test Cases here'. "),
+                            tag.a(href='javascript:void(0);', onclick='cancelTCsCopy()')(_("Cancel"))
+                            ),
+                        tag.br(), 
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(_("Select the catalog into which to paste the Test Case and click on 'Move the copied Test Case here'. "),
                             tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
                             ),
@@ -170,6 +174,11 @@ class WikiTestManagerInterface(Component):
                                     tag.img(src='../chrome/testmanager/images/tree_table.png', title="Table View"))
                                 )),
                         tag.br(), 
+                        tag.div(id='pasteMultipleTCsHereMessage', class_='messageBox', style='display: none;')(
+                            _("Select the catalog (even this one) into which to paste the Test Cases and click on 'Paste the copied Test Cases here'. "),
+                            tag.a(href='javascript:void(0);', onclick='cancelTCsCopy()')(_("Cancel"))
+                            ),
+                        tag.br(),
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(
                             _("Select the catalog (even this one) into which to paste the Test Case and click on 'Move the copied Test Case here'. "),
                             tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
@@ -185,17 +194,14 @@ class WikiTestManagerInterface(Component):
                     tag.div(class_='testCaseList')(
                         tag.br(), tag.br()
                     ))
-                    
+
         if not page_name == 'TC':
             # The root of all catalogs cannot contain itself test cases
             insert2.append(tag.div()(
                         self._get_custom_fields_markup(test_catalog, tmmodelprovider.get_custom_fields_for_realm('testcatalog')),
                         tag.br()
                     ))
-            insert2.append(tag.div(id='pasteTCHereDiv')(
-                        tag.input(type='button', id='pasteTCHereButton', value=_("Move the copied Test Case here"), onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
-                    ))
-                                        
+
         insert2.append(tag.div(class_='field')(
                     tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     tag.br(), tag.br(), tag.br(),
@@ -207,13 +213,12 @@ class WikiTestManagerInterface(Component):
                         tag.input(type='button', value=buttonLabel, onclick='creaTestCatalog("'+cat_name+'")')
                         )
                     ))
-        
+
         if not page_name == 'TC':
             # The root of all catalogs cannot contain itself test cases,
             #   cannot generate test plans and does not need a test plans list
             insert2.append(tag.div(class_='field')(
                         tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
-                        tag.br(),
                         tag.label(
                             _("New Test Case:"),
                             tag.span(id='errorMsgSpan', style='color: red;'),
@@ -221,7 +226,7 @@ class WikiTestManagerInterface(Component):
                             tag.input(id='tcName', type='text', name='tcName', size='50'),
                             tag.input(type='button', value=_("Add a Test Case"), onclick='creaTestCase("'+cat_name+'")')
                             ),
-                        tag.br(), tag.br(), tag.br(),
+                        tag.br(), 
                         tag.label(
                             _("New Test Plan:"),
                             tag.span(id='errorMsgSpan2', style='color: red;'),
@@ -230,9 +235,29 @@ class WikiTestManagerInterface(Component):
                             tag.input(type='button', value=_("Generate a new Test Plan"), onclick='creaTestPlan("'+cat_name+'")')
                             ),
                         tag.br(), 
-                        self._get_testplan_list_markup(formatter, cat_name, mode, fulldetails),
                         ))
                     
+        insert2.append(tag.br())
+        insert2.append(tag.br())
+                    
+        insert2.append(tag.input(
+                type='button', id='showSelectionBoxesButton', value=_("Select Multiple Test Cases"), onclick='showSelectionCheckboxes()')
+                )
+        insert2.append(tag.input(
+                type='button', id='copyMultipleTCsButton', value=_("Copy the Selected Test Cases"), onclick='copyMultipleTestCasesToClipboard()')
+                )
+                    
+        if not page_name == 'TC':
+            insert2.append(tag.input(type='button', id='pasteMultipleTCsHereButton', value=_("Paste the copied Test Cases here"), onclick='pasteMultipleTestCasesIntoCatalog("'+cat_name+'")')
+                    )
+
+            insert2.append(tag.input(type='button', id='pasteTCHereButton', value=_("Move the copied Test Case here"), onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
+                    )
+
+            insert2.append(tag.div(class_='field')(
+                self._get_testplan_list_markup(formatter, cat_name, mode, fulldetails)
+                ))
+
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
         
         return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
@@ -340,9 +365,14 @@ class WikiTestManagerInterface(Component):
         
         insert1 = tag.div()(
                     self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
-                    tag.br(), tag.br(), 
+                    tag.br(),
+                    tag.div(id='copiedMultipleTCsMessage', class_='messageBox', style='display: none;')(
+                        _("The Test Cases have been copied. Now select the catalog into which to paste the Test Cases and click on 'Paste the copied Test Cases here'.  "),
+                        tag.a(href='javascript:void(0);', onclick='cancelTCsCopy()')(_("Cancel"))
+                        ),
+                    tag.br(),
                     tag.div(id='copiedTCMessage', class_='messageBox', style='display: none;')(
-                        _("The Test Case has been copied. Now select the catalog into which to move the Test Case and click on 'Move the copied Test Case here'. "),
+                        _("The Test Case has been cut. Now select the catalog into which to move the Test Case and click on 'Move the copied Test Case here'. "),
                         tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
                         ),
                     tag.br(),
