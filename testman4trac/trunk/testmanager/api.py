@@ -3,8 +3,11 @@
 # Copyright (C) 2010 Roberto Longobardi
 #
 
-import re
+import csv
+import os
 import pkg_resources
+import re
+import shutil
 import sys
 import time
 import traceback
@@ -38,6 +41,8 @@ class TestManagerSystem(Component):
     outcomes_by_color = {}
     outcomes_by_name = {}
     default_outcome = None
+    testcaseimport_target_subdir = 'testcaseimport'
+    testcaseimport_target_filename = 'testcaseimport.csv'
 
     def __init__(self, *args, **kwargs):
         """
@@ -233,9 +238,11 @@ class TestManagerSystem(Component):
             match = True
         elif (req.path_info.startswith('/teststatusupdate') and 'TEST_EXECUTE' in req.perm):
             match = True
-        elif (req.path_info.startswith('/testdelete') and (type == 'testplan' and ('TEST_PLAN_ADMIN' in req.perm))):
+        elif (req.path_info.startswith('/testdelete') and type == 'testplan' and 'TEST_PLAN_ADMIN' in req.perm):
             match = True
-        
+        elif (req.path_info.startswith('/testimport') and ('TEST_MODIFY' in req.perm)):
+            match = True
+            
         return match
 
     def process_request(self, req):
@@ -271,7 +278,6 @@ class TestManagerSystem(Component):
             type = req.args.get('type')
             path = req.args.get('path')
             title = req.args.get('title')
-            author = get_reporter_id(req, 'author')
 
             autosave = req.args.get('autosave', 'false')
             duplicate = req.args.get('duplicate')
@@ -442,6 +448,38 @@ class TestManagerSystem(Component):
                 # Redirect to test catalog, forcing a page refresh by means of a random request parameter
                 req.redirect(req.href.wiki(path, mode=mode, fulldetails=fulldetails, random=str(datetime.now(utc).microsecond)))
 
+        elif req.path_info.startswith('/testimport'):
+            if req.method == 'POST':
+                if 'import_file' in req.args:
+                    if not (req.args.has_key('input_file')) or req.args['input_file'] == '':
+                        raise TracError('You must specify the file name.')
+                    
+                    if not (req.args.has_key('column_separator')) or req.args['column_separator'] == '' or len(req.args['column_separator'].strip()) != 1:
+                        raise TracError('You must specify the column separator.')
+
+                    input_file = req.args['input_file']
+                    column_separator = req.args['column_separator'].strip()
+                    cat_name = req.args['cat_name']
+                    
+                    upload_file_to_subdir(self.env, req, self.testcaseimport_target_subdir, input_file, self.testcaseimport_target_filename)
+                    csv_file = csv.reader(open(os.path.join(self.env.path, 'upload', self.testcaseimport_target_subdir, self.testcaseimport_target_filename), 'rb'), delimiter=column_separator.encode('ascii'))
+        
+                    testcaseimport_info = {}
+                    testcaseimport_info['cat_name'] = cat_name
+                    testcaseimport_info['imported_ok'] = []
+                    testcaseimport_info['errors'] = []
+                    
+                    i = 0
+                    for row in csv_file:
+                        if i == 0:
+                            self._process_imported_testcase_header(row, cat_name, testcaseimport_info)
+                        else:
+                            self._process_imported_testcase_row(i, row, cat_name, author, req.remote_addr, testcaseimport_info)
+
+                        i += 1
+                    
+                    return 'testimportresults.html', testcaseimport_info, None
+                    
         elif req.path_info.startswith('/testman4debug'):
             id = req.args.get('id')
             path = req.args.get('path')
@@ -505,8 +543,87 @@ class TestManagerSystem(Component):
         obj = tmmodelprovider.get_object(resource.realm, get_dictionary_from_string(resource.id))
         
         return obj.exists
+    
+    def _process_imported_testcase_header(self, row, cat_name, testcaseimport_info):
+        if len(row) < 2:
+            raise TracError('At least two columns are required.')
+            
+        testcaseimport_info['column_names'] = []
+            
+        # See if the user specified anu test case custom field
+        if len(row) > 2:
+            config_dirty = False
 
-        
+            for i, field_name in enumerate(row):
+                if i < 2:
+                    # The first two columns indicate title and description, regardless of the names the user gave them
+                    continue
+            
+                field_name = '_'.join(field_name.strip().lower().split())
+                testcaseimport_info['column_names'].append(field_name)
+
+                # Write custom test case fields in the trac.ini file
+                need_to_add = False
+                if 'testcase-tm_custom' in self.config:
+                    if field_name not in self.config['testcase-tm_custom']:
+                        need_to_add = True
+                else:
+                    need_to_add = True
+
+                if need_to_add:
+                    self.config.set('testcase-tm_custom', field_name, 'text')
+                    self.config.set('testcase-tm_custom', field_name + '.value', '')
+                    config_dirty = True
+                
+            if config_dirty:
+                self.config.save()
+                # Full reload config here and in the GenericClassModelProvider to get new custom fields working
+                self.config.parse_if_needed()
+                gcm_provider = GenericClassModelProvider(self.env)
+                gcm_provider.config.parse_if_needed()
+                gcm_provider.custom_fields('testcase', True)
+                gcm_provider.fields(True)
+                
+    def _process_imported_testcase_row(self, row_num, row, cat_name, author, remote_addr, testcaseimport_info):
+        if len(row) < 2:
+            testcaseimport_info['errors'].append([row_num, '', 'At least two columns are required.'])
+            return
+
+        title = row[0]
+        try:
+            title = title.strip()
+            description = row[1].strip()
+
+            id = self.get_next_id('testcase')
+
+            pagename = cat_name + '_TC'+str(id)
+
+            new_tc = TestCase(self.env, id, pagename, title, description)
+
+            # Set custom field values into the new test case
+            for i, field_value in enumerate(row):
+                if i < 2:
+                    # The first two columns indicate title and description
+                    continue
+            
+                field_name = testcaseimport_info['column_names'][i-2]
+                field_value = field_value.strip()
+                new_tc[field_name] = field_value
+            
+            new_tc.author = author
+            new_tc.remote_addr = remote_addr
+
+            # Create the test case
+            new_tc.insert()
+            
+            testcaseimport_info['imported_ok'].append(title)
+            
+        except:
+            testcaseimport_info['errors'].append([row_num, title, formatExceptionInfo()])
+            self.env.log.info("Error importing test case number %s:\n%s" % (row_num, row))
+            self.env.log.info(formatExceptionInfo())
+
+
 def _get_next_prop_name(type):
     propname = ''
 

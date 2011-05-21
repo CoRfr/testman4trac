@@ -22,7 +22,7 @@ except ImportError:
 
 setup(
     name='TestManager',
-    version='1.4.4',
+    version='1.4.5',
     packages=['testmanager'],
     package_data={
         'testmanager' : [
@@ -30,6 +30,8 @@ setup(
             'templates/*.html', 
             'htdocs/js/*.js', 
             'htdocs/css/*.css', 
+            'htdocs/css/blitzer/*.css', 
+            'htdocs/css/blitzer/images/*.*', 
             'htdocs/css/images/*.*', 
             'htdocs/images/*.*', 
             'locale/*.*', 

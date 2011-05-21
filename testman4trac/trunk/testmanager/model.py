@@ -3,6 +3,7 @@
 # Copyright (C) 2010 Roberto Longobardi
 #
 
+import copy
 import re
 import time
 
@@ -582,7 +583,7 @@ class TestManagerModelProvider(Component):
         return self.SCHEMA
 
     def get_fields(self):
-        return self.FIELDS
+        return copy.deepcopy(self.FIELDS)
         
     def get_metadata(self):
         return self.METADATA

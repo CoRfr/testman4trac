@@ -1108,10 +1108,10 @@ class GenericClassModelProvider(Component):
 
         return metadata
         
-    def fields(self):
+    def fields(self, refresh=False):
         """Return the list of fields available for every realm."""
 
-        if not self.all_fields:
+        if refresh or not self.all_fields:
             fields = {}
 
             for provider in self.class_providers:
@@ -1119,8 +1119,26 @@ class GenericClassModelProvider(Component):
                 for realm in realm_fields:
                     tmp_fields = realm_fields[realm]
 
+                    # Print debug information about all known realms and fields
+                    self.env.log.debug(">>> PRIMA")
+                    self.env.log.debug("Fields for realm %s:" % realm)
+                    for f in tmp_fields:
+                        self.env.log.debug("   %s : %s" % (f['name'], f['type']))
+                        if 'custom' in f:
+                            self.env.log.debug("     (custom)")
+                    self.env.log.debug("<<< PRIMA")
+
                     self.append_custom_fields(tmp_fields, self.get_custom_fields_for_realm(realm))
-                    
+
+                    # Print debug information about all known realms and fields
+                    self.env.log.debug(">>> DOPO")
+                    self.env.log.debug("Fields for realm %s:" % realm)
+                    for f in tmp_fields:
+                        self.env.log.debug("   %s : %s" % (f['name'], f['type']))
+                        if 'custom' in f:
+                            self.env.log.debug("     (custom)")
+                    self.env.log.debug("<<< DOPO")
+
                     fields[realm] = tmp_fields
 
             self.all_fields = fields
@@ -1167,10 +1185,10 @@ class GenericClassModelProvider(Component):
     def get_custom_fields(self, realm):
         return copy.deepcopy(self.custom_fields(realm))
 
-    def custom_fields(self, realm):
+    def custom_fields(self, realm, refresh=False):
         """Return the list of available custom fields."""
         
-        if not realm in self.all_custom_fields:
+        if refresh or not realm in self.all_custom_fields:
             fields = []
             config = self.config[realm+'-tm_custom']
 

@@ -3,7 +3,9 @@
 # Copyright (C) 2010 Roberto Longobardi
 #
 
+import os
 import re
+import shutil
 import sys
 import traceback
 
@@ -168,3 +170,30 @@ def remove_quotes(str, quote='\''):
 
 def compatible_domain_functions(domain, function_name_list):
     return lambda x: x, lambda x: x, lambda x: x, lambda x: x
+
+    
+def upload_file_to_subdir(env, req, subdir, param_name, target_filename):
+    upload = param_name
+    
+    if isinstance(upload, unicode) or not upload.filename:
+        raise TracError('You must provide a file.')
+    
+    txt_filename = upload.filename.replace('\\', '/').replace(':', '/')
+    txt_filename = os.path.basename(txt_filename)
+    if not txt_filename:
+        raise TracError('You must provide a file.')
+        
+    target_dir = os.path.join(env.path, 'upload', subdir)
+    
+    if not os.access(target_dir, os.F_OK):
+        os.makedirs(target_dir)
+        
+    target_path = os.path.join(target_dir, target_filename)
+    
+    try:
+        target_file = open(target_path, 'w')
+        shutil.copyfileobj(upload.file, target_file)
+    finally:
+        target_file.close()
+
+    

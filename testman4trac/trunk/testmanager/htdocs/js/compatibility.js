@@ -10,7 +10,10 @@
 
 function expandCollapseSection(nodeId) {
     /* In Trac 0.11 we must handle sections explicitly */
-    $('#'+nodeId).toggleClass('collapsed');
+    /* $('#'+nodeId).toggleClass('collapsed'); */
+	(function($) {
+			        $('#'+nodeId).toggleClass('collapsed');
+			    })(jQuery_testmanager);	
 }
 
 function _(str) {

@@ -197,6 +197,26 @@ function cancelTCsCopy() {
 /**                 Tree view widget                  */
 /******************************************************/
 
+function importTestCasesIntoCatalog(catName) {
+	(function($) {
+        $(function() {
+            $("#dialog").dialog({width: 640, height: 430, modal: true});
+        });
+    })(jQuery_testmanager);	
+}
+
+function importTestCasesCancel() {
+	(function($) {
+        $(function() {
+            $("#dialog").dialog('close');
+        });
+    })(jQuery_testmanager);	
+}
+
+/******************************************************/
+/**                 Tree view widget                  */
+/******************************************************/
+
 /** Configuration property to specify whether non-matching search results should be hidden. */ 
 var selectHide = true;
 /** Configuration property to specify whether matching search results should be displayed in bold font. */

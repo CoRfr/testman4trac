@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='TracGenericClass',
-    version='1.0.4',
+    version='1.0.5',
     packages=['tracgenericclass'],
     package_data={'tracgenericclass' : ['*.txt', 'templates/*.html', 'htdocs/*.*', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
     author = 'Roberto Longobardi',

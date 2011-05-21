@@ -128,22 +128,6 @@ class WikiTestManagerInterface(Component):
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_catalog = TestCatalog(self.env, cat_id, page_name)
         
-        add_stylesheet(req, 'testmanager/css/testmanager.css')
-        add_stylesheet(req, 'common/css/report.css')
-
-        add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/testmanager.js')
-
-        if self.env.get_version() < 25:
-            add_script(req, 'testmanager/js/compatibility.js')
-        
-        try:
-            if req.locale is not None:
-                add_script(req, 'testmanager/js/%s.js' % req.locale)
-        except:
-            # Trac 0.11
-			pass
-
         tree_macro = TestCaseTreeMacro(self.env)
 
         if page_name == 'TC':
@@ -203,7 +187,6 @@ class WikiTestManagerInterface(Component):
                     ))
 
         insert2.append(tag.div(class_='field')(
-                    tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     tag.br(), tag.br(), tag.br(),
                     tag.label(
                         fieldLabel,
@@ -218,7 +201,6 @@ class WikiTestManagerInterface(Component):
             # The root of all catalogs cannot contain itself test cases,
             #   cannot generate test plans and does not need a test plans list
             insert2.append(tag.div(class_='field')(
-                        tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                         tag.label(
                             _("New Test Case:"),
                             tag.span(id='errorMsgSpan', style='color: red;'),
@@ -254,13 +236,19 @@ class WikiTestManagerInterface(Component):
             insert2.append(tag.input(type='button', id='pasteTCHereButton', value=_("Move the copied Test Case here"), onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
                     )
 
+            insert2.append(HTML(self._get_import_dialog_markup(req.href(), cat_name)))
+            insert2.append(tag.input(type='button', id='importTestCasesButton', value=_("Import Test Cases"), onclick='importTestCasesIntoCatalog("'+cat_name+'")')
+                    )
+
             insert2.append(tag.div(class_='field')(
                 self._get_testplan_list_markup(formatter, cat_name, mode, fulldetails)
                 ))
 
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
         
-        return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
+        common_code = self._write_common_code(req)
+        
+        return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
 
         
     def _testplan_wiki_view(self, req, formatter, page_name, planid, stream):
@@ -279,22 +267,6 @@ class WikiTestManagerInterface(Component):
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_plan = TestPlan(self.env, planid, cat_id, page_name)
         
-        add_stylesheet(req, 'testmanager/css/testmanager.css')
-        add_stylesheet(req, 'common/css/report.css')
-
-        add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/testmanager.js')
-
-        if self.env.get_version() < 25:
-            add_script(req, 'testmanager/js/compatibility.js')
-        
-        try:
-            if req.locale is not None:
-                add_script(req, 'testmanager/js/%s.js' % req.locale)
-        except:
-            # Trac 0.11
-			pass
-
         tree_macro = TestPlanTreeMacro(self.env)
             
         tp = TestPlan(self.env, planid)
@@ -321,14 +293,15 @@ class WikiTestManagerInterface(Component):
                     self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
                     tag.br(),
                     tag.div(class_='field')(
-                        tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                         tag.br(), tag.br(), tag.br(), tag.br()
                         )
                     ))
                     
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
         
-        return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
+        common_code = self._write_common_code(req)
+        
+        return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
         
 
     def _testcase_wiki_view(self, req, formatter, planid, page_name, stream):
@@ -346,22 +319,6 @@ class WikiTestManagerInterface(Component):
         test_case = TestCase(self.env, tc_id, tc_name)
         
         tmmodelprovider = GenericClassModelProvider(self.env)
-        
-        add_stylesheet(req, 'testmanager/css/testmanager.css')
-        add_stylesheet(req, 'common/css/report.css')
-
-        add_script(req, 'testmanager/js/cookies.js')
-        add_script(req, 'testmanager/js/testmanager.js')
-
-        if self.env.get_version() < 25:
-            add_script(req, 'testmanager/js/compatibility.js')
-        
-        try:
-            if req.locale is not None:
-                add_script(req, 'testmanager/js/%s.js' % req.locale)
-        except:
-            # Trac 0.11
-			pass
         
         insert1 = tag.div()(
                     self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
@@ -387,7 +344,6 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br(), 
                     self._get_custom_fields_markup(test_case, tmmodelprovider.get_custom_fields_for_realm('testcase')),
                     tag.br(),
-                    tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "", "")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "", "")'),
@@ -398,7 +354,9 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br()
                     )
                     
-        return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
+        common_code = self._write_common_code(req)
+        
+        return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
 
     def _testcase_in_plan_wiki_view(self, req, formatter, planid, page_name, stream):
         tc_name = page_name
@@ -417,24 +375,9 @@ class WikiTestManagerInterface(Component):
         tcip = TestCaseInPlan(self.env, tc_id, planid, page_name, TestManagerSystem(self.env).get_default_tc_status())
         
         tmmodelprovider = GenericClassModelProvider(self.env)
-    
-        add_stylesheet(req, 'common/css/report.css')
-        add_stylesheet(req, 'testmanager/css/testmanager.css')
+
         add_stylesheet(req, 'testmanager/css/menu.css')
-
-        add_script(req, 'testmanager/js/cookies.js')
         add_script(req, 'testmanager/js/menu.js')
-        add_script(req, 'testmanager/js/testmanager.js')
-
-        if self.env.get_version() < 25:
-            add_script(req, 'testmanager/js/compatibility.js')
-        
-        try:
-            if req.locale is not None:
-                add_script(req, 'testmanager/js/%s.js' % req.locale)
-        except:
-            # Trac 0.11
-			pass
         
         insert1 = tag.div()(
                     self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
@@ -451,7 +394,6 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br(),
                     self._get_custom_fields_markup(tcip, tmmodelprovider.get_custom_fields_for_realm('testcaseinplan'), ('page_name', 'status')),
                     tag.br(), 
-                    tag.script('var baseLocation="'+req.href()+'";', type='text/javascript'),
                     self._get_testcase_change_status_markup(formatter, has_status, page_name, planid),
                     tag.br(), tag.br(),
                     tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
@@ -463,7 +405,9 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br()
                     )
                     
-        return stream | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
+        common_code = self._write_common_code(req)
+        
+        return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
     
     def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree', fulldetails='False'):
         if planid and not planid == '-1':
@@ -555,3 +499,101 @@ class WikiTestManagerInterface(Component):
 
         return HTML(result)
 
+    def _get_import_dialog_markup(self, base_location, cat_name):
+        result = """
+            <div id="dialog" style="padding:20px; display:none;" title="Import test cases">
+                <form id="import_file" class="addnew" method="post" enctype="multipart/form-data" action="%s/testimport">
+                Select a file in CSV format to import the test cases from.
+                <br />
+                The first row will have column names. The data must start from the second row.
+                The file should have the following required columns:
+                <ul>
+                    <li>title</li>
+                    <li>description</li>
+                </ul>
+                Any subsequent columns are optional, and will generate <a href="http://trac-hacks.org/wiki/TestManagerForTracPlugin#Customfields" target="_blank">custom test case fields</a>.
+                Use lowercase identifiers, with no blanks, for the column names.
+                <br />
+                <fieldset>
+                    <legend>Upload file</legend>
+                    <table><tbody>
+                        <tr>
+                            <td>
+                                <div class="field">
+                                  <label>
+                                    File name:
+                                  </label>
+                                </div>
+                            </td>
+                            <td>
+                                <input type="file" name="input_file" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="field">
+                                  <label>
+                                    Column separator:
+                                  </label>
+                                </div>
+                            </td>
+                            <td>
+                                <input type="text" name="column_separator" value=","/>
+                            </td>
+                        </tr>
+                    </tbody></table>
+                </fieldset>
+                <fieldset>
+                    <div class="buttons">
+                        <input type="hidden" name="cat_name" value="%s" />
+                        <input type="submit" name="import_file" value="Import" style="text-align: right;"></input>
+                        <input type="button" value="Cancel" onclick="importTestCasesCancel()" style="text-align: right;"></input>
+                    </div>
+                </fieldset>
+                </form>
+            </div>
+        """ % (base_location, cat_name)
+        
+        return result;
+    
+    def _write_common_code(self, req):
+        add_stylesheet(req, 'common/css/report.css')
+        add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.8.13.custom.css')
+        add_stylesheet(req, 'testmanager/css/testmanager.css')
+
+        before_jquery = 'var baseLocation="'+req.href()+'";' + \
+            'var jQuery_trac_old = $.noConflict(true);'
+        after_jquery = 'var jQuery_testmanager = $.noConflict(true);'
+            
+        common_code = tag.div()(
+            tag.script(before_jquery, type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/jquery-1.5.1.min.js', type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/jquery-ui-1.8.13.custom.min.js', type='text/javascript'),
+            tag.script(after_jquery, type='text/javascript'),
+
+            tag.script(src='../chrome/testmanager/js/cookies.js', type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/testmanager.js', type='text/javascript'),
+            )
+
+        if self.env.get_version() < 25:
+            common_code.append(tag.script(src='../chrome/testmanager/js/compatibility.js', type='text/javascript'))
+        
+        try:
+            if req.locale is not None:
+                common_code.append(tag.script(src='../chrome/testmanager/js/%s.js' % req.locale, type='text/javascript'))
+        except:
+            # Trac 0.11
+			pass
+
+        #common_code.append(tag.script("""
+        #    (function($) {
+        #        $('<button>Use jQuery 1.5.1</button>')
+        #            .click(function() {
+        #                alert('Top: ' + $(this).offset().top + '\n' +
+        #                    'jQuery: ' + $.fn.jquery);
+        #            })
+        #            .appendTo('body');
+        #    })(jQuery_testmanager);
+        #""", type='text/javascript'))
+            
+        return common_code

@@ -20,9 +20,14 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
-Release 1.4.4 (2011-02-11):
+Release 1.4.5 (2011-05-21):
+  o Enhancement #8825 (Track-Hacks): Ability to import test cases from Excel (CSV) file
+
+Release 1.4.4 (2011-03-11):
   o Fixed Ticket #8567 (Track-Hacks): Javascript error when deleting test plans
   o Enhancement #8596 (Track-Hacks): Remove hard dependency on XML RPC plugin for Trac 0.11
+  o Enhancement #8761 (Track-Hacks): Copy multiple test cases into another catalog
+  Added wiki documentation for copying multiple test cases into another catalog.
 
 Release 1.4.3 (2011-01-20):
   o Enhancement #8427 (Track-Hacks): Add XML-RPC complete interface for remote management of test objects
