@@ -499,7 +499,7 @@ class TestManagerModelProvider(Component):
                         Table('testcasehistory', key = ('id', 'planid', 'time'))[
                               Column('id'),
                               Column('planid'),
-                              Column('time', type='int64'),
+                              Column('time', type=get_timestamp_db_type()),
                               Column('author'),
                               Column('status'),
                               Index(['id', 'planid', 'time'])],
@@ -513,11 +513,22 @@ class TestManagerModelProvider(Component):
                               Column('page_name'),
                               Column('name'),
                               Column('author'),
-                              Column('time', type='int64'),
+                              Column('time', type=get_timestamp_db_type()),
                               Index(['id']),
                               Index(['catid'])],
                      'has_custom': True,
-                     'has_change': True}
+                     'has_change': True},
+                'testmanager2_templates_test2':
+                    {'table':
+                        Table('testmanager2_templates_test2', key = ('id'))[
+                              Column('id'),
+                              Column('name'),
+                              Column('type'),
+                              Column('description'),
+                              Column('content'),
+                              Index(['id'])],
+                     'has_custom': False,
+                     'has_change': False}
             }
 
     FIELDS = {
@@ -642,19 +653,20 @@ class TestManagerModelProvider(Component):
                 cursor = db.cursor()
 
                 # Create default values for configuration properties and initialize counters
-                cursor.execute("INSERT INTO testconfig (propname, value) VALUES ('NEXT_CATALOG_ID', '0')")
-                cursor.execute("INSERT INTO testconfig (propname, value) VALUES ('NEXT_TESTCASE_ID', '0')")
-                cursor.execute("INSERT INTO testconfig (propname, value) VALUES ('NEXT_PLAN_ID', '0')")
+                self._insert_or_update('testconfig', 'NEXT_CATALOG_ID', '0', db)
+                self._insert_or_update('testconfig', 'NEXT_TESTCASE_ID', '0', db)
+                self._insert_or_update('testconfig', 'NEXT_PLAN_ID', '0', db)
                 db.commit()
 
                 # Create the basic "TC" Wiki page, used as the root test catalog
                 tc_page = WikiPage(self.env, 'TC')
-                tc_page.text = ' '
-                tc_page.save('System', '', '127.0.0.1')
+                if not tc_page.exists:
+                    tc_page.text = ' '
+                    tc_page.save('System', '', '127.0.0.1')
 
             except:
                 db.rollback()
-                self.env.log.debug("Exception during upgrade")
+                self.env.log.error("Exception during upgrade")
                 raise
 
         if self._need_upgrade(db):
@@ -696,3 +708,21 @@ class TestManagerModelProvider(Component):
         
         return False
       
+    def _insert_or_update(self, tname, prop_name, prop_value, db):
+        # Insert the specified property in table, or updates its value if present
+        try:
+            cursor = db.cursor()
+
+            # Look if the property already exists
+            cursor.execute("SELECT COUNT(*) FROM %s WHERE propname = '%s'" % (tname, prop_name))
+            row = cursor.fetchone()
+            if row[0] == 0:
+                # Otherwise add it
+                cursor.execute("INSERT INTO %s (propname, value) VALUES ('%s', '%s')" % (tname, prop_name, prop_value))
+                db.commit()
+
+        except:
+            db.rollback()
+            self.env.log.error("Exception during upgrade")
+            raise
+

@@ -236,7 +236,7 @@ class WikiTestManagerInterface(Component):
             insert2.append(tag.input(type='button', id='pasteTCHereButton', value=_("Move the copied Test Case here"), onclick='pasteTestCaseIntoCatalog("'+cat_name+'")')
                     )
 
-            insert2.append(HTML(self._get_import_dialog_markup(req.href(), cat_name)))
+            insert2.append(HTML(self._get_import_dialog_markup(req, cat_name)))
             insert2.append(tag.input(type='button', id='importTestCasesButton', value=_("Import Test Cases"), onclick='importTestCasesIntoCatalog("'+cat_name+'")')
                     )
 
@@ -499,7 +499,7 @@ class WikiTestManagerInterface(Component):
 
         return HTML(result)
 
-    def _get_import_dialog_markup(self, base_location, cat_name):
+    def _get_import_dialog_markup(self, req, cat_name):
         result = """
             <div id="dialog" style="padding:20px; display:none;" title="Import test cases">
                 <form id="import_file" class="addnew" method="post" enctype="multipart/form-data" action="%s/testimport">
@@ -552,18 +552,18 @@ class WikiTestManagerInterface(Component):
                 </fieldset>
                 </form>
             </div>
-        """ % (base_location, cat_name)
+        """ % (self._fix_base_location(req), cat_name)
         
-        return result;
+        return result
     
     def _write_common_code(self, req):
         add_stylesheet(req, 'common/css/report.css')
         add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.8.13.custom.css')
         add_stylesheet(req, 'testmanager/css/testmanager.css')
 
-        before_jquery = 'var baseLocation="'+req.href()+'";' + \
+        before_jquery = 'var baseLocation="'+self._fix_base_location(req)+'";' + \
             'var jQuery_trac_old = $.noConflict(true);'
-        after_jquery = 'var jQuery_testmanager = $.noConflict(true);'
+        after_jquery = 'var jQuery_testmanager = $.noConflict(true);$ = jQuery_trac_old;'
             
         common_code = tag.div()(
             tag.script(before_jquery, type='text/javascript'),
@@ -597,3 +597,10 @@ class WikiTestManagerInterface(Component):
         #""", type='text/javascript'))
             
         return common_code
+
+    def _fix_base_location(self, req):
+        base_location = req.href()
+        if base_location.endswith('/'):
+            base_location = base_location[:-1]
+
+        return base_location

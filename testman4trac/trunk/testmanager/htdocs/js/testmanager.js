@@ -130,7 +130,15 @@ function isMultiplePasteEnabled() {
 function showSelectionCheckboxes(id) {
 	/* toggleAll(true); */
 
-    var nodes=document.getElementById("ticketContainer").getElementsByTagName('input');
+    var nodes=null;
+    if (document.getElementById("ticketContainer") !== null) {
+        nodes=document.getElementById("ticketContainer").getElementsByTagName('input');
+    }
+    
+    if (document.getElementById("testcaseList") !== null) {
+        nodes=document.getElementById("testcaseList").getElementsByTagName('input');
+    }
+
 	for (var i=0;i<nodes.length;i++) {
 		var el=nodes.item(i);
 		
@@ -527,7 +535,7 @@ function changestate(tc, planid, path, newStatus, newStatusColor, newLabel) {
 
     var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus+"&path="+path;
     
-    result = doAjaxCall(url); 
+    result = doAjaxCall(url, "GET", "");
     
     oldIconSpan = document.getElementById("tcStatus"+currStatusColor);
     oldIconSpan.style.border="";
@@ -536,8 +544,9 @@ function changestate(tc, planid, path, newStatus, newStatusColor, newLabel) {
     newIconSpan.style.border="2px solid black";
     
     displayNode("tcTitleStatusIcon"+currStatusColor, false);
+
+    document.getElementById("tcTitleStatusIcon"+newStatusColor).title = newLabel;
     displayNode("tcTitleStatusIcon"+newStatusColor, true);
-    document.getElementById("tcStatus"+newStatusColor).title = newLabel;
 
     currStatus = newStatus; 
     currStatusColor = newStatusColor;
@@ -569,7 +578,7 @@ function displayNode(id, show, mode) {
     }
 }
 
-function doAjaxCall(url) {
+function doAjaxCall(url, method, params) {
     if (window.XMLHttpRequest) {
         /* code for IE7+, Firefox, Chrome, Opera, Safari */
          xmlhttp = new XMLHttpRequest();
@@ -578,12 +587,20 @@ function doAjaxCall(url) {
         xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
     }
     
-    xmlhttp.open("GET", url, false);
-    xmlhttp.send("");
+    xmlhttp.open(method, url, false);
+    
+    if (method == "POST") {
+        xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+        params = "__FORM_TOKEN="+getCookie('trac_form_token')+"&"+params;
+    }
+    
+    xmlhttp.send(params);
     responseText = xmlhttp.responseText;
     
     return responseText;
 }
+
+
 
 function editField(name) {
     displayNode('custom_field_value_'+name, false);
@@ -601,9 +618,10 @@ function sendUpdate(realm, name) {
    	var inputField = document.getElementById("custom_field_"+name);
 	var value = inputField.value;
     
-    var url = baseLocation+"/propertyupdate?realm="+realm+"&key="+objKey+"&props="+objProps+"&name="+name+"&value="+value;
+    var url = baseLocation+"/propertyupdate";
+    params = "realm="+realm+"&key="+objKey+"&props="+objProps+"&name="+name+"&value="+value;
     
-    result = doAjaxCall(url); 
+    result = doAjaxCall(url, "POST", params); 
 
    	var readonlyField = document.getElementById("custom_field_value_"+name);
     readonlyField.innerHTML = value;

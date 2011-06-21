@@ -947,8 +947,6 @@ class AbstractWikiPageWrapper(AbstractVariableFieldsObject):
         wikipage.text = self.text
         wikipage.save(self.author, '', self.remote_addr)
     
-        print("YEEEES!!!")
-    
         self.wikipage = wikipage
 
         return True
@@ -1119,25 +1117,7 @@ class GenericClassModelProvider(Component):
                 for realm in realm_fields:
                     tmp_fields = realm_fields[realm]
 
-                    # Print debug information about all known realms and fields
-                    self.env.log.debug(">>> PRIMA")
-                    self.env.log.debug("Fields for realm %s:" % realm)
-                    for f in tmp_fields:
-                        self.env.log.debug("   %s : %s" % (f['name'], f['type']))
-                        if 'custom' in f:
-                            self.env.log.debug("     (custom)")
-                    self.env.log.debug("<<< PRIMA")
-
                     self.append_custom_fields(tmp_fields, self.get_custom_fields_for_realm(realm))
-
-                    # Print debug information about all known realms and fields
-                    self.env.log.debug(">>> DOPO")
-                    self.env.log.debug("Fields for realm %s:" % realm)
-                    for f in tmp_fields:
-                        self.env.log.debug("   %s : %s" % (f['name'], f['type']))
-                        if 'custom' in f:
-                            self.env.log.debug("     (custom)")
-                    self.env.log.debug("<<< DOPO")
 
                     fields[realm] = tmp_fields
 
@@ -1275,20 +1255,32 @@ def upgrade_db(env, schema, db):
         except ImportError:
             db_backend = env.get_db_cnx()
 
-        env.log.debug("Upgrading DB...")
+        env.log.info("Upgrading DB...")
             
         # Create the required tables
-        cursor = db.cursor()
         for realm in schema:
             table_metadata = schema[realm]
             tablem = table_metadata['table']
             
             tname = tablem.name
 
+            try:
+                cursor = db.cursor()
+                cursor.execute("select count(*) from %s" % tname)
+                cursor.fetchone()
+                
+                # The table already exists. Skip it.
+                # TODO: Alter table to fit any difference with the new definition
+                continue
+            except:
+                # OK, need to create the table
+                pass
+
+            cursor = db.cursor()
             key_names = [k for k in tablem.key]
             
             # Create base table
-            env.log.debug("Creating base table %s..." % tname)
+            env.log.info("Creating base table %s..." % tname)
             for stmt in db_backend.to_sql(tablem):
                 env.log.debug(stmt)
                 cursor.execute(stmt)
@@ -1312,7 +1304,7 @@ def upgrade_db(env, schema, db):
                 custom_key.append('name')
                 
                 table_custom = Table(tname+'_custom', key = custom_key)[cols]
-                env.log.debug("Creating custom properties table %s..." % table_custom.name)
+                env.log.info("Creating custom properties table %s..." % table_custom.name)
                 for stmt in db_backend.to_sql(table_custom):
                     env.log.debug(stmt)
                     cursor.execute(stmt)
@@ -1329,7 +1321,7 @@ def upgrade_db(env, schema, db):
 
                     cols.append(Column(k, type=type))
                     
-                cols.append(Column('time', type='int64'))
+                cols.append(Column('time', type=get_timestamp_db_type()))
                 cols.append(Column('author'))
                 cols.append(Column('field'))
                 cols.append(Column('oldvalue'))
@@ -1341,7 +1333,7 @@ def upgrade_db(env, schema, db):
                 change_key.append('field')
 
                 table_change = Table(tname+'_change', key = change_key)[cols]
-                env.log.debug("Creating change history table %s..." % table_change.name)
+                env.log.info("Creating change history table %s..." % table_change.name)
                 for stmt in db_backend.to_sql(table_change):
                     env.log.debug(stmt)
                     cursor.execute(stmt)
@@ -1349,8 +1341,8 @@ def upgrade_db(env, schema, db):
         db.commit()
 
     except:
-        env.log.debug(formatExceptionInfo())
-        env.log.debug("Exception during database creation.")
+        env.log.error(formatExceptionInfo())
+        env.log.error("Exception during database creation.")
 
         db.rollback()
         raise

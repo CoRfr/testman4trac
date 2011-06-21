@@ -16,10 +16,10 @@ cd ..\..\testman4trac\trunk
 
 rem python setup.py extract_messages
 rem python setup.py extract_messages_js
-rem python setup.py update_catalog -l it_IT
-rem python setup.py update_catalog_js -l it_IT
-rem python ./setup.py compile_catalog -f -l it_IT
-rem python ./setup.py compile_catalog_js -f -l it_IT
+rem python setup.py update_catalog -l it
+rem python setup.py update_catalog_js -l it
+rem python ./setup.py compile_catalog -f -l it
+rem python ./setup.py compile_catalog_js -f -l it
 
 python setup.py bdist_egg
 xcopy /y dist\*.egg ..\..\bin

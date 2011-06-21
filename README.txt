@@ -20,6 +20,16 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.6 (2011-06-19):
+  o Fixed Ticket #8871 (Track-Hacks): No # allowed at custom fields
+  o Fixed Ticket #8873 (Track-Hacks): css styles ar not compatible with the agilo plugin
+  o Fixed Ticket #8876 (Track-Hacks): Can't create Catalogs/Test cases when trac runs from site root
+  o Fixed Ticket #8878 (Track-Hacks): TestManagerForTracPlugin does not play well with MenusPlugin
+  o Fixed Ticket #8898 (Track-Hacks): yui_base_url not honored in templates ?
+  o Enhancement #8875 (Track-Hacks): More visibility for Tickets related to test suites
+  Added more statistical charts, including Current test status pie chart and Tickets related to test cases trend chart
+  Simplified setting the outcome of a test case
+
 Release 1.4.5 (2011-05-21):
   o Enhancement #8825 (Track-Hacks): Ability to import test cases from Excel (CSV) file
 
@@ -75,7 +85,7 @@ Release 1.3.4 (2010-10-15):
   o Added tabular view to catalogs and plans. Search now works with custom properties in tabular views.
 
 Release 1.3.3 (2010-10-05):
-  o Enhanced feature 3076739 (SourceForge): Full Test Plan display / print
+  o Enhancement feature 3076739 (SourceForge): Full Test Plan display / print
 
 Release 1.3.2 (2010-10-03):
   o Added feature 3076739 (SourceForge): Full Test Plan display / print

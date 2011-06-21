@@ -38,6 +38,12 @@ class TestManagerSystem(Component):
 
     implements(IPermissionRequestor, IRequestHandler, IResourceManager)
 
+    NEXT_PROPERTY_NAME = {
+        'catalog': 'NEXT_CATALOG_ID',
+        'testcase': 'NEXT_TESTCASE_ID',
+        'testplan': 'NEXT_PLAN_ID'
+    }
+
     outcomes_by_color = {}
     outcomes_by_name = {}
     default_outcome = None
@@ -102,7 +108,7 @@ class TestManagerSystem(Component):
                 self.outcomes_by_name[outcome] = [color, self.outcomes_by_color[color][outcome]]
 
     def get_next_id(self, type):
-        propname = _get_next_prop_name(type)
+        propname = NEXT_PROPERTY_NAME[type]
     
         try:
             # Get next ID
@@ -122,14 +128,14 @@ class TestManagerSystem(Component):
             if handle_ta:
                 db.commit()
         except:
-            self.env.log.debug(formatExceptionInfo())
+            self.env.log.error(formatExceptionInfo())
             db.rollback()
             raise
 
         return str(id)
     
     def set_next_id(self, type, value):
-        propname = _get_next_prop_name(type)
+        propname = NEXT_PROPERTY_NAME[type]
         
         try:
             # Set next ID to the input value
@@ -140,7 +146,7 @@ class TestManagerSystem(Component):
             if handle_ta:
                 db.commit()
         except:
-            self.env.log.debug(formatExceptionInfo())
+            self.env.log.error(formatExceptionInfo())
             db.rollback()
             raise
     
@@ -272,7 +278,7 @@ class TestManagerSystem(Component):
                     tcip.insert()
                 
             except:
-                self.env.log.debug(formatExceptionInfo())
+                self.env.log.error(formatExceptionInfo())
         
         elif req.path_info.startswith('/testcreate'):
             type = req.args.get('type')
@@ -301,8 +307,8 @@ class TestManagerSystem(Component):
                     new_tc.insert()
                     
                 except:
-                    self.env.log.info("Error adding test catalog!")
-                    self.env.log.info(formatExceptionInfo())
+                    self.env.log.error("Error adding test catalog!")
+                    self.env.log.error(formatExceptionInfo())
                     req.redirect(req.href.wiki(path))
 
                 # Redirect to see the new wiki page.
@@ -319,8 +325,8 @@ class TestManagerSystem(Component):
                     new_tc.insert()
 
                 except:
-                    self.env.log.info("Error adding test plan!")
-                    self.env.log.info(formatExceptionInfo())
+                    self.env.log.error("Error adding test plan!")
+                    self.env.log.error(formatExceptionInfo())
                     # Back to the catalog
                     req.redirect(req.href.wiki(path))
 
@@ -370,8 +376,8 @@ class TestManagerSystem(Component):
                             pagename = path + '_TC'+str(id)
                                     
                     except:
-                        self.env.log.info("Error pasting test cases!")
-                        self.env.log.info(formatExceptionInfo())
+                        self.env.log.error("Error pasting test cases!")
+                        self.env.log.error(formatExceptionInfo())
                         req.redirect(req.href.wiki(pagename))
                 
                     # Redirect to test catalog, forcing a page refresh by means of a random request parameter
@@ -395,8 +401,8 @@ class TestManagerSystem(Component):
                         new_tc.save_as({'id': id})
                         
                     except:
-                        self.env.log.info("Error duplicating test case!")
-                        self.env.log.info(formatExceptionInfo())
+                        self.env.log.error("Error duplicating test case!")
+                        self.env.log.error(formatExceptionInfo())
                         req.redirect(req.href.wiki(tcId))
 
                     # Redirect tp allow for editing the copy test case
@@ -412,8 +418,8 @@ class TestManagerSystem(Component):
                         new_tc.insert()
                         
                     except:
-                        self.env.log.info("Error adding test case!")
-                        self.env.log.info(formatExceptionInfo())
+                        self.env.log.error("Error adding test case!")
+                        self.env.log.error(formatExceptionInfo())
                         req.redirect(req.path_info)
 
                     # Redirect to edit the test case description
@@ -440,8 +446,8 @@ class TestManagerSystem(Component):
                     tp.delete()
 
                 except:
-                    self.env.log.info("Error deleting test plan!")
-                    self.env.log.info(formatExceptionInfo())
+                    self.env.log.error("Error deleting test plan!")
+                    self.env.log.error(formatExceptionInfo())
                     # Back to the catalog
                     req.redirect(req.href.wiki(path))
 
@@ -620,19 +626,6 @@ class TestManagerSystem(Component):
             
         except:
             testcaseimport_info['errors'].append([row_num, title, formatExceptionInfo()])
-            self.env.log.info("Error importing test case number %s:\n%s" % (row_num, row))
-            self.env.log.info(formatExceptionInfo())
+            self.env.log.error("Error importing test case number %s:\n%s" % (row_num, row))
+            self.env.log.error(formatExceptionInfo())
 
-
-def _get_next_prop_name(type):
-    propname = ''
-
-    if type == 'catalog':
-        propname = 'NEXT_CATALOG_ID'
-    elif type == 'testcase':
-        propname = 'NEXT_TESTCASE_ID'
-    elif type == 'testplan':
-        propname = 'NEXT_PLAN_ID'
-
-    return propname
-        

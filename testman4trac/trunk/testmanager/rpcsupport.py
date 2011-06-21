@@ -372,5 +372,5 @@ try:
                 self.env.log.error(formatExceptionInfo())
 
 except ImportError:
-    print "\n\nError importing Trac XML-RPC Plugin. No XML-RPC remote interface will be available."
-    print "Download and install it from http://trac-hacks.org/wiki/XmlRpcPlugin if you require XML-RPC access to the Test Manager.\n\n"
+    print "\n\nError importing optional Trac XML-RPC Plugin. No XML-RPC remote interface will be available."
+    print "If you require XML-RPC access to the Test Manager, download and install it from http://trac-hacks.org/wiki/XmlRpcPlugin.\n\n"

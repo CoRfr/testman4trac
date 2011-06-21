@@ -58,6 +58,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.0.6 (2011-06-19):
+  o Fixed Ticket #8871 (Track-Hacks): No # allowed at custom fields
+
 Release 1.0.4 (2011-01-17):
   o Added support for LIKE match in list_matching_objects.
 

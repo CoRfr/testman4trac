@@ -764,7 +764,8 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
             statusLabel = tc_statuses[status][1]
             text += '<td style="padding-left: '+str(level*30)+'px;"><img class="iconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td>'
         else:
-            text += '<td style="padding-left: '+str(level*30)+'px;"><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+'" target="_blank">'+tick['title']+'</a></td>'
+            text += '<td style="padding-left: '+str(level*30)+'px;"><input name="select_tc_checkbox" value="'+tick['id']+'" type="checkbox" style="display: none;float: left; position: relative; top: 3px;" /><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+'" target="_blank">'+tick['title']+'</a></td>'
+
             
         # Custom testcatalog columns
         if custom_ctx['testcatalog'][0]:
@@ -816,8 +817,15 @@ def _build_testcase_change_status(env, req, planid, curpage):
 
     status_meaning = tc_statuses[status][0]
     
+    need_menu = False
+    for color in ['green', 'yellow', 'red']:
+        if len(tc_statuses_by_color[color]) > 1:
+            need_menu = True
+
     text = ''
-    text += '<div id="copyright" style="display: none;">Copyright &copy; 2010 <a href="http://apycom.com/">Apycom jQuery Menus</a></div>'
+
+    if need_menu:
+        text += '<div id="copyright" style="display: none;">Copyright &copy; 2010 <a href="http://apycom.com/">Apycom jQuery Menus</a></div>'
     
     text += '<script type="text/javascript">'
     text += 'var currStatus = "'+status+'";'
@@ -828,24 +836,39 @@ def _build_testcase_change_status(env, req, planid, curpage):
     text += _("Change the Status:")
     
     text += '<span style="margin-left: 15px;">'
+ 
+    if need_menu:
+        text += '<div id="statusmenu"><ul class="statusmenu">'
+    else:
+        text += '<div>'
 
-    text += '<div id="menu"><ul class="menu">'
-    
     for color in ['green', 'yellow', 'red']:
         border = ''
         if status_meaning == color:
             border = 'border: 2px solid black;'
         
-        text += '<li><a href="#" class="parent"><span id="tcStatus%s" style="%s"><img src="../chrome/testmanager/images/%s.png"></img></span></a><div><ul>' % (color, border, color) 
+        if need_menu:
+            text += '<li><a href="#" class="parent"><span id="tcStatus%s" style="%s"><img src="../chrome/testmanager/images/%s.png"></img></span></a><div><ul>' % (color, border, color) 
 
-        for outcome in tc_statuses_by_color[color]:
-            label = tc_statuses_by_color[color][outcome]
-            text += '<li><a href="#" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \''+outcome+'\', \''+color+'\', \'%s\')"><span>%s</span></a></li>' % (label, label)
+            for outcome in tc_statuses_by_color[color]:
+                label = tc_statuses_by_color[color][outcome]
+                text += '<li><a href="#" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \''+outcome+'\', \''+color+'\', \'%s\')"><span>%s</span></a></li>' % (label, label)
 
-        text += '</ul></div></li>'
+            text += '</ul></div></li>'
+            
+        else:
+            for outcome in tc_statuses_by_color[color]:
+                label = tc_statuses_by_color[color][outcome]
+                
+                text += ('<span id="tcStatus%s" style="padding: 3px; cursor: pointer;%s" onclick="changestate(\''+tc_id+'\', \''+planid+'\', \''+curpage+'\', \'%s\', \'%s\', \'%s\')">') % (color, border, outcome, color, label)
+                text += '<img src="../chrome/testmanager/images/%s.png" title="%s"></img>' % (color, label)
+                text += '</span>'
     
-    text += '</ul></div>'
+    if need_menu:
+        text += '</ul>'
 
+    text += '</div>'
+        
     text += '</span>'
     
     return text

@@ -60,7 +60,6 @@ def from_any_timestamp(ts):
     else:
         # Trac 0.11
         from trac.util.datefmt import utc
-
         return datetime.fromtimestamp(ts, utc)
 
 def get_db(env, db=None):
@@ -171,6 +170,18 @@ def remove_quotes(str, quote='\''):
 def compatible_domain_functions(domain, function_name_list):
     return lambda x: x, lambda x: x, lambda x: x, lambda x: x
 
+def get_timestamp_db_type():
+    global checked_utimestamp
+    global has_utimestamp
+
+    if not checked_utimestamp:
+        check_utimestamp()
+
+    if has_utimestamp:
+        return 'int64'
+    else:
+        # Trac 0.11
+        return 'int'
     
 def upload_file_to_subdir(env, req, subdir, param_name, target_filename):
     upload = param_name

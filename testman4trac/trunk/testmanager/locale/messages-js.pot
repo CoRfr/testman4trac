@@ -7,16 +7,16 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: TestManager 1.4.3\n"
+"Project-Id-Version: TestManager 1.4.6\n"
 "Report-Msgid-Bugs-To: seccanj@gmail.com\n"
-"POT-Creation-Date: 2011-03-10 16:35+0100\n"
+"POT-Creation-Date: 2011-06-18 16:08+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 0.9.5\n"
+"Generated-By: Babel 0.9.6\n"
 
 #: testmanager/htdocs/js/testmanager.js:15
 #: testmanager/htdocs/js/testmanager.js:34
@@ -42,8 +42,8 @@ msgid ""
 "contained test cases?"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:270
-#: testmanager/htdocs/js/testmanager.js:419
+#: testmanager/htdocs/js/testmanager.js:298
+#: testmanager/htdocs/js/testmanager.js:447
 msgid "Results: "
 msgstr ""
 
