@@ -774,7 +774,6 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
         # Common columns
         if has_status:
             if status in tc_statuses:
-                display[tc_statuses[status][0]] = 'block'
                 statusLabel = tc_statuses[status][1]
             else:
                 statusLabel = _("Unknown")
