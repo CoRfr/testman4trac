@@ -22,6 +22,14 @@ cd ../../testman4trac/trunk
 #python ./setup.py update_catalog_js -l it
 #python ./setup.py compile_catalog -f -l it
 #python ./setup.py compile_catalog_js -f -l it
+#python ./setup.py update_catalog -l es
+#python ./setup.py update_catalog_js -l es
+#python ./setup.py compile_catalog -f -l es
+#python ./setup.py compile_catalog_js -f -l es
+#python ./setup.py update_catalog -l de
+#python ./setup.py update_catalog_js -l de
+#python ./setup.py compile_catalog -f -l de
+#python ./setup.py compile_catalog_js -f -l de
 
 python setup.py bdist_egg
 cp dist/*.egg ../../bin

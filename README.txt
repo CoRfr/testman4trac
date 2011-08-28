@@ -20,6 +20,15 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.7 (2011-08-28):
+  o Enhancement #8907 (Track-Hacks): Add template for "New TestCase" - Thanks a lot to Christian for the hard work on this enhancement!!!
+                                     Now you can define templates for your new test catalogs and new test cases, and assign default templates based
+                                     on each test catalog!
+  o Enhancement #8908 (Track-Hacks): Possiblity to change test case status from the tree view.
+                                     No more need to open each test case in a plan to set its result, you can now do this directly from the tree view!
+  o Fixed Ticket #8869 (Track-Hacks): Loading of Test Manager takes too long and sometimes time out
+  o Added Spanish and German catalogs! Thanks a lot to Christian and Andreas for the translations!!! Italian was already part of the plugin.
+
 Release 1.4.6 (2011-06-19):
   o Fixed Ticket #8871 (Track-Hacks): No # allowed at custom fields
   o Fixed Ticket #8873 (Track-Hacks): css styles ar not compatible with the agilo plugin

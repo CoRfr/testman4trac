@@ -58,6 +58,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.0.7 (2011-08-28):
+  o Enhanced upgrade process
+
 Release 1.0.6 (2011-06-19):
   o Fixed Ticket #8871 (Track-Hacks): No # allowed at custom fields
 

@@ -74,8 +74,17 @@ function regenerateTestPlan(planId, path) {
     window.location = url;
 }
 
-function creaTicket(tcName, planId, planName){ 
-	var url = baseLocation+'/newticket?testcaseid='+tcName+'&planid='+planId+'&planname='+planName+'&description=Test%20Case:%20[wiki:'+tcName+'?planid='+planId+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
+function creaTicket(tcName, planId, planName, summary){
+    var tokens = $('span[name=breadcrumb]').map(function() { return this.innerHTML }).get();
+    var fullSummary = "";
+    
+    for (i=1; i<tokens.length; i++) {
+        fullSummary += tokens[i] + " - ";
+    }
+    
+    fullSummary += summary + " - " + _("[Insert problem summary]");
+
+	var url = baseLocation+'/newticket?testcaseid='+tcName+'&planid='+planId+'&planname='+planName+'&summary='+stripLessSpecialChars(fullSummary)+'&description=Test%20Case:%20[wiki:'+tcName+'?planid='+planId+'],%20Test%20Plan:%20'+planName+'%20('+planId+')'; 
 	window.location = url;
 }
 
@@ -552,6 +561,133 @@ function changestate(tc, planid, path, newStatus, newStatusColor, newLabel) {
     currStatusColor = newStatusColor;
 }
 
+function changestateOnPlan(imgNodeId, tc, planid, newStatus, newStatusColor, newLabel) {
+    var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus;
+    result = doAjaxCall(url, "GET", "");
+    
+    // TODO: Handle errors in the Ajax call
+    
+    $('#'+imgNodeId)[0].src = "../chrome/testmanager/images/"+newStatusColor+".png";
+    $('#'+imgNodeId)[0].title = newLabel;
+}
+
+function showColorOutcomes(imgNodeId, color) {
+    var menuColorIcon = $("#statusContextMenuColorIcon"+color);
+    var position = menuColorIcon.offset();
+    
+    for (c in statuses_by_color) {
+        if (c == color) {
+            if (statuses_by_color[c].length > 1) {
+                $("#statusChangeSubMenu"+c)[0].innerHTML = getStatusSubContextMenuMarkup(imgNodeId, color);
+                $("#statusChangeSubMenu"+c).css({display: "block", left: position.left - 27, top: position.top + 20}).stop(true,true).fadeTo(200, 1);
+            }
+        } else {
+            $("#statusChangeSubMenu"+c).hide();
+        }
+    }
+}
+
+function bindTCStatusMenus() {
+    if (statuses_by_color) {
+        (function($) {
+            $(function() {
+                var menu = document.createElement("div");
+                menu.setAttribute("id", "statusChangeMenu");
+                menu.className = "statusContextMenuDiv";
+                menu.style.display = "none";
+                document.body.appendChild(menu);
+
+                for (color in statuses_by_color) {
+                    if (statuses_by_color[color].length > 1) {
+                        var subMenu = document.createElement("div");
+                        subMenu.setAttribute("id", "statusChangeSubMenu"+color);
+                        subMenu.className = "statusContextSubMenuDiv";
+                        subMenu.style.display = "none";
+                        document.body.appendChild(subMenu);
+                    }
+                }
+
+                $(".statusIconElement").bind('click', function(event) {
+                    event.stopPropagation();
+                
+                    var $this = $(this);
+                    var position = $this.offset();
+                    
+                    $("#statusChangeMenu")[0].innerHTML = getStatusContextMenuMarkup($this[0]);
+                    $("#statusChangeMenu").css({left: position.left - 20, top: position.top}).stop(true,true).fadeTo(200, 1);
+                });
+                
+                $(document).bind('click', function(event) {
+                    if ($("#statusChangeMenu").css("display") == "block") {
+                        $("#statusChangeMenu").hide();
+                    }
+                    
+                    for (color in statuses_by_color) {
+                        if (statuses_by_color[color].length > 1) {
+                            if ($("#statusChangeSubMenu"+color).css("display") == "block") {
+                                $("#statusChangeSubMenu"+color).hide();
+                            }
+                        }
+                    }
+                });
+            });
+        })(jQuery_testmanager);	
+    }
+}
+
+function getStatusContextMenuMarkup(imgNode) {
+    var params = imgNode.getAttribute("name").split(",");
+    var tcid = params[0];
+    var planid = params[1];
+    var path = params[2];
+    var oldStatus = params[3];
+    var oldColor = params[4];
+    var oldLabel = params[5];
+
+    var result = "<ul class=\"statusContextMenuUl\">";
+
+    for (color in statuses_by_color) {
+        if (statuses_by_color[color].length > 1) {
+            result += "<li><img id='statusContextMenuColorIcon"+color+"' class=\"statusContextMenuColorIcon\" onmouseover=\"showColorOutcomes('"+imgNode.id+"', '"+color+"');\" src=\"../chrome/testmanager/images/"+color+".png\"></img></li>";
+        } else {
+            for (outcome in statuses_by_color[color][0]) {
+                var label = statuses_by_color[color][0][outcome];
+                result += "<li><img id='statusContextMenuColorIcon"+color+"' class=\"statusContextMenuColorIcon\" onmouseover=\"showColorOutcomes('"+imgNode.id+"', '"+color+"');\" onclick=\"changestateOnPlan('"+imgNode.id+"', '"+tcid+"', '"+planid+"', '"+outcome+"', '"+color+"', '"+label+"');\" src=\"../chrome/testmanager/images/"+color+".png\"></img></li>";
+            }
+        }
+    }
+    
+    result += "</ul>";
+    
+    return result;
+}
+
+function getStatusSubContextMenuMarkup(imgNodeId, color) {
+    var imgNode = $("#"+imgNodeId)[0];
+
+    var params = imgNode.getAttribute("name").split(",");
+    var tcid = params[0];
+    var planid = params[1];
+    var path = params[2];
+    var oldStatus = params[3];
+    var oldColor = params[4];
+    var oldLabel = params[5];
+
+    var result = "<ul class='statusContextSubMenuUl'>";
+    
+    for (i=0; i<statuses_by_color[color].length; i++) {
+        for (outcome in statuses_by_color[color][i]) {
+            var label = statuses_by_color[color][i][outcome];
+            result += "<li class='statusContextSubMenuItem"+color+"' onclick=\"changestateOnPlan('"+imgNode.id+"', '"+tcid+"', '"+planid+"', '"+outcome+"', '"+color+"', '"+label+"');\">"+statuses_by_color[color][i][outcome]+"</li>";
+        }
+    }
+
+    result += "</ul>";
+
+    return result;
+}
+
+
 /******************************************************/
 /**                  Utility functions                */
 /******************************************************/
@@ -567,7 +703,7 @@ function stripSpecialChars(str) {
 }
 
 function stripLessSpecialChars(str) {
-    result = str.replace(/[;#&\?]/g, '');
+    result = str.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/[;#&\?]/g, '');
     return result;
 }
 
@@ -694,5 +830,6 @@ function addLoadHandler(func) {
 addLoadHandler(function() {
         checkFilter(true);
         checkMoveTCDisplays();
+        bindTCStatusMenus();
 		/* loadMessageCatalog(); */
     });

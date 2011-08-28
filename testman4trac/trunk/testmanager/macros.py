@@ -254,9 +254,8 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
 
     unique_idx = 0
 
-    for subpage_name in sorted(WikiSystem(env).get_pages(curpage+'_')):
-        subpage = WikiPage(env, subpage_name)
-        subpage_title = get_page_title(subpage.text)
+    for subpage_name, text in _list_matching_subpages(env, curpage+'_'):
+        subpage_title = get_page_title(text)
 
         path_name = subpage_name.partition(curpage+'_')[2]
         tokens = path_name.split("_")
@@ -378,9 +377,8 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
 
     unique_idx = 0
 
-    for subpage_name in sorted(WikiSystem(env).get_pages(curpage+'_')):
-        subpage = WikiPage(env, subpage_name)
-        subpage_title = get_page_title(subpage.text)
+    for subpage_name, text in _list_matching_subpages(env, curpage+'_'):
+        subpage_title = get_page_title(text)
 
         path_name = subpage_name.partition(curpage+'_')[2]
         tokens = path_name.split("_")
@@ -441,7 +439,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
     # Generate the markup
     ind = {'count': 0}
     text = ''
-
+    
     if mode == 'tree':
         text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+_("Expand all")+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+_("Collapse all")+'</a></div>';
@@ -565,8 +563,11 @@ def _render_breadcrumb(breadcrumb, planid, mode, fulldetails):
     plan_ref = ''
     if planid is not None and not planid == '-1':
         plan_ref = '&planid='+planid
+        display_breadcrumb = 'none'
+    else:
+        display_breadcrumb = 'block'
     
-    text = ''
+    text = '<span style="display: %s">' % display_breadcrumb
     path_len = len(breadcrumb)
     for i, x in enumerate(breadcrumb):
         if i == 0:
@@ -574,13 +575,15 @@ def _render_breadcrumb(breadcrumb, planid, mode, fulldetails):
         else:
             plan_param = plan_ref
     
-        text += '<span name="breadcrumb" style="cursor: pointer; color: #BB0000; margin-left: 10px; margin-right: 5px; font-size: 0.8em;" '
+        text += '<span name="breadcrumb" style="cursor: pointer; color: #BB0000; margin-left: 5px; margin-right: 5px; font-size: 0.8em;" '
         text += ' onclick="window.location=\''+x['id']+'?mode='+mode+plan_param+'&fulldetails='+str(fulldetails)+'\'">'+x['title']
         
         if i < path_len-1:
-            text += '&nbsp;&nbsp;->'
+            text += '</span><span style="color: #BB0000; margin-left: 2px; margin-right: 2px;">->'
         
         text += '</span>'
+
+    text += '</span>'
         
     return text
  
@@ -612,7 +615,7 @@ def _render_subtree(env, planid, component, ind, level):
             else:
                 plan_param = ''
                 
-            text+='<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title='+_("Open")+'>'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
+            text+='<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title="'+_("Open")+'">'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
             text +='<ul id="b_'+index+'_list" style="display:none;list-style: none;">';
             ind['count']+=1
             text+=_render_subtree(env, planid, subcData, ind, level+1)
@@ -640,22 +643,24 @@ def _render_testcases(env, planid, data):
         tick = data[x]
         status = tick['status']
         has_status = True
+        stat_meaning = 'yellow'
         if status is not None and len(status) > 0 and status != '__none__':
-            stat_meaning = tc_statuses[status][0]
-            if stat_meaning == 'green':
-                statusIcon='../chrome/testmanager/images/green.png'
-            elif stat_meaning == 'yellow':
-                statusIcon='../chrome/testmanager/images/yellow.png'
-            elif stat_meaning == 'red':
-                statusIcon='../chrome/testmanager/images/red.png'
+            if status in tc_statuses:
+                stat_meaning = tc_statuses[status][0]
+        
+            statusIcon='../chrome/testmanager/images/%s.png' % stat_meaning
         else:
             has_status = False
 
         if has_status:
-            statusLabel = tc_statuses[status][1]
-            text+="<li name='tc_node' style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><img class='iconElement' src='"+statusIcon+"' title='"+statusLabel+"'></img><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            statusLabel = "Unknown"
+            if status in tc_statuses:
+                statusLabel = tc_statuses[status][1]
+        
+            tcid = tick['id'].rpartition('TC')[2]
+            text+="<li name='tc_node' style='font-weight: normal;'><img name='"+tcid+","+planid+","+tick['id']+","+status+","+stat_meaning+","+statusLabel+"' id='statusIcon"+tick['id']+"' class='statusIconElement' src='"+statusIcon+"' title='"+statusLabel+"' style='cursor: pointer;'></img><span onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></span></li>"
         else:
-            text+="<li name='tc_node' style='font-weight: normal;' onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><input name='select_tc_checkbox' value='"+tick['id']+"' type='checkbox' style='display: none;float: left; position: relative; top: 3px;' /><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></li>"
+            text+="<li name='tc_node' style='font-weight: normal;'><input name='select_tc_checkbox' value='"+tick['id']+"' type='checkbox' style='display: none;float: left; position: relative; top: 3px;' /><span onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></span></li>"
             
     return text
         
@@ -675,12 +680,16 @@ def _build_testcase_status(env, req, planid, curpage):
     # case status
     display = {'green': 'none', 'yellow': 'none', 'red': 'none'}
     
-    display[tc_statuses[status][0]] = 'block'
+    if status in tc_statuses:
+        display[tc_statuses[status][0]] = 'block'
+        statusLabel = tc_statuses[status][1]
+    else:
+        statusLabel = _("Unknown")
     
     text = ''
-    text += '<img style="display: '+display['green']+';" id="tcTitleStatusIcongreen" src="../chrome/testmanager/images/green.png" title="'+_(tc_statuses[status][1])+'"></img></span>'
-    text += '<img style="display: '+display['yellow']+';" id="tcTitleStatusIconyellow" src="../chrome/testmanager/images/yellow.png" title="'+_(tc_statuses[status][1])+'"></img></span>'
-    text += '<img style="display: '+display['red']+';" id="tcTitleStatusIconred" src="../chrome/testmanager/images/red.png" title="'+_(tc_statuses[status][1])+'"></img></span>'
+    text += '<img style="display: '+display['green']+';" id="tcTitleStatusIcongreen" src="../chrome/testmanager/images/green.png" title="'+_(statusLabel)+'"></img></span>'
+    text += '<img style="display: '+display['yellow']+';" id="tcTitleStatusIconyellow" src="../chrome/testmanager/images/yellow.png" title="'+_(statusLabel)+'"></img></span>'
+    text += '<img style="display: '+display['red']+';" id="tcTitleStatusIconred" src="../chrome/testmanager/images/red.png" title="'+_(statusLabel)+'"></img></span>'
     
     return text
     
@@ -743,7 +752,10 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
         status = tick['status']
         has_status = True
         if status is not None and len(status) > 0 and status != '__none__':
-            stat_meaning = tc_statuses[status][0]
+            stat_meaning = 'yellow'
+            if status in tc_statuses:
+                stat_meaning = tc_statuses[status][0]
+        
             if stat_meaning == 'green':
                 statusIcon='../chrome/testmanager/images/green.png'
             elif stat_meaning == 'yellow':
@@ -761,8 +773,13 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
 
         # Common columns
         if has_status:
-            statusLabel = tc_statuses[status][1]
-            text += '<td style="padding-left: '+str(level*30)+'px;"><img class="iconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td>'
+            if status in tc_statuses:
+                display[tc_statuses[status][0]] = 'block'
+                statusLabel = tc_statuses[status][1]
+            else:
+                statusLabel = _("Unknown")
+                
+            text += '<td style="padding-left: '+str(level*30)+'px;"><img class="statusIconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td>'
         else:
             text += '<td style="padding-left: '+str(level*30)+'px;"><input name="select_tc_checkbox" value="'+tick['id']+'" type="checkbox" style="display: none;float: left; position: relative; top: 3px;" /><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+'" target="_blank">'+tick['title']+'</a></td>'
 
@@ -801,7 +818,7 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
         text += '</tr>'
 
     return text
-        
+
 def _build_testcase_change_status(env, req, planid, curpage):
     testmanagersystem = TestManagerSystem(env)
     tc_statuses = testmanagersystem.get_tc_statuses_by_name()
@@ -815,7 +832,14 @@ def _build_testcase_change_status(env, req, planid, curpage):
     else:
         status = testmanagersystem.get_default_tc_status()
 
-    status_meaning = tc_statuses[status][0]
+    if status in tc_statuses:
+        status_meaning = tc_statuses[status][0]
+    else:
+        # The status outcome has been removed from trac.ini after it was used for some test case
+        # Take the first outcome for the yellow color
+        status_meaning = 'yellow'
+        for status in tc_statuses_by_color['yellow']:
+            pass
     
     need_menu = False
     for color in ['green', 'yellow', 'red']:
@@ -888,10 +912,15 @@ def _build_testcase_status_history(env,req,planid,curpage):
     text += '</thead><tbody>'
 
     for ts, author, status in tcip.list_history():
+        if status in tc_statuses:
+            statusLabel = tc_statuses[status][1]
+        else:
+            statusLabel = _("Unknown")
+
         text += '<tr>'
         text += '<td>'+format_datetime(from_any_timestamp(ts))+'</td>'
         text += '<td>'+author+'</td>'
-        text += '<td>'+tc_statuses[status][1]+'</td>'
+        text += '<td>'+statusLabel+'</td>'
         text += '</tr>'
         
     text += '</tbody></table>'
@@ -912,3 +941,18 @@ def _get_custom_fields_columns(obj, fields):
         # TODO Support other field types
 
     return result
+
+def _list_matching_subpages(env, curpage):
+    db = get_db(env)
+    cursor = db.cursor()
+
+    #sql = "SELECT name, text FROM wiki AS w WHERE name LIKE '%s%%' AND version = (SELECT * FROM (SELECT version FROM wiki AS wv WHERE wv.name = w.name ORDER BY version DESC LIMIT 1) v) ORDER BY NAME" % curpage
+    sql = "SELECT w1.name, w1.text, w1.version FROM wiki w1, (SELECT name, max(version) as ver FROM wiki WHERE name LIKE '%s%%' GROUP BY name) w2 WHERE w1.version = w2.ver AND w1.name = w2.name ORDER BY w2.name" % curpage
+    
+    cursor.execute(sql)
+    for name, text, version in cursor:
+        yield name, text
+    
+    return
+        
+

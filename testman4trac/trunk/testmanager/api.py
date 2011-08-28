@@ -13,17 +13,21 @@ import time
 import traceback
 
 from datetime import datetime
+from operator import itemgetter
+
 from trac.core import *
 from trac.perm import IPermissionRequestor, PermissionError
 from trac.resource import Resource, IResourceManager, render_resource_link, get_resource_url
 from trac.util import get_reporter_id
 from trac.util.datefmt import utc
 from trac.web.api import IRequestHandler
+from trac.wiki.model import WikiPage
 
 from tracgenericclass.model import GenericClassModelProvider
 from tracgenericclass.util import *
 
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
+from testmanager.util import *
 
 try:
     from trac.util.translation import domain_functions
@@ -43,6 +47,9 @@ class TestManagerSystem(Component):
         'testcase': 'NEXT_TESTCASE_ID',
         'testplan': 'NEXT_PLAN_ID'
     }
+    
+    TEMPLATE_TYPE_TESTCASE = 'TC'
+    TEMPLATE_TYPE_TESTCATALOG = 'TCAT'
 
     outcomes_by_color = {}
     outcomes_by_name = {}
@@ -108,47 +115,71 @@ class TestManagerSystem(Component):
                 self.outcomes_by_name[outcome] = [color, self.outcomes_by_color[color][outcome]]
 
     def get_next_id(self, type):
-        propname = NEXT_PROPERTY_NAME[type]
+        propname = self.NEXT_PROPERTY_NAME[type]
     
+        # Get current latest ID for the desired object type
+        latest_id = self.get_config_property(propname)
+        if not latest_id:
+            latest_id = '0'
+
+        # Increment next ID
+        self.set_config_property(propname, str(int(latest_id)+1))
+
+        return latest_id
+    
+    def set_next_id(self, type_, value):
+        propname = self.NEXT_PROPERTY_NAME[type_]
+        self.set_config_property(type_, value)
+
+    def get_config_property(self, propname):
         try:
-            # Get next ID
-            db, handle_ta = get_db_for_write(self.env)
+            db = get_db(self.env)
             cursor = db.cursor()
-            sql = "SELECT value FROM testconfig WHERE propname='"+propname+"'"
+            sql = "SELECT value FROM testconfig WHERE propname=%s"
             
-            cursor.execute(sql)
+            cursor.execute(sql, (propname,))
             row = cursor.fetchone()
             
-            id = int(row[0])
-
-            # Increment next ID
-            cursor = db.cursor()
-            cursor.execute("UPDATE testconfig SET value='" + str(id+1) + "' WHERE propname='"+propname+"'")
+            if not row or len(row) == 0:
+                return None
+                
+            return row[0]
             
-            if handle_ta:
-                db.commit()
         except:
+            self.env.log.error("Error getting configuration property '%s'" % propname)
             self.env.log.error(formatExceptionInfo())
-            db.rollback()
-            raise
-
-        return str(id)
+            
+            return None
     
-    def set_next_id(self, type, value):
-        propname = NEXT_PROPERTY_NAME[type]
-        
+    def set_config_property(self, propname, value):
+        db, handle_ta = get_db_for_write(self.env)
         try:
-            # Set next ID to the input value
-            db, handle_ta = get_db_for_write(self.env)
             cursor = db.cursor()
-            cursor.execute("UPDATE testconfig SET value='" + str(value) + "' WHERE propname='"+propname+"'")
-           
+            sql = "SELECT COUNT(*) FROM testconfig WHERE propname = %s"
+            cursor.execute(sql, (propname,))
+            row = cursor.fetchone()
+            if row is not None and int(row[0]) > 0:
+                cursor.execute("""
+                               UPDATE testconfig
+                                   SET value = %s
+                                   WHERE propname = %s 
+                               """, (str(value), propname))
+            else:
+                cursor.execute("""
+                               INSERT INTO testconfig (propname,value)
+                                   VALUES (%s,%s)
+                               """, (propname, str(value)))
             if handle_ta:
                 db.commit()
+ 
+            return True
+ 
         except:
+            self.env.log.error("Error setting configuration property '%s' to '%s'" % (propname, str(value)))
             self.env.log.error(formatExceptionInfo())
             db.rollback()
-            raise
+
+        return False
     
     def get_default_tc_status(self):
         """Returns the default test case in plan status"""
@@ -273,7 +304,8 @@ class TestManagerSystem(Component):
                     tcip.set_status(status, author)
                     tcip.save_changes(author, "Status changed")
                 else:
-                    tcip['page_name'] = path
+                    tc = TestCase(self.env, id)
+                    tcip['page_name'] = tc['page_name']
                     tcip.set_status(status, author)
                     tcip.insert()
                 
@@ -300,7 +332,9 @@ class TestManagerSystem(Component):
                 pagename += '_TT'+str(id)
 
                 try:
-                    new_tc = TestCatalog(self.env, id, pagename, title, '')
+                    # Add template if exists...
+                    new_content = self.get_default_tcat_template()
+                    new_tc = TestCatalog(self.env, id, pagename, title, new_content)
                     new_tc.author = author
                     new_tc.remote_addr = req.remote_addr
                     # This also creates the Wiki page
@@ -309,6 +343,7 @@ class TestManagerSystem(Component):
                 except:
                     self.env.log.error("Error adding test catalog!")
                     self.env.log.error(formatExceptionInfo())
+                    add_notice(req, _("Error adding test catalog"))
                     req.redirect(req.href.wiki(path))
 
                 # Redirect to see the new wiki page.
@@ -411,7 +446,9 @@ class TestManagerSystem(Component):
                 else:
                     # Normal creation of a new test case
                     try:
-                        new_tc = TestCase(self.env, id, pagename, title, '')
+                        # Add template if it exists
+                        new_content = self.get_tc_template(path)
+                        new_tc = TestCase(self.env, id, pagename, title, new_content)
                         new_tc.author = author
                         new_tc.remote_addr = req.remote_addr
                         # This also creates the Wiki page
@@ -420,6 +457,7 @@ class TestManagerSystem(Component):
                     except:
                         self.env.log.error("Error adding test case!")
                         self.env.log.error(formatExceptionInfo())
+                        add_notice(req, _("Error adding test case"))
                         req.redirect(req.path_info)
 
                     # Redirect to edit the test case description
@@ -590,6 +628,9 @@ class TestManagerSystem(Component):
                 gcm_provider.custom_fields('testcase', True)
                 gcm_provider.fields(True)
                 
+                
+    # Test case import management
+                
     def _process_imported_testcase_row(self, row_num, row, cat_name, author, remote_addr, testcaseimport_info):
         if len(row) < 2:
             testcaseimport_info['errors'].append([row_num, '', 'At least two columns are required.'])
@@ -628,4 +669,262 @@ class TestManagerSystem(Component):
             testcaseimport_info['errors'].append([row_num, title, formatExceptionInfo()])
             self.env.log.error("Error importing test case number %s:\n%s" % (row_num, row))
             self.env.log.error(formatExceptionInfo())
+
+
+    # Template management
+
+    def get_default_tcat_template_id(self):
+        """ get default TestCatalog template id """
+        try:
+            return self.get_config_property('TEST_CATALOG_DEFAULT_TEMPLATE')
+
+        except:
+            self.env.log.error("Error getting default test catalog template id")
+            self.env.log.error(formatExceptionInfo())
+            return None
+
+    def get_default_tcat_template(self):
+        """ get default TestCatalog template """
+        try:
+            # first get template id from testconfig
+            t_id = self.get_config_property('TEST_CATALOG_DEFAULT_TEMPLATE')
+            if not t_id:
+                return ''
+
+            # now get template
+            result = self.get_template_by_id(t_id)
+            if not result:
+                return ''
+                
+            return result['content']
+
+        except:
+            self.env.log.error("Error getting default test catalog template")
+            self.env.log.error(formatExceptionInfo())
+            return None
+
+    def get_tc_template_id_for_catalog(self, t_cat_id):
+        """ get test case template for catalog with specified id """
+        try:
+            return self.get_config_property('TC_TEMPLATE_FOR_TCAT_' + t_cat_id)
+
+        except:
+            self.env.log.error("Error getting default test catalog template id")
+            self.env.log.error(formatExceptionInfo())
+            return None
+
+    def get_tc_template(self, t_cat_page):
+        """ get TestCase template for TestCatalog """
+        db = get_db(self.env)
+        cursor = db.cursor()
+
+        try:
+            # first get TestCatalog ID
+            t_cat_id = t_cat_page.rpartition('TT')[2]
+
+            # now get Template ID
+            t_id = self.get_tc_template_id_for_catalog(t_cat_id)
+            if not t_id:
+                return ''
+
+            # and finally get the template
+            result = self.get_template_by_id(t_id)
+            if not result:
+                return ''
+                
+            return result['content']
+
+        except:
+            self.env.log.error("Error getting test case template for catalog %s" % t_cat_page)
+            self.env.log.error(formatExceptionInfo())
+            return None
+
+    def get_template_by_id(self, t_id):
+        """ Returns a template text by its id """
+        db = get_db(self.env)
+        cursor = db.cursor()
+
+        try:
+            sql = "SELECT id, name, type, description, content FROM testmanager_templates WHERE id = %s"
+            cursor.execute(sql, (t_id,))
+            result = None
+            for id_, name, type_, description, content in cursor:
+                result = { 'id': id_, 'name': name, 'type': type_, 'description': description, 'content': content }
+                self.env.log.debug(result)
+            return result
+
+        except:
+            self.env.log.error("Error getting template with id %s" % t_id)
+            self.env.log.error(formatExceptionInfo())
+            return None
+
+    def get_template_by_name(self, t_name, t_type):
+        """ Get a single template by name and type """
+        db = get_db(self.env)
+        cursor = db.cursor()
+        
+        try:
+            sql = "SELECT id, name, type, description, content FROM testmanager_templates WHERE name = %s AND type = %s;"
+            cursor.execute(sql, (t_name, t_type))
+            result = None
+            for id_, name, type_, description, content in cursor:
+                result = { 'id': id_, 'name': name, 'type': type_, 'description': description, 'content': content }
+            return result
+
+        except:
+            self.env.log.error("Error getting template with name '%s' and type '%s'" % (t_name, t_type))
+            self.env.log.error(formatExceptionInfo())
+            return None
+
+    # save a template
+    def save_template(self, t_id, t_name, t_type, t_desc, t_cont, t_action):
+        db, handle_ta = get_db_for_write(self.env)
+        cursor = db.cursor()
+
+        try:
+            if t_action == 'ADD':
+                t_id = self.get_next_template_id()
+                self.env.log.debug("next id is: " + t_id)
+                cursor.execute("""
+                    INSERT INTO testmanager_templates (id, name, type, description, content) 
+                        VALUES (%s,%s,%s,%s,%s)
+                """, (t_id, t_name, t_type, t_desc, t_cont))
+            else:
+                cursor.execute("""
+                    UPDATE testmanager_templates 
+                        SET description = %s, content = %s 
+                        WHERE id = %s AND name = %s AND type = %s
+                """, (t_desc, t_cont, t_id, t_name, t_type))
+
+            if handle_ta:
+                db.commit()
+                
+        except:
+            self.env.log.error("Error saving template with id '%s'" % t_id)
+            self.env.log.error(formatExceptionInfo())
+            db.rollback()
+            return False
+            
+        return True
+
+    def remove_template(self, t_id):
+        """ Removes a single template by id """
+        db, handle_ta = get_db_for_write(self.env)
+        cursor = db.cursor()
+        
+        try:
+            sql = "DELETE FROM testmanager_templates WHERE id = %s"
+            self.env.log.debug("removing template with id '%s'" % t_id)
+            cursor.execute(sql, (t_id,))
+            
+            if handle_ta:
+                db.commit()
+
+        except:
+            self.env.log.error("Error removing template with id '%s'" % t_id)
+            self.env.log.error(formatExceptionInfo())
+            db.rollback()
+            return False
+        
+        return True
+
+    def get_templates(self, t_type):
+        """ Get all templates of desired type """
+        db = get_db(self.env)
+        cursor = db.cursor()
+
+        items = []
+        
+        try:
+            sql = "SELECT id, name, type, description, content FROM testmanager_templates WHERE type = %s ORDER BY name" 
+            cursor.execute(sql, (t_type,))
+            for id_, name, type_, description, content in cursor:
+                template = { 'id': id_, 'name': name, 'type': type_, 'description': description, 'content': content }
+                items.append(template)
+            
+        except:
+            self.env.log.error("Error retrieving all the templates of type '%s'" % t_type)
+            self.env.log.error(formatExceptionInfo())
+
+        return items
+
+    def template_exists(self, name, t_type):
+        """ Check if a given template with desired name and type already exists """
+        db = get_db(self.env)
+        cursor = db.cursor()
+        
+        try:
+            sql = "SELECT COUNT(id) FROM testmanager_templates WHERE name = %s AND type = %s"
+            cursor.execute(sql, (name, t_type))
+            row = cursor.fetchone()
+
+            if row is not None and int(row[0]) > 0:
+                return True
+
+        except:
+            self.env.log.error("Error checking if template with name '%s' and type '%s' exists" % (name, t_type))
+            self.env.log.error(formatExceptionInfo())
+
+        return False
+
+    def template_in_use(self, t_id):
+        """ Check if a given Test Case template is in use """
+        db = get_db(self.env)
+        cursor = db.cursor()
+        
+        try:
+            sql = "SELECT COUNT(*) FROM testconfig where value = %s AND propname LIKE 'TC_TEMPLATE_FOR_TCAT_%%';"
+            cursor.execute(sql, (t_id))
+            row = cursor.fetchone()
+            
+            if int(row[0]) > 0:
+                return True
+            else:
+                return False
+        except:
+            self.env.log.error("Error checking if template with id '%s' is in use" % (t_id))
+            self.env.log.error(formatExceptionInfo())
+        
+        # return true, just to be save and not remove a template in case of other errors
+        return True
+
+    def get_next_template_id(self):
+        """ Get next id to assign a new temmplate """
+        db = get_db(self.env)
+        cursor = db.cursor()
+        ids = []
+        try:
+            sql = "SELECT id FROM testmanager_templates;"
+            cursor.execute(sql)
+            for row in cursor:
+                ids.append(int(row[0]))
+            if ids:
+                ids.sort()
+                return (str(ids.pop() + 1))
+            else:
+                return '0'
+        except:
+            self.env.log.error("Error retrieving all the templates of type '%s'" % t_type)
+            self.env.log.error(formatExceptionInfo())
+            raise
+
+    def get_testcatalogs(self):
+        """ get list of testcatalogs """
+        
+        # TODO: Use the TestCatalog class instead
+        
+        db = get_db(self.env)
+        cursor = db.cursor()
+        cursor.execute("SELECT * from testcatalog")
+        items = []
+        for row in cursor:
+            c_id = row[0]
+            c_name = row[1]
+            wikipage = WikiPage(self.env, c_name)
+            c_title = get_page_title(wikipage.text)
+            c_template = self.get_tc_template_id_for_catalog(c_id)
+            cat = {'id': c_id, 'name': c_name, 'title': c_title, 'template': c_template}
+            items.append(cat)
+            
+        return sorted(items, key=itemgetter('title'))
 

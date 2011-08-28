@@ -299,7 +299,7 @@ class WikiTestManagerInterface(Component):
                     
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
         
-        common_code = self._write_common_code(req)
+        common_code = self._write_common_code(req, True)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
         
@@ -317,6 +317,7 @@ class WikiTestManagerInterface(Component):
     
         tc_id = tc_name.partition('_TC')[2]
         test_case = TestCase(self.env, tc_id, tc_name)
+        summary = test_case.title
         
         tmmodelprovider = GenericClassModelProvider(self.env)
         
@@ -344,7 +345,7 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br(), 
                     self._get_custom_fields_markup(test_case, tmmodelprovider.get_custom_fields_for_realm('testcase')),
                     tag.br(),
-                    tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "", "")'),
+                    tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "", "", "'+summary+'")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "", "")'),
                     HTML('&nbsp;&nbsp;'), 
@@ -372,12 +373,19 @@ class WikiTestManagerInterface(Component):
         tc_id = tc_name.partition('_TC')[2]
         # Note that assigning a default status here is functional. If the tcip actually exists,
         # the real status will override this value.
-        tcip = TestCaseInPlan(self.env, tc_id, planid, page_name, TestManagerSystem(self.env).get_default_tc_status())
+        tcip = TestCaseInPlan(self.env, tc_id, planid, tc_name, TestManagerSystem(self.env).get_default_tc_status())
+        test_case = TestCase(self.env, tc_id, tc_name)
+        summary = test_case.title
         
         tmmodelprovider = GenericClassModelProvider(self.env)
 
+        tc_statuses_by_color = TestManagerSystem(self.env).get_tc_statuses_by_color()
+        need_menu = False
+        for color in ['green', 'yellow', 'red']:
+            if len(tc_statuses_by_color[color]) > 1:
+                need_menu = True
+        
         add_stylesheet(req, 'testmanager/css/menu.css')
-        add_script(req, 'testmanager/js/menu.js')
         
         insert1 = tag.div()(
                     self._get_breadcrumb_markup(formatter, planid, page_name, mode, fulldetails),
@@ -396,7 +404,7 @@ class WikiTestManagerInterface(Component):
                     tag.br(), 
                     self._get_testcase_change_status_markup(formatter, has_status, page_name, planid),
                     tag.br(), tag.br(),
-                    tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
+                    tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'", "'+summary+'")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
@@ -405,25 +413,30 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br()
                     )
                     
-        common_code = self._write_common_code(req)
+        common_code = self._write_common_code(req, False, need_menu)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
     
     def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree', fulldetails='False'):
+        breadcrumb_macro = TestCaseBreadcrumbMacro(self.env)
         if planid and not planid == '-1':
             # We are in the context of a test plan
             if not page_name.rpartition('_TC')[2] == '':
                 # It's a test case in plan
                 tp = TestPlan(self.env, planid)
                 catpath = tp['page_name']
-                return tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode, fulldetails=fulldetails))(_("Back to the Test Plan"))
+                result = tag.span()(
+                    tag.a(href=formatter.req.href.wiki(catpath, planid=planid, mode=mode, fulldetails=fulldetails))(_("Back to the Test Plan")),
+                    HTML(breadcrumb_macro.expand_macro(formatter, None, 'page_name='+page_name+',mode='+mode+',planid='+planid+',fulldetails='+fulldetails))
+                )
+                
+                return result
             else:
                 # It's a test plan
                 return tag.a(href=formatter.req.href.wiki(page_name))(_("Back to the Catalog"))
                 
         else:
             # It's a test catalog or test case description
-            breadcrumb_macro = TestCaseBreadcrumbMacro(self.env)
             return HTML(breadcrumb_macro.expand_macro(formatter, None, 'page_name='+page_name+',mode='+mode+',fulldetails='+fulldetails))
 
     def _get_testcase_status_markup(self, formatter, has_status, page_name, planid):
@@ -556,7 +569,7 @@ class WikiTestManagerInterface(Component):
         
         return result
     
-    def _write_common_code(self, req):
+    def _write_common_code(self, req, add_statuses_and_colors=False, add_menu=False):
         add_stylesheet(req, 'common/css/report.css')
         add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.8.13.custom.css')
         add_stylesheet(req, 'testmanager/css/testmanager.css')
@@ -564,20 +577,27 @@ class WikiTestManagerInterface(Component):
         before_jquery = 'var baseLocation="'+self._fix_base_location(req)+'";' + \
             'var jQuery_trac_old = $.noConflict(true);'
         after_jquery = 'var jQuery_testmanager = $.noConflict(true);$ = jQuery_trac_old;'
-            
+
+        if add_statuses_and_colors and 'TEST_EXECUTE' in req.perm:
+            after_jquery += self._get_statuses_and_colors_javascript()
+        else:
+            after_jquery += "var statuses_by_color = null;"
+        
         common_code = tag.div()(
             tag.script(before_jquery, type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/jquery-1.5.1.min.js', type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/jquery-ui-1.8.13.custom.min.js', type='text/javascript'),
             tag.script(after_jquery, type='text/javascript'),
-
             tag.script(src='../chrome/testmanager/js/cookies.js', type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/testmanager.js', type='text/javascript'),
             )
 
         if self.env.get_version() < 25:
             common_code.append(tag.script(src='../chrome/testmanager/js/compatibility.js', type='text/javascript'))
-        
+
+        if add_menu:
+            common_code.append(tag.script(src='../chrome/testmanager/js/menu.js', type='text/javascript'))
+            
         try:
             if req.locale is not None:
                 common_code.append(tag.script(src='../chrome/testmanager/js/%s.js' % req.locale, type='text/javascript'))
@@ -604,3 +624,24 @@ class WikiTestManagerInterface(Component):
             base_location = base_location[:-1]
 
         return base_location
+
+    def _get_statuses_and_colors_javascript(self):
+        result = 'var statuses_by_color = {'
+
+        testmanagersystem = TestManagerSystem(self.env)
+        tc_statuses_by_color = testmanagersystem.get_tc_statuses_by_color()
+        for color in ['green', 'yellow', 'red']:
+            result += '\'%s\': [' % color
+
+            for outcome in tc_statuses_by_color[color]:
+                label = tc_statuses_by_color[color][outcome]
+                result += '{\'%s\': \'%s\'},' % (outcome, label)
+
+            result = result[:-1]
+            result += '],'
+        
+        result = result[:-1]
+        result += '};\n'
+        
+        return result
+        

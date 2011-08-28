@@ -1,0 +1,45 @@
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xi="http://www.w3.org/2001/XInclude"
+      xmlns:i18n="http://genshi.edgewall.org/i18n"
+      xmlns:py="http://genshi.edgewall.org/">
+
+<xi:include href="admin.html" />
+
+<head>
+  <title>Test Manager Settings</title>
+</head>
+<body>
+  <h2>Settings for Test Manager</h2>
+  <form method="post">
+    <fieldset>
+      <legend>Test Statistics default settings</legend>
+      <table>
+        <tr>
+	  <td>Number of days shown by default:</td>
+	  <td><input type="text" value="${default_days_back}" name="default_days_back" size="20" /></td>
+	</tr>
+        <tr>
+	  <td>Number of days between each data point:</td>
+	  <td><input type="text" value="${default_interval}" name="default_interval" size="20" /></td>
+	</tr>
+        <tr>
+	  <td>Location of YUI URL:</td>
+	  <td><input type="text" value="${yui_base_url}" name="yui_base_url" size="80" /></td>
+	</tr>
+      </table>
+      <br />
+      <input type="submit" name="save" value="Save" />
+    </fieldset>
+    <!--
+    <fieldset>
+      <legend>Test-Outcomes settings</legend>
+      <br />
+      <input type="submit" name="save" value="Save" />
+    </fieldset>
+    -->
+  </form>
+</body>
+</html>

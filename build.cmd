@@ -20,6 +20,14 @@ rem python setup.py update_catalog -l it
 rem python setup.py update_catalog_js -l it
 rem python ./setup.py compile_catalog -f -l it
 rem python ./setup.py compile_catalog_js -f -l it
+rem python setup.py update_catalog -l es
+rem python setup.py update_catalog_js -l es
+rem python ./setup.py compile_catalog -f -l es
+rem python ./setup.py compile_catalog_js -f -l es
+rem python setup.py update_catalog -l de
+rem python setup.py update_catalog_js -l de
+rem python ./setup.py compile_catalog -f -l de
+rem python ./setup.py compile_catalog_js -f -l de
 
 python setup.py bdist_egg
 xcopy /y dist\*.egg ..\..\bin

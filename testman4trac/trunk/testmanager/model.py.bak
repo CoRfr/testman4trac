@@ -464,16 +464,6 @@ class TestManagerModelProvider(Component):
     implements(IConcreteClassProvider, IEnvironmentSetupParticipant)
 
     SCHEMA = {
-                'testmanager_templates':  
-                    {'table':
-                        Table('testmanager_templates', key = ('id', 'name', 'type'))[
-                              Column('id'),
-                              Column('name'),
-                              Column('type'),
-                              Column('description'),
-                              Column('content')],
-                     'has_custom': False,
-                     'has_change': False},
                 'testconfig':
                     {'table':
                         Table('testconfig', key = ('propname'))[
@@ -527,7 +517,18 @@ class TestManagerModelProvider(Component):
                               Index(['id']),
                               Index(['catid'])],
                      'has_custom': True,
-                     'has_change': True}
+                     'has_change': True},
+                'testmanager2_templates_test2':
+                    {'table':
+                        Table('testmanager2_templates_test2', key = ('id'))[
+                              Column('id'),
+                              Column('name'),
+                              Column('type'),
+                              Column('description'),
+                              Column('content'),
+                              Index(['id'])],
+                     'has_custom': False,
+                     'has_change': False}
             }
 
     FIELDS = {
@@ -655,7 +656,6 @@ class TestManagerModelProvider(Component):
                 self._insert_or_update('testconfig', 'NEXT_CATALOG_ID', '0', db)
                 self._insert_or_update('testconfig', 'NEXT_TESTCASE_ID', '0', db)
                 self._insert_or_update('testconfig', 'NEXT_PLAN_ID', '0', db)
-                
                 db.commit()
 
                 # Create the basic "TC" Wiki page, used as the root test catalog
@@ -714,11 +714,11 @@ class TestManagerModelProvider(Component):
             cursor = db.cursor()
 
             # Look if the property already exists
-            cursor.execute(("SELECT COUNT(*) FROM %s WHERE propname=%%s" % tname), (prop_name,))
+            cursor.execute("SELECT COUNT(*) FROM %s WHERE propname = '%s'" % (tname, prop_name))
             row = cursor.fetchone()
             if row[0] == 0:
                 # Otherwise add it
-                cursor.execute(("INSERT INTO %s (propname, value) VALUES (%%s, %%s)" % tname), (prop_name, prop_value))
+                cursor.execute("INSERT INTO %s (propname, value) VALUES ('%s', '%s')" % (tname, prop_name, prop_value))
                 db.commit()
 
         except:
