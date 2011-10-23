@@ -20,6 +20,24 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.8 (2011-10-23):
+  o Strongly enhanced the upgrade mechanism. Now it's more robust, should work with all the databases and between arbitrary Test Manager versions.
+
+    The only drawback is that upgrade is only supported from 1.4.7, not from previous versions.
+
+  o Enhancement #9077 (Track-Hacks): Ability to separate and report on test plans by product
+
+  o Enhancement #9208 (Track-Hacks): Test plan with only selected test cases from the catalog, take snapshot version of test cases.
+                                     This is an important one. Many users were asking for a way of including only selected test cases into
+                                     a Test Plan, for different reasons. Now you have it :D
+
+  o Added French language catalog! Thanks to someone who doesn't want to be cited :D
+
+  o Fixed Ticket #9141 (Track-Hacks): Update installation 1.4.6 -> 1.4.7 not possible
+  o Fixed Ticket #9167 (Track-Hacks): installation of 1.4.7 with postgres database not possible
+  o Fixed Ticket #9187 (Track-Hacks): Current test status report should consider only last result of a testcase in the plan. 
+                                      Thanks to Andreas for his contribution to fixing this one!
+
 Release 1.4.7 (2011-08-28):
   o Enhancement #8907 (Track-Hacks): Add template for "New TestCase" - Thanks a lot to Christian for the hard work on this enhancement!!!
                                      Now you can define templates for your new test catalogs and new test cases, and assign default templates based

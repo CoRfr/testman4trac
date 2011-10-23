@@ -24,6 +24,7 @@ from trac.util.datefmt import utc, parse_date
 from tracgenericclass.util import *
 
 from testmanager.api import TestManagerSystem
+from testmanager.model import TestPlan
 from testmanager.util import *
 
 
@@ -68,7 +69,7 @@ class TestStatsPlugin(Component):
                 tag.a('Test Stats', href=req.href.teststats()))
 
     # ==[ Helper functions ]==
-    def _get_num_testcases(self, from_date, at_date, catpath, testplan, req):
+    def _get_num_testcases(self, from_date, at_date, catpath, req):
         '''
         Returns an integer of the number of test cases 
         counted between from_date and at_date.
@@ -105,15 +106,15 @@ class TestStatsPlugin(Component):
         specified status between from_date to at_date.
         '''
         
-        if testplan == None or testplan == '':
-            testplan_filter = ''
-        else:
-            testplan_filter = " AND planid = '%s'" % (testplan) 
-        
         db = self.env.get_db_cnx()
         cursor = db.cursor()
 
-        cursor.execute("SELECT COUNT(*) from testcasehistory WHERE status = '%s' AND time > %s AND time <= %s %s" % (status, to_any_timestamp(from_date), to_any_timestamp(at_date), testplan_filter))
+        if testplan == None or testplan == '':
+            sql = "SELECT COUNT(*) FROM testcasehistory th1, (SELECT id, planid, max(time) as maxtime FROM testcasehistory WHERE time > %s AND time <= %s GROUP BY planid, id) th2 WHERE th1.time = th2.maxtime AND th1.id = th2.id AND th1.planid = th2.planid AND th1.status = '%s'" % (to_any_timestamp(from_date), to_any_timestamp(at_date), status)
+        else:
+            sql = "SELECT COUNT(*) FROM testcasehistory th1, (SELECT id, planid, max(time) as maxtime FROM testcasehistory WHERE planid = '%s' AND time > %s AND time <= %s GROUP BY id) th2 WHERE th1.time = th2.maxtime AND th1.id = th2.id AND th1.planid = th2.planid AND th1.status = '%s'" % (testplan, to_any_timestamp(from_date), to_any_timestamp(at_date), status)
+
+        cursor.execute(sql)
 
         row = cursor.fetchone()
         
@@ -185,6 +186,7 @@ class TestStatsPlugin(Component):
         req_content = req.args.get('content')
         testplan = None
         catpath = None
+        testplan_contains_all = True
         
         self.env.log.debug("Test Stats - process_request: %s" % req_content)
 
@@ -192,6 +194,9 @@ class TestStatsPlugin(Component):
         if grab_testplan and not grab_testplan == "__all":
             testplan = grab_testplan.partition('|')[0]
             catpath = grab_testplan.partition('|')[2]
+            
+            tp = TestPlan(self.env, testplan, catpath)
+            testplan_contains_all = tp['contains_all']
 
         today = datetime.today()
         today = today.replace(tzinfo = req.tz)+timedelta(2)
@@ -208,10 +213,12 @@ class TestStatsPlugin(Component):
                 num_failed += self._get_num_tcs_by_status(beginning, today, tc_outcome, testplan, req)
 
             num_to_be_tested = 0
-            for tc_outcome in tc_statuses['yellow']:
-                num_to_be_tested += self._get_num_tcs_by_status(beginning, today, tc_outcome, testplan, req)
+            if testplan_contains_all:
+                num_to_be_tested = self._get_num_testcases(beginning, today, catpath, req) - num_successful - num_failed
+            else:
+                for tc_outcome in tc_statuses['yellow']:
+                    num_to_be_tested += self._get_num_tcs_by_status(beginning, today, tc_outcome, testplan, req)
 
-                
             jsdstr = """
             [
                 {"response": "%s", "count": %s},
@@ -287,7 +294,7 @@ class TestStatsPlugin(Component):
                 
             else:
                 # Handling custom test case outcomes here
-                num_new = self._get_num_testcases(last_date, cur_date, catpath, testplan, req)
+                num_new = self._get_num_testcases(last_date, cur_date, catpath, req)
                 
                 num_successful = 0
                 for tc_outcome in tc_statuses['green']:
@@ -297,8 +304,6 @@ class TestStatsPlugin(Component):
                 for tc_outcome in tc_statuses['red']:
                     num_failed += self._get_num_tcs_by_status(last_date, cur_date, tc_outcome, testplan, req)
                 
-                num_all = self._get_num_testcases(None, cur_date, catpath, testplan, req)
-
                 num_all_successful = 0
                 for tc_outcome in tc_statuses['green']:
                     num_all_successful += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
@@ -307,7 +312,14 @@ class TestStatsPlugin(Component):
                 for tc_outcome in tc_statuses['red']:
                     num_all_failed += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
 
-                num_all_untested = num_all - num_all_successful - num_all_failed
+                num_all_untested = 0
+                if testplan_contains_all:
+                    num_all = self._get_num_testcases(None, cur_date, catpath, req)
+                    num_all_untested = num_all - num_all_successful - num_all_failed
+                else:
+                    for tc_outcome in tc_statuses['yellow']:
+                        num_all_untested += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
+
 
                 count.append( {'from_date': format_date(last_date),
                              'to_date': datestr,

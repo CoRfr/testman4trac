@@ -150,11 +150,11 @@ class TestCaseStatusMacro(WikiMacroBase):
         args, kw = parse_args(content)
 
         planid = kw.get('planid', '-1')
-        curpage = kw.get('page_name', 'TC')
+        page_name = kw.get('page_name', 'TC')
         
         req = formatter.req
 
-        return _build_testcase_status(self.env, req, planid, curpage)
+        return _build_testcase_status(self.env, req, planid, page_name)
 
         
 class TestCaseChangeStatusMacro(WikiMacroBase):
@@ -171,11 +171,11 @@ class TestCaseChangeStatusMacro(WikiMacroBase):
         args, kw = parse_args(content)
 
         planid = kw.get('planid', '-1')
-        curpage = kw.get('page_name', 'TC')
+        page_name = kw.get('page_name', 'TC')
         
         req = formatter.req
 
-        return _build_testcase_change_status(self.env, req, planid, curpage)
+        return _build_testcase_change_status(self.env, req, planid, page_name)
 
         
 class TestCaseStatusHistoryMacro(WikiMacroBase):
@@ -192,13 +192,12 @@ class TestCaseStatusHistoryMacro(WikiMacroBase):
         args, kw = parse_args(content)
 
         planid = kw.get('planid', '-1')
-        curpage = kw.get('page_name', 'TC')
+        page_name = kw.get('page_name', 'TC')
         
         req = formatter.req
 
-        return _build_testcase_status_history(self.env, req, planid, curpage)
+        return _build_testcase_status_history(self.env, req, planid, page_name)
 
-        
 
 # Internal methods
 
@@ -288,7 +287,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
                 else:
                     key = subpage_title
                     
-                parent['childrenT'][key]={'id':curr_path, 'tc_id':tc_id, 'title': subpage_title, 'status': '__none__'}
+                parent['childrenT'][key]={'id':curr_path, 'tc_id':tc_id, 'title': subpage_title, 'status': '__none__', 'version': -1}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -303,7 +302,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
     text = ''
 
     if mode == 'tree':
-        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(\'ticketContainer\', this.value)"/>&nbsp;&nbsp;<span id="ticketContainer_searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+_("Expand all")+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+_("Collapse all")+'</a></div>';
         text +='<div id="ticketContainer">'
 
@@ -324,7 +323,7 @@ def _build_catalog_tree(env,req, context, curpage, mode='tree', fulldetails=Fals
             'testcaseinplan': [False, None]
             }
 
-        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(\'testcaseList\', this.value)"/>&nbsp;&nbsp;<span id="testcaseList_searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text += '<form id="testCatalogRunBook"><fieldset id="testCatalogRunBookFields" class="expanded">'
         text += '<table id="testcaseList" class="listing"><thead><tr>';
         
@@ -371,6 +370,8 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
         cat_name = curpage.rpartition('_')[2]
 
     tp = TestPlan(env, planid)
+    contains_all = tp['contains_all']
+    snapshot = tp['freeze_tc_versions']
 
     # Create the catalog subtree model
     components = {'name': curpage, 'childrenC': {},'childrenT': {}, 'tot': 0}
@@ -406,6 +407,8 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                 tc_id = tc.partition('TC')[2]
                 tcip = TestCaseInPlan(env, tc_id, planid)
                 if tcip.exists:
+                    version = tcip['page_version']
+
                     for ts, author, status in tcip.list_history():
                         break
                     
@@ -413,9 +416,13 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                         ts = from_any_timestamp(ts)
 
                 else:
+                    if not contains_all:
+                        continue
+                        
                     ts = tp['time']
                     author = tp['author']
                     status = default_status
+                    version = -1                
                 
                 if sortby == 'name':
                     key = subpage_title
@@ -426,7 +433,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
                     unique_idx += 1
                     key = key+str(unique_idx)
                     
-                parent['childrenT'][key]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status.lower(), 'ts': ts, 'author': author}
+                parent['childrenT'][key]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status.lower(), 'ts': ts, 'author': author, 'version': version}
                 compLoop = parent
                 while (True):
                     compLoop['tot']+=1
@@ -441,7 +448,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
     text = ''
     
     if mode == 'tree':
-        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlight(\'ticketContainer\', this.value)"/>&nbsp;&nbsp;<span id="ticketContainer_searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text +='<div style="font-size: 0.8em;padding-left: 10px"><a style="margin-right: 10px" onclick="toggleAll(true)" href="javascript:void(0)">'+_("Expand all")+'</a><a onclick="toggleAll(false)" href="javascript:void(0)">'+_("Collapse all")+'</a></div>';
         text +='<div id="ticketContainer">'
         text += _render_subtree(env, planid, components, ind, 0)
@@ -463,7 +470,7 @@ def _build_testplan_tree(env, req, context, planid, curpage, mode='tree',sortby=
             'testcaseinplan': [tcip_has_custom, tcip_fields]
             }
 
-        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(this.value)"/>&nbsp;&nbsp;<span id="searchResultsNumberId" style="font-weight: bold;"></span></div>'
+        text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(\'testcaseList\', this.value)"/>&nbsp;&nbsp;<span id="testcaseList_searchResultsNumberId" style="font-weight: bold;"></span></div>'
         text += '<form id="testPlan"><fieldset id="testPlanFields" class="expanded">'
         text += '<table id="testcaseList" class="listing"><thead><tr>';
 
@@ -522,7 +529,9 @@ def _build_testplan_list(env, req, curpage, mode, fulldetails):
     
     markup, num_plans = _render_testplan_list(env, catid, mode, fulldetails, show_delete_button)
 
+
     text = '<form id="testPlanList"><fieldset id="testPlanListFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no4"  onclick="expandCollapseSection(\'testPlanListFields\')">'+_("Available Test Plans")+' ('+str(num_plans)+')</a></legend>'
+    text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tpFilter" title="'+_("Type the test to search for, even more than one word.")+'" type="text" size="40" onkeyup="starthighlightTable(\'testPlanListTable\', this.value)"/>&nbsp;&nbsp;<span id="testPlanListTable_searchResultsNumberId" style="font-weight: bold;"></span></div>'
     text += markup
     text += '</fieldset></form>'
 
@@ -535,7 +544,7 @@ def _render_testplan_list(env, catid, mode, fulldetails, show_delete_button):
 
     cat = TestCatalog(env, catid)
     
-    result = '<table class="listing"><thead>'
+    result = '<table class="listing" id="testPlanListTable"><thead>'
     result += '<tr><th>'+_("Plan Name")+'</th><th>'+_("Author")+'</th><th>'+_("Timestamp")+'</th><th></th></tr>'
     result += '</thead><tbody>'
     
@@ -586,7 +595,7 @@ def _render_breadcrumb(breadcrumb, planid, mode, fulldetails):
     text += '</span>'
         
     return text
- 
+
 # Render the subtree
 def _render_subtree(env, planid, component, ind, level):
     data = component
@@ -642,6 +651,10 @@ def _render_testcases(env, planid, data):
     for x in sortedList:
         tick = data[x]
         status = tick['status']
+
+        version = tick['version']
+        version_str = ('&version='+str(version), '')[version == -1]
+
         has_status = True
         stat_meaning = 'yellow'
         if status is not None and len(status) > 0 and status != '__none__':
@@ -658,9 +671,9 @@ def _render_testcases(env, planid, data):
                 statusLabel = tc_statuses[status][1]
         
             tcid = tick['id'].rpartition('TC')[2]
-            text+="<li name='tc_node' style='font-weight: normal;'><img name='"+tcid+","+planid+","+tick['id']+","+status+","+stat_meaning+","+statusLabel+"' id='statusIcon"+tick['id']+"' class='statusIconElement' src='"+statusIcon+"' title='"+statusLabel+"' style='cursor: pointer;'></img><span onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"?planid="+planid+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></span></li>"
+            text+="<li name='tc_node' style='font-weight: normal;'><img name='"+tcid+","+planid+","+tick['id']+","+status+","+stat_meaning+","+statusLabel+"' id='statusIcon"+tick['id']+"' class='statusIconElement' src='"+statusIcon+"' title='"+statusLabel+"' style='cursor: pointer;'></img><span onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"?planid="+planid+version_str+"' target='_blank'>"+tick['title']+"&nbsp;</a><span style='display: none;'>"+statusLabel+"</span><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit&planid="+planid+"' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></span></li>"
         else:
-            text+="<li name='tc_node' style='font-weight: normal;'><input name='select_tc_checkbox' value='"+tick['id']+"' type='checkbox' style='display: none;float: left; position: relative; top: 3px;' /><span onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></span></li>"
+            text+="<li name='tc_node' style='font-weight: normal;'><input name='select_tc_checkbox' value='"+tick['id']+"' type='checkbox' style='display: none;float: left; position: relative; top: 3px;' /><span onmouseover='showPencil(\"pencilIcon"+tick['id']+"\", true)' onmouseout='hidePencil(\"pencilIcon"+tick['id']+"\", false)'><a href='"+tick['id']+'?a=a'+version_str+"' target='_blank'>"+tick['title']+"&nbsp;</a><span><a class='rightIcon' style='display: none;' title='"+_("Edit the Test Case")+"' href='"+tick['id']+"?action=edit' target='_blank' id='pencilIcon"+tick['id']+"'></a></span></span></li>"
             
     return text
         
@@ -750,6 +763,10 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
     for x in sortedList:
         tick = data[x]
         status = tick['status']
+
+        version = tick['version']
+        version_str = ('&version='+str(version), '')[version == -1]
+        
         has_status = True
         if status is not None and len(status) > 0 and status != '__none__':
             stat_meaning = 'yellow'
@@ -778,9 +795,9 @@ def _render_testcases_as_table(env, context, planid, data, level=0, custom_ctx=N
             else:
                 statusLabel = _("Unknown")
                 
-            text += '<td style="padding-left: '+str(level*30)+'px;"><img class="statusIconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td>'
+            text += '<td style="padding-left: '+str(level*30)+'px;"><img class="statusIconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+version_str+'&mode=tree_table" target="_blank">'+tick['title']+'</a></td>'
         else:
-            text += '<td style="padding-left: '+str(level*30)+'px;"><input name="select_tc_checkbox" value="'+tick['id']+'" type="checkbox" style="display: none;float: left; position: relative; top: 3px;" /><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+'" target="_blank">'+tick['title']+'</a></td>'
+            text += '<td style="padding-left: '+str(level*30)+'px;"><input name="select_tc_checkbox" value="'+tick['id']+'" type="checkbox" style="display: none;float: left; position: relative; top: 3px;" /><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+version_str+'" target="_blank">'+tick['title']+'</a></td>'
 
             
         # Custom testcatalog columns

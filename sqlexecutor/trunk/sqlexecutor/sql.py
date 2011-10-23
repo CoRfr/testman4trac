@@ -8,13 +8,15 @@ import sys
 import time
 import traceback
 
+from genshi.builder import tag
 from datetime import datetime
+
 from trac.core import *
 from trac.perm import IPermissionRequestor
 from trac.util.text import CRLF
 from trac.util.translation import _, N_, gettext
 from trac.web.api import IRequestHandler
-from trac.web.chrome import ITemplateProvider
+from trac.web.chrome import ITemplateProvider, INavigationContributor
 
 from tracgenericclass.util import *
 
@@ -22,17 +24,28 @@ from tracgenericclass.util import *
 class SqlExecutor(Component):
     """SQL Executor."""
 
-    implements(IPermissionRequestor, IRequestHandler, ITemplateProvider)
+    implements(IPermissionRequestor, IRequestHandler, ITemplateProvider, INavigationContributor)
     
     # IPermissionRequestor methods
     def get_permission_actions(self):
         return ['SQL_RUN']
 
         
+    # INavigationContributor methods
+    def get_active_navigation_item(self, req):
+        if 'SQL_RUN' in req.perm:
+            return 'sqlexecutor'
+
+    def get_navigation_items(self, req):
+        if 'SQL_RUN' in req.perm:
+            yield ('mainnav', 'sqlexecutor',
+                tag.a(_("SQL Executor"), href=req.href+'/sqlexec', accesskey='Q'))
+
+
     # IRequestHandler methods
 
     def match_request(self, req):
-        return req.path_info.startswith('/sqlexec') and 'SQL_RUN' in req.perm
+        return (req.path_info.startswith('/sqlexec') and 'SQL_RUN' in req.perm)
 
     def process_request(self, req):
         """
@@ -41,58 +54,45 @@ class SqlExecutor(Component):
 
         req.perm.require('SQL_RUN')
         
-        sql = req.args.get('sql')
-        self.env.log.debug(sql)
-
-        strdata = """
-            <html>
-              <body>
-                <p>Result:</p>
-                <br />
-                <div id="response">
-                    <table><tbody>
-            """
-    
-        try:
-            db = self.env.get_db_cnx()
-            cursor = db.cursor()
-            cursor.execute(sql)
+        if req.path_info.startswith('/sqlexec'):
+            sql = req.args.get('sql', '')
+            result = []
+            message = ""
             
-            for row in cursor:
-                strdata += '<tr>'
-                for i in row:
-                    strdata += '<td>'
-                    if isinstance(i, basestring):
-                        strdata += i.encode('utf-8')
-                    elif isinstance(i, long):
-                        strdata += from_any_timestamp(i).isoformat() + ' (' + str(i) + ')'
-                    else:
-                        strdata += str(i).encode('utf-8')
-                    strdata += '<td>'
+            if not sql == '':
+                self.env.log.debug(sql)
 
-                strdata += '<tr>'
+                try:
+                    db = self.env.get_db_cnx()
+                    cursor = db.cursor()
+                    cursor.execute(sql)
+                    
+                    for row in cursor:
+                        curr_row = []
+                        for i in row:
+                            if isinstance(i, basestring):
+                                curr_row.append(i.encode('utf-8'))
+                            elif isinstance(i, long):
+                                curr_row.append(from_any_timestamp(i).isoformat() + ' (' + str(i) + ')')
+                            else:
+                                curr_row.append(str(i).encode('utf-8'))
+                            
+                        result.append(curr_row)
 
-            db.commit()
+                    db.commit()
+                    
+                    message = "Query executed successfully."
+                    
+                    self.env.log.debug(result)
+                except:
+                    message = formatExceptionInfo()
+                    db.rollback()
+                    self.env.log.debug("SqlExecutor - Exception: ")
+                    self.env.log.debug(message)
+
+            data = {'sql': sql, 'result': result, 'message': message, 'baseurl': fix_base_location(req)}
             
-            self.env.log.debug(strdata)
-        except:
-            strdata = formatExceptionInfo()
-            db.rollback()
-            self.env.log.debug("SqlExecutor - Exception: ")
-            self.env.log.debug(strdata)
-
-        strdata += """
-                    </tbody></table>
-                </div>
-              </body>
-            </html>
-            """
-        
-        req.send_header("Content-Length", len(strdata))
-        req.write(strdata)
-        
-        #return 'result.html', {'result': result}, None
-        return
+            return 'result.html', data, None
 
 
     # ITemplateProvider methods

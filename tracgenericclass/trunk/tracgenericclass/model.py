@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010 Roberto Longobardi
+# Copyright (C) 2010-2011 Roberto Longobardi
 #
 
 import copy
@@ -14,6 +14,7 @@ from datetime import date, datetime
 from trac.attachment import Attachment
 from trac.core import *
 from trac.db import Table, Column, Index
+from trac.env import IEnvironmentSetupParticipant
 from trac.resource import Resource, ResourceNotFound
 from trac.util.datefmt import utc, utcmax
 from trac.util.text import CRLF
@@ -269,7 +270,7 @@ class AbstractVariableFieldsObject(object):
                 # Ignore for new - only change through workflow
                 pass
             elif not field.get('custom'):
-                default = self.env.config.get(realm,
+                default = self.env.config.get(self.realm,
                                               'default_' + field['name'])
             else:
                 default = field.get('value')
@@ -406,7 +407,7 @@ class AbstractVariableFieldsObject(object):
             if isinstance(value, list):
                 raise TracError(_("Multi-values fields not supported yet"))
             field = [field for field in self.fields if field['name'] == name]
-            if field and field[0].get('type') != 'textarea':
+            if field and field[0].get('type') == 'text':
                 value = value.strip()
         self.values[name] = value
         self.env.log.debug("Value after: %s" % self.values[name])
@@ -688,6 +689,34 @@ class AbstractVariableFieldsObject(object):
 
         self.env.log.debug('<<< save_as')
         
+    def list_change_history(self, db=None):
+        """
+        Returns an ordered list of all the changes to standard and
+        custom field, with the old and new value, along with timestamp
+        and author, starting from the most recent.
+        """
+        self.env.log.debug('>>> list_change_history')
+
+        std_fields = [f['name'] for f in self.fields
+                      if not f.get('custom')]
+
+        sql_where = "WHERE 1=1"
+        for k in self.get_key_prop_names():
+            sql_where += " AND " + k + "=%%s" 
+
+        if db is None:
+            db = get_db(self.env, db)
+
+        cursor = db.cursor()
+
+        cursor.execute(("SELECT time,author,field,oldvalue,newvalue FROM %s_change " + sql_where+ " ORDER BY time DESC")
+                       % self.realm, self.get_key_prop_values())
+
+        for ts, author, fname, oldvalue, newvalue in cursor:
+            yield ts, author, fname, oldvalue, newvalue
+
+        self.env.log.debug('<<< list_change_history')
+
     def get_non_empty_prop_names(self):
         """
         Returns a list of names of the fields that are not None.
@@ -990,6 +1019,7 @@ class GenericClassModelProvider(Component):
     Tickets.
     Currently, only 'text' type of fields are supported.
     """
+    implements(IEnvironmentSetupParticipant)
 
     class_providers = ExtensionPoint(IConcreteClassProvider)
     
@@ -1209,12 +1239,104 @@ class GenericClassModelProvider(Component):
             
         return self.all_custom_fields[realm]
 
+
+
+    # IEnvironmentSetupParticipant methods
+    def environment_created(self):
+        self.upgrade_environment(get_db(self.env))
+
+    def environment_needs_upgrade(self, db):
+        return (self._need_initialization(db) or self._need_upgrade(db))
+
+    def upgrade_environment(self, db):
+        # Create db
+        if self._need_initialization(db):
+            try:
+                try:
+                    from trac.db import DatabaseManager
+                    db_backend, _ = DatabaseManager(self.env)._get_connector()
+                except ImportError:
+                    db_backend = self.env.get_db_cnx()
+
+                cursor = db.cursor()
+
+                # Create base table
+                self.env.log.info("Creating table tracgenericclassconfig...")
+                tablem = Table('tracgenericclassconfig', key = ('propname'))[
+                          Column('propname'),
+                          Column('value')]
+                for stmt in db_backend.to_sql(tablem):
+                    self.env.log.debug(stmt)
+                    cursor.execute(stmt)
+
+                db.commit()
+
+                # Create default values for configuration properties and initialize counters
+                db_set_config_property(self.env, 'tracgenericclassconfig', 'tracgenericclass_dbversion', '1')
+                
+                db.commit()
+            except:
+                db.rollback()
+                self.env.log.error("Exception during upgrade")
+                raise
+
+    def _need_initialization(self, db):
+        return self._need_upgrade(db)
+
+    def _need_upgrade(self, db):
+        # Check for configuration table
+        cursor = db.cursor()
+        try:
+            cursor.execute("select count(*) from tracgenericclassconfig")
+            cursor.fetchone()
+            
+            return False
+        except:
+            db.rollback()
+            self.env.log.info("Need to create db table 'tracgenericclassconfig'.")
+            return True
+
+
 # Methods to help components create their databases
 def need_db_upgrade(env, schema, db):
+    """
+    Obsolete method.
+    """
+    return False
+
+def upgrade_db(env, schema, db):
+    """
+    Obsolete method.
+    """
+    pass
+
+def need_db_create_for_realm(env, realm, realm_metadata, db):
     """
     Call this method from inside your Component IEnvironmentSetupParticipant's
     environment_needs_upgrade() function to check whether your Component 
     using the generic classes needs to create the corresponding database tables.
+    
+    :param tablename: The db table that, if missing, means that the database 
+                   must be created. 
+    """
+    table_metadata = realm_metadata['table']
+    tablename = table_metadata.name
+
+    cursor = db.cursor()
+    try:
+        cursor.execute("select count(*) from %s" % tablename)
+        cursor.fetchone()
+        
+        return False
+    except:
+        db.rollback()
+        return True
+
+def need_db_upgrade_for_realm(env, realm, realm_metadata, db=None):
+    """
+    Call this method from inside your Component IEnvironmentSetupParticipant's
+    environment_needs_upgrade() function to check whether your Component 
+    using the generic classes needs to update the corresponding database tables.
     
     :param schema: The db schema definition, as returned by 
                    the get_data_models() function in the IConcreteClassProvider
@@ -1222,23 +1344,23 @@ def need_db_upgrade(env, schema, db):
     """
     cursor = db.cursor()
     try:
-        for realm in schema:
-            table_metadata = schema[realm]
-            tablem = table_metadata['table']
-            
-            tname = tablem.name
+        table_metadata = realm_metadata['table']
+        version = realm_metadata['version']
 
-            cursor.execute("select count(*) from %s" % tname)
-            cursor.fetchone()
+        dbversion = db_get_config_property(env, 'tracgenericclassconfig', realm + "_dbversion")
+        if dbversion is None:
+            dbversion = '1'
         
-        return False
+        if int(dbversion) < version:
+            return True
+        
     except:
         db.rollback()
         env.log.debug("Need to create db tables for class '%s'." % realm)
         return True
 
-        
-def upgrade_db(env, schema, db):
+
+def create_db_for_realm(env, realm, realm_metadata, db, do_commit=True):
     """
     Call this method from inside your Component IEnvironmentSetupParticipant's
     upgrade_environment() function to create the database tables corresponding to
@@ -1255,94 +1377,133 @@ def upgrade_db(env, schema, db):
         except ImportError:
             db_backend = env.get_db_cnx()
 
-        env.log.info("Upgrading DB...")
+        env.log.info("Creating DB for class '%s'." % realm)
             
         # Create the required tables
-        for realm in schema:
-            table_metadata = schema[realm]
-            tablem = table_metadata['table']
-            
-            tname = tablem.name
+        table_metadata = realm_metadata['table']
+        version = realm_metadata['version']
+        tablename = table_metadata.name
+        
+        cursor = db.cursor()
+        key_names = [k for k in table_metadata.key]
+        
+        # Create base table
+        env.log.info("Creating base table %s..." % tablename)
+        for stmt in db_backend.to_sql(table_metadata):
+            env.log.debug(stmt)
+            cursor.execute(stmt)
 
-            try:
-                cursor = db.cursor()
-                cursor.execute("select count(*) from %s" % tname)
-                cursor.fetchone()
+        # Create custom fields table if required
+        if realm_metadata['has_custom']:
+            cols = []
+            for k in key_names:
+                # Determine type of column k
+                type = 'text'
+                for c in table_metadata.columns:
+                    if c.name == k:
+                        type = c.type
+                        
+                cols.append(Column(k, type=type))
                 
-                # The table already exists. Skip it.
-                # TODO: Alter table to fit any difference with the new definition
-                continue
-            except:
-                # OK, need to create the table
-                pass
-
-            cursor = db.cursor()
-            key_names = [k for k in tablem.key]
+            cols.append(Column('name'))
+            cols.append(Column('value'))
             
-            # Create base table
-            env.log.info("Creating base table %s..." % tname)
-            for stmt in db_backend.to_sql(tablem):
+            custom_key = copy.deepcopy(key_names)
+            custom_key.append('name')
+            
+            table_custom = Table(tablename+'_custom', key = custom_key)[cols]
+            env.log.info("Creating custom properties table %s..." % table_custom.name)
+            for stmt in db_backend.to_sql(table_custom):
                 env.log.debug(stmt)
                 cursor.execute(stmt)
 
-            # Create custom fields table if required
-            if table_metadata['has_custom']:
-                cols = []
-                for k in key_names:
-                    # Determine type of column k
-                    type = 'text'
-                    for c in tablem.columns:
-                        if c.name == k:
-                            type = c.type
-                            
-                    cols.append(Column(k, type=type))
-                    
-                cols.append(Column('name'))
-                cols.append(Column('value'))
+        # Create change history table if required
+        if realm_metadata['has_change']:
+            cols = []
+            for k in key_names:
+                # Determine type of column k
+                type = 'text'
+                for c in table_metadata.columns:
+                    if c.name == k:
+                        type = c.type
+
+                cols.append(Column(k, type=type))
                 
-                custom_key = copy.deepcopy(key_names)
-                custom_key.append('name')
-                
-                table_custom = Table(tname+'_custom', key = custom_key)[cols]
-                env.log.info("Creating custom properties table %s..." % table_custom.name)
-                for stmt in db_backend.to_sql(table_custom):
-                    env.log.debug(stmt)
-                    cursor.execute(stmt)
+            cols.append(Column('time', type=get_timestamp_db_type()))
+            cols.append(Column('author'))
+            cols.append(Column('field'))
+            cols.append(Column('oldvalue'))
+            cols.append(Column('newvalue'))
+            cols.append(Index(key_names))
 
-            # Create change history table if required
-            if table_metadata['has_change']:
-                cols = []
-                for k in key_names:
-                    # Determine type of column k
-                    type = 'text'
-                    for c in tablem.columns:
-                        if c.name == k:
-                            type = c.type
+            change_key = copy.deepcopy(key_names)
+            change_key.append('time')
+            change_key.append('field')
 
-                    cols.append(Column(k, type=type))
-                    
-                cols.append(Column('time', type=get_timestamp_db_type()))
-                cols.append(Column('author'))
-                cols.append(Column('field'))
-                cols.append(Column('oldvalue'))
-                cols.append(Column('newvalue'))
-                cols.append(Index(key_names))
+            table_change = Table(tablename+'_change', key = change_key)[cols]
+            env.log.info("Creating change history table %s..." % table_change.name)
+            for stmt in db_backend.to_sql(table_change):
+                env.log.debug(stmt)
+                cursor.execute(stmt)
 
-                change_key = copy.deepcopy(key_names)
-                change_key.append('time')
-                change_key.append('field')
+        db_set_config_property(env, 'tracgenericclassconfig', realm + '_dbversion', version)
 
-                table_change = Table(tname+'_change', key = change_key)[cols]
-                env.log.info("Creating change history table %s..." % table_change.name)
-                for stmt in db_backend.to_sql(table_change):
-                    env.log.debug(stmt)
-                    cursor.execute(stmt)
-
-        db.commit()
+        if do_commit:
+            db.commit()
 
     except:
         env.log.error(formatExceptionInfo())
-        env.log.error("Exception during database creation.")
+        env.log.error("Exception during database creation for class '%s'." % realm)
+
+        db.rollback()
+        raise
+
+def upgrade_db_for_realm(env, package_name, realm, realm_metadata, db, do_commit=True):
+    """
+    Each db version should have its own upgrade module, named
+    upgrades/db_<schema>_<N>.py, where 'N' is the version number (int).
+    """
+    try:
+        try:
+            from trac.db import DatabaseManager
+            db_backend, _ = DatabaseManager(env)._get_connector()
+        except ImportError:
+            db_backend = env.get_db_cnx()
+
+        env.log.info("Upgrading DB for class '%s'." % realm)
+            
+        # Create the required tables
+        table_metadata = realm_metadata['table']
+        version = realm_metadata['version']
+        tablename = table_metadata.name
+            
+        cursor = db.cursor()
+        current_version = db_get_config_property(env, 'tracgenericclassconfig', realm + "_dbversion")
+        
+        if current_version is None:
+            current_version = 1
+
+        for i in range(current_version + 1, version + 1):
+            env.log.info('Upgrading database version for class \'%s\' from %d to %d', realm, i - 1, i)
+
+            name  = 'db_%s_%i' % (realm, i)
+            try:
+                upgrades = __import__(package_name, globals(), locals(), [name])
+                script = getattr(upgrades, name)
+            except AttributeError:
+                raise TracError(_('No upgrade module for version %(num)i '
+                                  '(%(version)s.py)', num=i, version=name))
+            script.do_upgrade(env, i, db_backend, db)
+
+            db_set_config_property(env, 'tracgenericclassconfig', realm + '_dbversion', str(i))
+
+            env.log.info('Upgrade successful.')
+            if do_commit:
+                db.commit()
+
+    except:
+        env.log.error(formatExceptionInfo())
+        env.log.error("Exception during database upgrade for class '%s'." % realm)
 
         db.rollback()
         raise

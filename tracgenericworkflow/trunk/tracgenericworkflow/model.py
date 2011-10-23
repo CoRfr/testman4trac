@@ -14,7 +14,7 @@ from trac.env import IEnvironmentSetupParticipant
 from trac.resource import Resource, ResourceNotFound
 from trac.util.translation import _, N_, gettext
 
-from tracgenericclass.model import IConcreteClassProvider, AbstractVariableFieldsObject, need_db_upgrade, upgrade_db
+from tracgenericclass.model import IConcreteClassProvider, AbstractVariableFieldsObject, need_db_create_for_realm, create_db_for_realm, need_db_upgrade_for_realm, upgrade_db_for_realm
 from tracgenericclass.util import *
 
 
@@ -77,7 +77,8 @@ class GenericWorkflowModelProvider(Component):
                               Column('res_realm'),
                               Column('state')],
                      'has_custom': True,
-                     'has_change': True}
+                     'has_change': True,
+                     'version': 1}
             }
 
     FIELDS = {
@@ -127,16 +128,26 @@ class GenericWorkflowModelProvider(Component):
 
     # IEnvironmentSetupParticipant methods
     def environment_created(self):
-        self.upgrade_environment(self.env.get_db_cnx())
+        self.upgrade_environment(get_db(self.env))
 
     def environment_needs_upgrade(self, db):
-        return self._need_initialization(db)
+        for realm in self.SCHEMA:
+            realm_metadata = self.SCHEMA[realm]
+
+            if need_db_create_for_realm(self.env, realm, realm_metadata, db) or \
+                need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
+                
+                return True
+                
+        return False
 
     def upgrade_environment(self, db):
-        # Create db
-        if self._need_initialization(db):
-            upgrade_db(self.env, self.SCHEMA, db)
+        # Create or update db
+        for realm in self.SCHEMA:
+            realm_metadata = self.SCHEMA[realm]
 
-    def _need_initialization(self, db):
-        return need_db_upgrade(self.env, self.SCHEMA, db)
-      
+            if need_db_create_for_realm(self.env, realm, realm_metadata, db):
+                create_db_for_realm(self.env, realm, realm_metadata, db)
+
+            elif need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
+                upgrade_db_for_realm(self.env, 'tracgenericworkflow.upgrades', realm, realm_metadata, db)

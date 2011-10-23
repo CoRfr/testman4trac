@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010 Roberto Longobardi
+# Copyright (C) 2010-2011 Roberto Longobardi
 #
 
 import copy
@@ -19,7 +19,7 @@ from trac.util.text import CRLF
 from trac.wiki.api import WikiSystem
 from trac.wiki.model import WikiPage
 
-from tracgenericclass.model import IConcreteClassProvider, AbstractVariableFieldsObject, AbstractWikiPageWrapper, need_db_upgrade, upgrade_db
+from tracgenericclass.model import IConcreteClassProvider, AbstractVariableFieldsObject, AbstractWikiPageWrapper, need_db_create_for_realm, create_db_for_realm, need_db_upgrade_for_realm, upgrade_db_for_realm
 from tracgenericclass.util import *
 
 from testmanager.util import *
@@ -187,6 +187,8 @@ class TestCatalog(AbstractTestDescription):
 
         tp_search = TestPlan(self.env)
         tp_search['catid'] = self.values['id']
+        tp_search['contains_all'] = None
+        tp_search['freeze_tc_versions'] = None
         
         for tp in tp_search.list_matching_objects(db=db):
             yield tp
@@ -298,9 +300,9 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
     """
     
     # Fields that must not be modified directly by the user
-    protected_fields = ('id', 'planid', 'page_name', 'status')
+    protected_fields = ('id', 'planid', 'page_name', 'page_version', 'status')
 
-    def __init__(self, env, id=None, planid=None, page_name=None, status=None, db=None):
+    def __init__(self, env, id=None, planid=None, page_name=None, page_version=-1, status=None, db=None):
         """
         The test case in plan is related to a test case, the 'id' and 
         'page_name' arguments, and to a test plan, the 'planid' 
@@ -311,6 +313,7 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         self.values['id'] = id
         self.values['planid'] = planid
         self.values['page_name'] = page_name
+        self.values['page_version'] = page_version
         self.values['status'] = status
 
         key = self.build_key_object()
@@ -404,9 +407,11 @@ class TestPlan(AbstractVariableFieldsObject):
     """
     
     # Fields that must not be modified directly by the user
-    protected_fields = ('id', 'catid', 'page_name', 'name', 'author', 'time')
+    protected_fields = ('id', 'catid', 'page_name', 'name', 'author', 'time', 'contains_all', 'freeze_tc_versions')
+    
+    selected_tcs = []
 
-    def __init__(self, env, id=None, catid=None, page_name=None, name=None, author=None, db=None):
+    def __init__(self, env, id=None, catid=None, page_name=None, name=None, author=None, contains_all=1, snapshot=0, selected_tcs=[], db=None):
         """
         A test plan has an ID, generated at creation time and 
         independent on those for test catalogs and test cases.
@@ -421,6 +426,10 @@ class TestPlan(AbstractVariableFieldsObject):
         self.values['page_name'] = page_name
         self.values['name'] = name
         self.values['author'] = author
+        self.values['contains_all'] = contains_all
+        self.values['freeze_tc_versions'] = snapshot
+
+        self.selected_tcs = selected_tcs
 
         key = self.build_key_object()
     
@@ -428,6 +437,50 @@ class TestPlan(AbstractVariableFieldsObject):
 
     def create_instance(self, key):
         return TestPlan(self.env, key['id'])
+
+    def post_insert(self, db):
+        """
+        If only some test cases must be in the plan, then create the
+        corresponding TestCaseInPlan objects and relate them to this plan.
+        """
+        if not self.values['contains_all']:
+            # Create a TestCaseInPlan for each test case specified by the User
+            from testmanager.api import TestManagerSystem
+            default_status = TestManagerSystem(self.env).get_default_tc_status()
+
+            author = self.values['author']
+
+            for tc_page_name in self.selected_tcs:
+                if tc_page_name != '':
+                    tc_id = tc_page_name.rpartition('TC')[2]
+                    tcip = TestCaseInPlan(self.env, tc_id, self.values['id'])
+                    if not tcip.exists:
+                        tc = TestCase(self.env, tc_id)
+                        tcip['page_name'] = tc['page_name']
+                        if self.values['freeze_tc_versions']:
+                            # Set the wiki page version to the current latest version
+                            tcip['page_version'] = tc.wikipage.version
+                        tcip.set_status(default_status, author)
+                        tcip.insert()
+                    
+        elif self.values['freeze_tc_versions']:
+            # Create a TestCaseInPlan for each test case in the catalog, and
+            # set the wiki page version to the current latest version
+            tcat = TestCatalog(self.env, self.values['catid'], self.values['page_name'])
+
+            from testmanager.api import TestManagerSystem
+            default_status = TestManagerSystem(self.env).get_default_tc_status()
+
+            author = self.values['author']
+
+            for tc in tcat.list_testcases():
+                tcip = TestCaseInPlan(self.env, tc.values['id'], self.values['id'])
+                if not tcip.exists:
+                    tcip['page_name'] = tc['page_name']
+                    tcip['page_version'] = tc.wikipage.version
+                    tcip.set_status(default_status, author)
+                    tcip.insert()
+            
 
     def post_delete(self, db):
         self.env.log.debug("Deleting this test plan %s" % self['id'])
@@ -473,37 +526,43 @@ class TestManagerModelProvider(Component):
                               Column('description'),
                               Column('content')],
                      'has_custom': False,
-                     'has_change': False},
+                     'has_change': False,
+                     'version': 1},
                 'testconfig':
                     {'table':
                         Table('testconfig', key = ('propname'))[
                           Column('propname'),
                           Column('value')],
                      'has_custom': False,
-                     'has_change': False},
+                     'has_change': False,
+                     'version': 1},
                 'testcatalog':  
                     {'table':
                         Table('testcatalog', key = ('id'))[
                               Column('id'),
                               Column('page_name')],
                      'has_custom': True,
-                     'has_change': True},
+                     'has_change': True,
+                     'version': 1},
                 'testcase':  
                     {'table':
                         Table('testcase', key = ('id'))[
                               Column('id'),
                               Column('page_name')],
                      'has_custom': True,
-                     'has_change': True},
+                     'has_change': True,
+                     'version': 1},
                 'testcaseinplan':  
                     {'table':
                         Table('testcaseinplan', key = ('id', 'planid'))[
                               Column('id'),
                               Column('planid'),
                               Column('page_name'),
+                              Column('page_version', type='int'),
                               Column('status')],
                      'has_custom': True,
-                     'has_change': True},
+                     'has_change': True,
+                     'version': 2},
                 'testcasehistory':  
                     {'table':
                         Table('testcasehistory', key = ('id', 'planid', 'time'))[
@@ -514,8 +573,9 @@ class TestManagerModelProvider(Component):
                               Column('status'),
                               Index(['id', 'planid', 'time'])],
                      'has_custom': False,
-                     'has_change': False},
-                'testplan':  
+                     'has_change': False,
+                     'version': 1},
+                'testplan':
                     {'table':
                         Table('testplan', key = ('id'))[
                               Column('id'),
@@ -524,10 +584,13 @@ class TestManagerModelProvider(Component):
                               Column('name'),
                               Column('author'),
                               Column('time', type=get_timestamp_db_type()),
+                              Column('contains_all', type='int'),
+                              Column('freeze_tc_versions', type='int'),
                               Index(['id']),
                               Index(['catid'])],
                      'has_custom': True,
-                     'has_change': True}
+                     'has_change': True,
+                     'version': 2}
             }
 
     FIELDS = {
@@ -543,6 +606,7 @@ class TestManagerModelProvider(Component):
                     {'name': 'id', 'type': 'text', 'label': N_('ID')},
                     {'name': 'planid', 'type': 'text', 'label': N_('Plan ID')},
                     {'name': 'page_name', 'type': 'text', 'label': N_('Wiki page name')},
+                    {'name': 'page_version', 'type': 'int', 'label': N_('Wiki page version')},                    
                     {'name': 'status', 'type': 'text', 'label': N_('Status')}
                 ],
                 'testplan': [
@@ -551,7 +615,9 @@ class TestManagerModelProvider(Component):
                     {'name': 'page_name', 'type': 'text', 'label': N_('Wiki page name')},
                     {'name': 'name', 'type': 'text', 'label': N_('Name')},
                     {'name': 'author', 'type': 'text', 'label': N_('Author')},
-                    {'name': 'time', 'type': 'time', 'label': N_('Created')}
+                    {'name': 'time', 'type': 'time', 'label': N_('Created')},
+                    {'name': 'contains_all', 'type': 'int', 'label': N_('Contains all Test Cases')},
+                    {'name': 'freeze_tc_versions', 'type': 'text', 'label': N_('Freeze Test Case versions')}
                 ]
             }
             
@@ -641,34 +707,41 @@ class TestManagerModelProvider(Component):
         self.upgrade_environment(get_db(self.env))
 
     def environment_needs_upgrade(self, db):
-        return (self._need_initialization(db) or self._need_upgrade(db))
+        if self._need_upgrade(db):
+            return True
+        
+        for realm in self.SCHEMA:
+            realm_metadata = self.SCHEMA[realm]
+
+            if need_db_create_for_realm(self.env, realm, realm_metadata, db) or \
+                need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
+                    
+                return True
+                
+        return False
 
     def upgrade_environment(self, db):
-        # Create db
-        if self._need_initialization(db):
-            upgrade_db(self.env, self.SCHEMA, db)
+        # Create or update db
+        for realm in self.SCHEMA:
+            realm_metadata = self.SCHEMA[realm]
 
-            try:            
-                cursor = db.cursor()
+            if need_db_create_for_realm(self.env, realm, realm_metadata, db):
+                create_db_for_realm(self.env, realm, realm_metadata, db)
 
-                # Create default values for configuration properties and initialize counters
-                self._insert_or_update('testconfig', 'NEXT_CATALOG_ID', '0', db)
-                self._insert_or_update('testconfig', 'NEXT_TESTCASE_ID', '0', db)
-                self._insert_or_update('testconfig', 'NEXT_PLAN_ID', '0', db)
-                
-                db.commit()
+            elif need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
+                upgrade_db_for_realm(self.env, 'testmanager.upgrades', realm, realm_metadata, db)
 
-                # Create the basic "TC" Wiki page, used as the root test catalog
-                tc_page = WikiPage(self.env, 'TC')
-                if not tc_page.exists:
-                    tc_page.text = ' '
-                    tc_page.save('System', '', '127.0.0.1')
-
-            except:
-                db.rollback()
-                self.env.log.error("Exception during upgrade")
-                raise
-
+        # Create default values for configuration properties and initialize counters
+        db_insert_or_ignore(self.env, 'testconfig', 'NEXT_CATALOG_ID', '0')
+        db_insert_or_ignore(self.env, 'testconfig', 'NEXT_TESTCASE_ID', '0')
+        db_insert_or_ignore(self.env, 'testconfig', 'NEXT_PLAN_ID', '0')
+        
+        # Create the basic "TC" Wiki page, used as the root test catalog
+        tc_page = WikiPage(self.env, 'TC')
+        if not tc_page.exists:
+            tc_page.text = ' '
+            tc_page.save('System', '', '127.0.0.1')
+        
         if self._need_upgrade(db):
             # Set custom ticket field to hold related test case
             custom = self.config['ticket-custom']
@@ -693,9 +766,6 @@ class TestManagerModelProvider(Component):
             if config_dirty:
                 self.config.save()
 
-    def _need_initialization(self, db):
-        return need_db_upgrade(self.env, self.SCHEMA, db)
-
     def _need_upgrade(self, db):
         # Check for custom ticket field to hold related test case
         custom = self.config['ticket-custom']
@@ -707,22 +777,3 @@ class TestManagerModelProvider(Component):
             return True
         
         return False
-      
-    def _insert_or_update(self, tname, prop_name, prop_value, db):
-        # Insert the specified property in table, or updates its value if present
-        try:
-            cursor = db.cursor()
-
-            # Look if the property already exists
-            cursor.execute(("SELECT COUNT(*) FROM %s WHERE propname=%%s" % tname), (prop_name,))
-            row = cursor.fetchone()
-            if row[0] == 0:
-                # Otherwise add it
-                cursor.execute(("INSERT INTO %s (propname, value) VALUES (%%s, %%s)" % tname), (prop_name, prop_value))
-                db.commit()
-
-        except:
-            db.rollback()
-            self.env.log.error("Exception during upgrade")
-            raise
-

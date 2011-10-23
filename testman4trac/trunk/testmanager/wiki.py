@@ -4,23 +4,25 @@
 #
 
 from trac.core import *
-from trac.web.chrome import add_stylesheet, add_script, ITemplateProvider
-from trac.wiki.api import IWikiSyntaxProvider
-from trac.resource import Resource
 from trac.mimeview.api import Context
+from trac.resource import Resource
+from trac.util import format_datetime, format_date
 from trac.web.api import ITemplateStreamFilter
+from trac.web.chrome import add_stylesheet, add_script, ITemplateProvider
 from trac.wiki.api import WikiSystem, IWikiChangeListener
-from trac.wiki.model import WikiPage
 from trac.wiki.formatter import Formatter
+from trac.wiki.model import WikiPage
+
+from genshi import HTML
 from genshi.builder import tag
 from genshi.filters.transform import Transformer
-from genshi import HTML
 
 from tracgenericclass.model import GenericClassModelProvider
+from tracgenericclass.util import *
 
 from testmanager.api import TestManagerSystem
 from testmanager.macros import TestCaseBreadcrumbMacro, TestCaseTreeMacro, TestPlanTreeMacro, TestPlanListMacro, TestCaseStatusMacro, TestCaseChangeStatusMacro, TestCaseStatusHistoryMacro
-from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan
+from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
 
 try:
     from testmanager.api import _, tag_, N_
@@ -218,6 +220,7 @@ class WikiTestManagerInterface(Component):
                             ),
                         tag.br(), 
                         ))
+            insert2.append(HTML(self._get_testplan_dialog_markup(req, cat_name)))
                     
         insert2.append(tag.br())
         insert2.append(tag.br())
@@ -242,6 +245,10 @@ class WikiTestManagerInterface(Component):
 
             insert2.append(tag.div(class_='field')(
                 self._get_testplan_list_markup(formatter, cat_name, mode, fulldetails)
+                ))
+
+            insert2.append(tag.div(class_='field')(
+                self._get_object_change_history_markup(test_catalog)
                 ))
 
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
@@ -292,13 +299,13 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br(),
                     self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
                     tag.br(),
+                    ),
                     tag.div(class_='field')(
-                        tag.br(), tag.br(), tag.br(), tag.br()
-                        )
-                    ))
-                    
-        insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
-        
+                        self._get_object_change_history_markup(test_plan)
+                        ),
+                    tag.br(), tag.br(), tag.br(), tag.br()
+                    )
+                            
         common_code = self._write_common_code(req, True)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
@@ -352,9 +359,12 @@ class WikiTestManagerInterface(Component):
                     tag.input(type='button', id='moveTCButton', value=_("Move the Test Case into another catalog"), onclick='copyTestCaseToClipboard("'+tc_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', id='duplicateTCButton', value=_("Duplicate the Test Case"), onclick='duplicateTestCase("'+tc_name+'", "'+cat_name+'")'),
-                    tag.br(), tag.br()
+                    tag.div(class_='field')(
+                        self._get_object_change_history_markup(test_case)
+                        ),
+                    tag.br(), tag.br(), tag.br(), tag.br()
                     )
-                    
+
         common_code = self._write_common_code(req)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
@@ -373,7 +383,7 @@ class WikiTestManagerInterface(Component):
         tc_id = tc_name.partition('_TC')[2]
         # Note that assigning a default status here is functional. If the tcip actually exists,
         # the real status will override this value.
-        tcip = TestCaseInPlan(self.env, tc_id, planid, tc_name, TestManagerSystem(self.env).get_default_tc_status())
+        tcip = TestCaseInPlan(self.env, tc_id, planid, tc_name, -1, TestManagerSystem(self.env).get_default_tc_status())
         test_case = TestCase(self.env, tc_id, tc_name)
         summary = test_case.title
         
@@ -410,7 +420,8 @@ class WikiTestManagerInterface(Component):
                     HTML('&nbsp;&nbsp;'), 
                     tag.br(), tag.br(), 
                     self._get_testcase_status_history_markup(formatter, has_status, page_name, planid),
-                    tag.br(), tag.br()
+                    self._get_object_change_history_markup(tcip, ['status']),
+                    tag.br(), tag.br(), tag.br(), tag.br()
                     )
                     
         common_code = self._write_common_code(req, False, need_menu)
@@ -512,9 +523,98 @@ class WikiTestManagerInterface(Component):
 
         return HTML(result)
 
+    def _get_testplan_dialog_markup(self, req, cat_name):
+        result = """
+            <div id="dialog_testplan" style="padding:20px; display:none;" title="New Test Plan">
+                <form id="new_testplan_form" class="addnew">
+                    Specify the new Test Plan properties.
+                <br />
+                <fieldset>
+                    <legend>Test Plan properties</legend>
+                    <table><tbody>
+                        <tr>
+                            <td>
+                                <div class="field">
+                                  <label>
+                                    The new Test Plan will contain:
+                                  </label>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <input type="radio" name="testplan_contains_all" value="true" checked="checked" /> All the Test Cases in the Catalog<br />
+                                <input type="radio" name="testplan_contains_all" value="false" /> Only the Test Cases selected before
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <br />
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="field">
+                                  <label>
+                                    The new Test Plan will:
+                                  </label>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <input type="radio" name="testplan_snapshot" value="true" /> Refer to a current snapshot of the versions of the test cases<br />
+                                <input type="radio" name="testplan_snapshot" value="false" checked="checked" /> Always point to the latest version of the Test Cases
+                            </td>
+                        </tr>
+                    </tbody></table>
+                </fieldset>
+                <fieldset>
+                    <div class="buttons">
+                        <input type="hidden" name="cat_name" value="%s" />
+                        <input type="button" value="Create Test Plan" onclick="createTestPlanConfirm('%s')" style="text-align: right;"></input>
+                        <input type="button" value="Cancel" onclick="createTestPlanCancel()" style="text-align: right;"></input>
+                    </div>
+                </fieldset>
+                </form>
+            </div>
+        """ % (cat_name, cat_name)
+        
+        return result
+    
+    def _get_object_change_history_markup(self, obj, exclude_fields=None):
+        text = '<form id="objectChangeHistory"><fieldset id="objectChangeHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no6"  onclick="expandCollapseSection(\'objectChangeHistoryFields\')">'+_("Object change history")+'</a></legend>'
+        
+        text += '<table class="listing"><thead>'
+        text += '<tr><th>'+_("Timestamp")+'</th><th>'+_("Author")+'</th><th>'+_("Property")+'</th><th>'+_("Previous Value")+'</th><th>'+_("New Value")+'</th></tr>'
+        text += '</thead><tbody>'
+
+        for ts, author, fname, oldvalue, newvalue in obj.list_change_history():
+            if exclude_fields is not None and fname in exclude_fields:
+                continue
+            
+            if oldvalue is None:
+                oldvalue = ''
+            
+            if newvalue is None:
+                newvalue = ''
+            
+            text += '<tr>'
+            text += '<td>'+format_datetime(from_any_timestamp(ts))+'</td>'
+            text += '<td>'+author+'</td>'
+            text += '<td>'+fname+'</td>'
+            text += '<td>'+oldvalue+'</td>'
+            text += '<td>'+newvalue+'</td>'
+            text += '</tr>'
+            
+        text += '</tbody></table>'
+        text += '</fieldset></form>'
+
+        return HTML(text)
+    
     def _get_import_dialog_markup(self, req, cat_name):
         result = """
-            <div id="dialog" style="padding:20px; display:none;" title="Import test cases">
+            <div id="dialog_import" style="padding:20px; display:none;" title="Import test cases">
                 <form id="import_file" class="addnew" method="post" enctype="multipart/form-data" action="%s/testimport">
                 Select a file in CSV format to import the test cases from.
                 <br />
@@ -565,7 +665,7 @@ class WikiTestManagerInterface(Component):
                 </fieldset>
                 </form>
             </div>
-        """ % (self._fix_base_location(req), cat_name)
+        """ % (fix_base_location(req), cat_name)
         
         return result
     
@@ -574,7 +674,7 @@ class WikiTestManagerInterface(Component):
         add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.8.13.custom.css')
         add_stylesheet(req, 'testmanager/css/testmanager.css')
 
-        before_jquery = 'var baseLocation="'+self._fix_base_location(req)+'";' + \
+        before_jquery = 'var baseLocation="'+fix_base_location(req)+'";' + \
             'var jQuery_trac_old = $.noConflict(true);'
         after_jquery = 'var jQuery_testmanager = $.noConflict(true);$ = jQuery_trac_old;'
 
@@ -617,13 +717,6 @@ class WikiTestManagerInterface(Component):
         #""", type='text/javascript'))
             
         return common_code
-
-    def _fix_base_location(self, req):
-        base_location = req.href()
-        if base_location.endswith('/'):
-            base_location = base_location[:-1]
-
-        return base_location
 
     def _get_statuses_and_colors_javascript(self):
         result = 'var statuses_by_color = {'

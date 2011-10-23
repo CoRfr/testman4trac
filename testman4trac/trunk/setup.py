@@ -22,8 +22,8 @@ except ImportError:
 
 setup(
     name='TestManager',
-    version='1.4.7',
-    packages=['testmanager'],
+    version='1.4.8',
+    packages=['testmanager','testmanager.upgrades'],
     package_data={
         'testmanager' : [
             '*.txt', 

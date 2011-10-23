@@ -26,7 +26,7 @@ function creaTestCatalog(path) {
     }
 }
 
-function creaTestCase(catName){ 
+function creaTestCase(catName) { 
 	var tcInput = document.getElementById('tcName');
 	var testCaseName = tcInput.value; 
 
@@ -45,7 +45,7 @@ function creaTestCase(catName){
     }
 }
 
-function creaTestPlan(catName){ 
+function creaTestPlan(catName) { 
 	var planInput = document.getElementById('planName');
 	var testPlanName = planInput.value; 
 
@@ -58,13 +58,61 @@ function creaTestPlan(catName){
     		document.getElementById('errorMsgSpan2').innerHTML = _("Length between 4 and 90 characters.");
     	} else { 
     		document.getElementById('errorMsgSpan2').innerHTML = ''; 
-    		var url = baseLocation+"/testcreate?type=testplan&path="+catName+"&title="+tplanName;
-    		window.location = url;
+            (function($) {
+                $(function() {
+                    $("#dialog_testplan").dialog({width: 640, height: 430, modal: true});
+                });
+            })(jQuery_testmanager);	
     	}
     }
 }
 
-function duplicateTestCase(tcName, catName){ 
+function createTestPlanConfirm(catName) {
+    var planInput = document.getElementById('planName');
+    var testPlanName = planInput.value; 
+    var tplanName = stripLessSpecialChars(testPlanName); 
+
+    var testplanContainsAll = "true";
+    var testplanSnapshot = "false";
+
+    // The following should work... but doesn't in case one has first selected some test cases from the tree.
+    //var testplanContainsAll = $("input[@name='testplan_contains_all']:checked").val();
+    //var testplanSnapshot = $("input[@name=testplan_snapshot]:checked").val();
+
+    var nodes = $("input[@name='testplan_contains_all']:checked");
+    for (var i=0; i<nodes.length; i++) {
+        var node = nodes[i];
+        if (node.name == 'testplan_contains_all') {
+            testplanContainsAll = node.value;
+        }
+    }
+
+    nodes = $("input[@name='testplan_snapshot']:checked");
+    for (var i=0; i<nodes.length; i++) {
+        var node = nodes[i];
+        if (node.name == 'testplan_snapshot') {
+            testplanSnapshot = node.value;
+        }
+    }
+
+    var selectedTestCases = "";
+    if (testplanContainsAll == 'false') {
+        selectedTestCases = "&selectedTCs="+getSelectedTestCases();
+    }
+    
+    var url = baseLocation+"/testcreate?type=testplan&path="+catName+"&containsAll="+testplanContainsAll+"&snapshot="+testplanSnapshot+"&title="+tplanName+selectedTestCases;
+    window.location = url;
+}
+
+function createTestPlanCancel() {
+	(function($) {
+        $(function() {
+            $("#dialog_testplan").dialog('close');
+        });
+    })(jQuery_testmanager);	
+}
+
+function duplicateTestCase(tcName, catName) { 
 	var url = baseLocation+'/testcreate?type=testcase&duplicate=true&tcId='+tcName+'&path='+catName; 
 	window.location = url;
 }
@@ -75,7 +123,7 @@ function regenerateTestPlan(planId, path) {
 }
 
 function creaTicket(tcName, planId, planName, summary){
-    var tokens = $('span[name=breadcrumb]').map(function() { return this.innerHTML }).get();
+    var tokens = $('span[name=breadcrumb]').map(function() { return this.innerHTML; }).get();
     var fullSummary = "";
     
     for (i=1; i<tokens.length; i++) {
@@ -163,21 +211,34 @@ function copyTestCaseToClipboard(tcId) {
 }
 
 function copyMultipleTestCasesToClipboard() {
-	var selectedTickets = "";
+	var selectedTestCases = getSelectedTestCases();
 
-    var nodes=document.getElementById("ticketContainer").getElementsByTagName('input');
+    setCookie('TestManager_MultipleTestCases', selectedTestCases, 1, '/', '', '');
+    setTimeout('window.location="'+window.location+'"', 100);
+}
+
+function getSelectedTestCases() {
+	var selectedTestCases = "";
+	var nodes;
+
+	if (document.getElementById("ticketContainer") !== null) {
+	    nodes=document.getElementById("ticketContainer").getElementsByTagName('input');
+	}
+	if (document.getElementById("testcaseList") !== null) {
+	    nodes=document.getElementById("testcaseList").getElementsByTagName('input');
+	}
+	
 	for (var i=0;i<nodes.length;i++) {
 		var el=nodes.item(i);
 		
 		if (el.getAttribute("name") && el.getAttribute("name") == "select_tc_checkbox") {
 			if (el.checked) {
-				selectedTickets += el.value + ','
+				selectedTestCases += el.value + ',';
 			}
 		}
 	}
 
-    setCookie('TestManager_MultipleTestCases', selectedTickets, 1, '/', '', '');
-    setTimeout('window.location="'+window.location+'"', 100);
+    return selectedTestCases;
 }
 
 function pasteTestCaseIntoCatalog(catName) {
@@ -211,13 +272,13 @@ function cancelTCsCopy() {
 }
 
 /******************************************************/
-/**                 Tree view widget                  */
+/**                 Import Test Cases                 */
 /******************************************************/
 
 function importTestCasesIntoCatalog(catName) {
 	(function($) {
         $(function() {
-            $("#dialog").dialog({width: 640, height: 430, modal: true});
+            $("#dialog_import").dialog({width: 640, height: 430, modal: true});
         });
     })(jQuery_testmanager);	
 }
@@ -225,7 +286,7 @@ function importTestCasesIntoCatalog(catName) {
 function importTestCasesCancel() {
 	(function($) {
         $(function() {
-            $("#dialog").dialog('close');
+            $("#dialog_import").dialog('close');
         });
     })(jQuery_testmanager);	
 }
@@ -239,13 +300,13 @@ var selectHide = true;
 /** Configuration property to specify whether matching search results should be displayed in bold font. */
 var selectBold = true;
 
-var selectData = [];
-var deselectData = [];
+var selectData = {};
+var deselectData = {};
 var htimer = null;
 var searchResults = 0;
 
-function toggleAll(isexpand) {
-    var nodes=document.getElementById("ticketContainer").getElementsByTagName("span");
+function toggleAll(tableId, isexpand) {
+    var nodes=document.getElementById(tableId).getElementsByTagName("span");
     for(var i=0;i<nodes.length;i++) {
         if(nodes.item(i).getAttribute("name") === "toggable") {
             if (isexpand) {
@@ -278,33 +339,33 @@ function expand(id) {
 function toggle(id) {
     var el=document.getElementById(id);
     if (el.firstChild['expanded']) {
-        collapse(id)
+        collapse(id);
     } else {
-        expand(id)
+        expand(id);
     }
 }
 
-function highlight(str) {
-    clearSelection();
+function highlight(tableId, str) {
+    clearSelection(tableId);
     if (str && str !== "") {
         var res=[];
         var tks=str.split(" ");
         for (var i=0;i<tks.length;i++) {
             res[res.length]=new RegExp(regexpescape(tks[i].toLowerCase()), "g");
         }
-        var nodes=document.getElementById("ticketContainer").getElementsByTagName("a");
+        var nodes=document.getElementById(tableId).getElementsByTagName("a");
         for(var i=0;i<nodes.length;i++) {
             var n=nodes.item(i);
             if (n.nextSibling) {
                 if (filterMatch(n, n.nextSibling, res)) {
-                    select(n);
+                    select(tableId, n);
                 } else {
-                    deselect(n);
+                    deselect(tableId, n);
                 }
             }
         }
 
-        document.getElementById('searchResultsNumberId').innerHTML = _("Results: ")+searchResults;
+        document.getElementById(tableId+'_searchResultsNumberId').innerHTML = _("Results: ")+searchResults;
     }
 }
 
@@ -321,28 +382,33 @@ function filterMatch(node1,node2,res) {
     return match;
 }
 
-function clearSelection() {
-    toggleAll(false);
-    for (var i=0;i<selectData.length;i++) {
-        selectData[i].style.fontWeight="normal";
-        selectData[i].style.display=""
-    };
+function clearSelection(tableId) {
+    toggleAll(tableId, false);
     
-    selectData=[];
+    if (tableId in selectData) {
+        for (var i=0;i<selectData[tableId].length;i++) {
+            selectData[tableId][i].style.fontWeight="normal";
+            selectData[tableId][i].style.display="";
+        };
+    }
     
-    for (var i=0;i<deselectData.length;i++) {
-        if (selectHide) {
-            deselectData[i].style.display=""
-        }
-    };
+    selectData[tableId]=[];
     
-    deselectData=[];
+    if (tableId in deselectData) {
+	    for (var i=0;i<deselectData[tableId].length;i++) {
+	        if (selectHide) {
+	            deselectData[tableId][i].style.display="";
+	        }
+	    };
+    }
+    
+    deselectData[tableId]=[];
     searchResults = 0;
     
-    document.getElementById("searchResultsNumberId").innerHTML = '';
+    document.getElementById(tableId+"_searchResultsNumberId").innerHTML = '';
 }
 
-function select(node) {
+function select(tableId, node) {
     searchResults++;
 
     do {
@@ -359,47 +425,48 @@ function select(node) {
                 node.style.display = "block";
             };
             
-            selectData[selectData.length]=node;
+            selectData[tableId][selectData[tableId].length]=node;
         };
         node=node.parentNode;
-    } while (node.id!=="ticketContainer");
+    } while (node.id!==tableId);
 }
 
-function deselect(node) {
+function deselect(tableId, node) {
     do {
         if (node.tagName === "LI") {
             if (selectHide && node.style.display==="") {
                 node.style.display = "none";
-                deselectData[deselectData.length]=node;
+                deselectData[tableId][deselectData[tableId].length]=node;
             }
         };
         
         node=node.parentNode;
-    } while (node.id!=="ticketContainer");
+    } while (node.id!==tableId);
 }
 
-function starthighlight(str,now) {
+function starthighlight(tableId, str,now) {
     if (htimer) {
         clearTimeout(htimer);
     } 
     if (now) {
-        highlight(str);
+        highlight(tableId, str);
     } else {
         htimer = setTimeout(function() {
-                                highlight(str);
+                                highlight(tableId, str);
                             },500);
     }
 }
 
-function checkFilter(now) {
+function checkFilter(tableId, now) {
     var f=document.getElementById("tcFilter");
     if (f) {
-        if (document.getElementById("ticketContainer") !== null) {
-            starthighlight(f.value,now);
-        }
-        
-        if (document.getElementById("testcaseList") !== null) {
-            starthighlightTable(f.value,now);
+    	var rootEl = document.getElementById(tableId);
+        if (rootEl !== null) {
+        	if (rootEl.tagName.toLowerCase() == "div") {
+        		starthighlight(f.value,now);
+        	} else {
+                starthighlightTable(f.value,now);
+        	}
         }
     }
 }
@@ -422,43 +489,43 @@ function removeUnderlineLink(id) {
 /**                 Tree table widget                 */
 /******************************************************/
 
-function starthighlightTable(str,now) {
+function starthighlightTable(tableId, str,now) {
     if (htimer) {
         clearTimeout(htimer);
     } 
     if (now) {
-        highlightTable(str);
+        highlightTable(tableId, str);
     } else {
         htimer = setTimeout(function() {
-                                highlightTable(str);
+                                highlightTable(tableId, str);
                             },500);
     }
 }
 
-function highlightTable(str) {
-    clearSelectionTable();
+function highlightTable(tableId, str) {
+    clearSelectionTable(tableId);
     if (str && str !== "") {
         var res=[];
         var tks=str.split(" ");
         for (var i=0;i<tks.length;i++) {
             res[res.length]=new RegExp(regexpescape(tks[i].toLowerCase()), "g");
         }
-        var nodes=document.getElementById("testcaseList").getElementsByTagName("tr");
+        var nodes=document.getElementById(tableId).getElementsByTagName("tr");
         for(var i=0;i<nodes.length;i++) {
             var n=nodes.item(i);
             if (filterMatchTable(n, res)) {
-                selectRow(n);
+                selectRow(tableId, n);
             } else {
-                deselectRow(n);
+                deselectRow(tableId, n);
             }
         }
 
-        document.getElementById('searchResultsNumberId').innerHTML = _("Results: ")+searchResults;
+        document.getElementById(tableId+'_searchResultsNumberId').innerHTML = _("Results: ")+searchResults;
     }
 }
 
 function filterMatchTable(node, res) {
-    var name = ""
+    var name = "";
     
     while (node.tagName !== "TR") {
         node = node.parentNode;
@@ -487,43 +554,47 @@ function filterMatchTable(node, res) {
     return match;
 }
 
-function clearSelectionTable() {
-    for (var i=0;i<selectData.length;i++) {
-        selectData[i].className="";
-    };
+function clearSelectionTable(tableId) {
+	if (tableId in selectData) {
+	    for (var i=0;i<selectData[tableId].length;i++) {
+	        selectData[tableId][i].className="";
+	    };
+	}
     
-    selectData=[];
+    selectData[tableId]=[];
     
-    for (var i=0;i<deselectData.length;i++) {
-        deselectData[i].className=""
-    };
-    
-    deselectData=[];
+	if (tableId in deselectData) {
+	    for (var i=0;i<deselectData[tableId].length;i++) {
+	        deselectData[tableId][i].className="";
+	    };
+	}
+	
+    deselectData[tableId]=[];
     searchResults = 0;
     
-    document.getElementById("searchResultsNumberId").innerHTML = '';
+    document.getElementById(tableId+"_searchResultsNumberId").innerHTML = '';
 }
 
-function selectRow(node) {
+function selectRow(tableId, node) {
     searchResults++;
 
     while (node.tagName !== "TR") {
         node = node.parentNode;
     }
 
-    node.className = "rowSelected"
+    node.className = "rowSelected";
 
-    selectData[selectData.length]=node;
+    selectData[tableId][selectData[tableId].length]=node;
 }
 
-function deselectRow(node) {
+function deselectRow(tableId, node) {
     while (node.tagName !== "TR") {
         node = node.parentNode;
     }
 
-    node.className = "rowHidden"
+    node.className = "rowHidden";
     
-    deselectData[deselectData.length]=node;
+    deselectData[tableId][deselectData[tableId].length]=node;
 }
 
 function showPencil(id) {
@@ -791,7 +862,7 @@ function include(filename) {
 	script.src = filename;
 	script.type = 'text/javascript';
 	
-	head.appendChild(script)
+	head.appendChild(script);
 }
 
 function loadMessageCatalog() {
@@ -820,7 +891,7 @@ function addLoadHandler(func) {
                 oldonload(); 
             } 
             func(); 
-        } 
+        };
     } 
 }
 

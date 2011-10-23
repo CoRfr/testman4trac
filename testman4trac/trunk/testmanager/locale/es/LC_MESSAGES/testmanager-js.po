@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: Test Manager for Trac plugin\n"
 "Report-Msgid-Bugs-To: http://trac-hacks.org/wiki/TestManagerForTracPlugin"
 "\n"
-"POT-Creation-Date: 2011-08-21 22:54+0200\n"
+"POT-Creation-Date: 2011-10-23 17:39+0200\n"
 "PO-Revision-Date: 2011-08-13 22:12+0000\n"
 "Last-Translator: crossroad <jesuchristopher@gmail.com>\n"
 "Language-Team: Spanish (Castilian) "
@@ -32,11 +32,11 @@ msgstr "Debe especificar un nombre. Longitud entre 4 y 90 caracteres."
 msgid "Length between 4 and 90 characters."
 msgstr "Longitud entre 4 y 90 caracteres."
 
-#: testmanager/htdocs/js/testmanager.js:85
+#: testmanager/htdocs/js/testmanager.js:133
 msgid "[Insert problem summary]"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:97
+#: testmanager/htdocs/js/testmanager.js:145
 msgid ""
 "Are you sure you want to duplicate the test catalog and all its contained"
 " test cases?"
@@ -44,14 +44,14 @@ msgstr ""
 "¿Esta seguro que desea duplicar el catálogo y todos los casos de pruebas "
 "contenidos en él?"
 
-#: testmanager/htdocs/js/testmanager.js:104
+#: testmanager/htdocs/js/testmanager.js:152
 msgid ""
 "Are you sure you want to delete the test plan and the state of all its "
 "contained test cases?"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:307
-#: testmanager/htdocs/js/testmanager.js:456
+#: testmanager/htdocs/js/testmanager.js:368
+#: testmanager/htdocs/js/testmanager.js:523
 msgid "Results: "
 msgstr "Resultados:"
 

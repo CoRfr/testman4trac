@@ -2,8 +2,8 @@ from setuptools import setup
 
 setup(
     name='TracGenericWorkflow',
-    version='1.0.2',
-    packages=['tracgenericworkflow'],
+    version='1.0.3',
+    packages=['tracgenericworkflow','tracgenericworkflow.upgrades'],
     package_data={'tracgenericworkflow' : ['*.txt', 'templates/*.html', 'htdocs/*.*', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
     author = 'Roberto Longobardi',
     author_email='seccanj@gmail.com',

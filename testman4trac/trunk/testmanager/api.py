@@ -351,12 +351,22 @@ class TestManagerSystem(Component):
                 
             elif type == 'testplan':
                 req.perm.require('TEST_PLAN_ADMIN')
-                
+
+                contains_all_str = req.args.get('containsAll', 'true')
+                snapshot_str = req.args.get('snapshot', 'false')
+                selected_tcs_str = req.args.get('selectedTCs', '')
+
+                contains_all = (0, 1)[contains_all_str == 'true']
+                snapshot = (0, 1)[snapshot_str == 'true']
+                selected_tcs = []
+                if contains_all_str == 'false' and not selected_tcs_str == '':
+                    selected_tcs = selected_tcs_str.split(',')
+
                 catid = path.rpartition('_TT')[2]
 
                 try:
                     # Add the new test plan in the database
-                    new_tc = TestPlan(self.env, id, catid, pagename, title, author)
+                    new_tc = TestPlan(self.env, id, catid, pagename, title, author, contains_all, snapshot, selected_tcs)
                     new_tc.insert()
 
                 except:

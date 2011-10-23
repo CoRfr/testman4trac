@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010 Roberto Longobardi
+# Copyright (C) 2010-2011 Roberto Longobardi
 #
 
 import os
@@ -24,7 +24,12 @@ def formatExceptionInfo(maxTBlevel=5):
         excArgs = "<no args>"
     
     excTb = traceback.format_tb(trbk, maxTBlevel)
-    return (excName, excArgs, excTb)
+    
+    tracestring = ""
+    for step in excTb:
+        tracestring += step + "\n"
+    
+    return "Error name: %s\nArgs: %s\nTraceback:\n%s" % (excName, excArgs, tracestring)
 
 
 checked_utimestamp = False
@@ -207,4 +212,65 @@ def upload_file_to_subdir(env, req, subdir, param_name, target_filename):
     finally:
         target_file.close()
 
-    
+
+def db_insert_or_ignore(env, tablename, propname, value):
+    if db_get_config_property(env, tablename, propname) is None:
+        db_set_config_property(env, tablename, propname, value)
+
+def db_get_config_property(env, tablename, propname):
+    try:
+        db = get_db(env)
+        cursor = db.cursor()
+        sql = "SELECT value FROM %s WHERE propname=%%s" % tablename
+        
+        cursor.execute(sql, (propname,))
+        row = cursor.fetchone()
+        
+        if not row or len(row) == 0:
+            return None
+            
+        return row[0]
+        
+    except:
+        env.log.error("Error getting configuration property '%s' from table '%s'" % (propname, tablename))
+        env.log.error(formatExceptionInfo())
+        
+        return None
+
+def db_set_config_property(env, tablename, propname, value):
+    db, handle_ta = get_db_for_write(env)
+    try:
+        cursor = db.cursor()
+        sql = "SELECT COUNT(*) FROM %s WHERE propname = %%s" % tablename
+        cursor.execute(sql, (propname,))
+        row = cursor.fetchone()
+        if row is not None and int(row[0]) > 0:
+            cursor.execute("""
+                           UPDATE %s
+                               SET value = %%s
+                               WHERE propname = %%s 
+                           """ % tablename, (str(value), propname))
+        else:
+            cursor.execute("""
+                           INSERT INTO %s (propname,value)
+                               VALUES (%%s,%%s)
+                           """ % tablename, (propname, str(value)))
+        if handle_ta:
+            db.commit()
+
+        return True
+
+    except:
+        env.log.error("Error setting configuration property '%s' to '%s' into table '%s'" % (propname, str(value), tablename))
+        env.log.error(formatExceptionInfo())
+        db.rollback()
+
+    return False
+
+def fix_base_location(req):
+    base_location = req.href()
+    if base_location.endswith('/'):
+        base_location = base_location[:-1]
+
+    return base_location
+
