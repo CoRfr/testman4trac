@@ -1,6 +1,24 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010 Roberto Longobardi
+# Copyright (C) 2010-2011 Roberto Bordolanghi
+# 
+# This file is part of the Test Manager plugin for Trac.
+# 
+# The Test Manager plugin for Trac is free software: you can 
+# redistribute it and/or modify it under the terms of the GNU 
+# General Public License as published by the Free Software Foundation, 
+# either version 3 of the License, or (at your option) any later 
+# version.
+# 
+# The Test Manager plugin for Trac is distributed in the hope that it 
+# will be useful, but WITHOUT ANY WARRANTY; without even the implied 
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+# See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with the Test Manager plugin for Trac. See the file LICENSE.txt. 
+# If not, see <http://www.gnu.org/licenses/>.
+#
 #
 # The structure of this plugin is copied from the Tracticketstats plugin, 
 # by Prentice Wongvibulisn
@@ -35,25 +53,15 @@ except ImportError:
 	tag_ = _
 
 # ************************
-DEFAULT_DAYS_BACK = 30*3 
-DEFAULT_INTERVAL = 7
+TESTMANAGER_DEFAULT_DAYS_BACK = 30*3 
+TESTMANAGER_DEFAULT_INTERVAL = 7
 # ************************
 
 class TestStatsPlugin(Component):
     implements(INavigationContributor, IRequestHandler, ITemplateProvider, IPermissionRequestor)
 
-    yui_base_url = Option('testmanager', 'yui_base_url',
-            default='http://yui.yahooapis.com/2.9.0',
-            doc='Location of YUI API')
-
-    default_days_back = IntOption('testmanager', 'default_days_back',
-            default=DEFAULT_DAYS_BACK,
-            doc='Number of days to show by default')
-
-    default_interval = IntOption('testmanager', 'default_interval',
-            default=DEFAULT_INTERVAL,
-            doc='Number of days between each data point'\
-                ' (resolution) by default')
+    default_days_back = TESTMANAGER_DEFAULT_DAYS_BACK
+    default_interval = TESTMANAGER_DEFAULT_INTERVAL
 
     # ==[ INavigationContributor methods ]==
 
@@ -112,7 +120,8 @@ class TestStatsPlugin(Component):
         if testplan == None or testplan == '':
             sql = "SELECT COUNT(*) FROM testcasehistory th1, (SELECT id, planid, max(time) as maxtime FROM testcasehistory WHERE time > %s AND time <= %s GROUP BY planid, id) th2 WHERE th1.time = th2.maxtime AND th1.id = th2.id AND th1.planid = th2.planid AND th1.status = '%s'" % (to_any_timestamp(from_date), to_any_timestamp(at_date), status)
         else:
-            sql = "SELECT COUNT(*) FROM testcasehistory th1, (SELECT id, planid, max(time) as maxtime FROM testcasehistory WHERE planid = '%s' AND time > %s AND time <= %s GROUP BY id) th2 WHERE th1.time = th2.maxtime AND th1.id = th2.id AND th1.planid = th2.planid AND th1.status = '%s'" % (testplan, to_any_timestamp(from_date), to_any_timestamp(at_date), status)
+            #sql = "SELECT COUNT(*) FROM testcasehistory th1, (SELECT id, planid, max(time) as maxtime FROM testcasehistory WHERE planid = '%s' AND time > %s AND time <= %s GROUP BY planid, id) th2 WHERE th1.time = th2.maxtime AND th1.id = th2.id AND th1.planid = th2.planid AND th1.status = '%s'" % (testplan, to_any_timestamp(from_date), to_any_timestamp(at_date), status)
+            sql = "SELECT COUNT(*) FROM testcasehistory th1, (SELECT id, planid, max(time) as maxtime FROM testcasehistory WHERE planid = '%s' AND time > %s AND time <= %s GROUP BY planid, id) th2 WHERE th1.time = th2.maxtime AND th1.id = th2.id AND th1.planid = th2.planid AND th1.status = '%s'" % (testplan, to_any_timestamp(from_date), to_any_timestamp(at_date), status)
 
         cursor.execute(sql)
 
@@ -182,6 +191,10 @@ class TestStatsPlugin(Component):
     def process_request(self, req):
         testmanagersystem = TestManagerSystem(self.env)
         tc_statuses = testmanagersystem.get_tc_statuses_by_color()
+
+        if 'testmanager' in self.config:
+            self.default_days_back = self.config.getint('testmanager', 'default_days_back', TESTMANAGER_DEFAULT_DAYS_BACK)
+            self.default_interval = self.config.getint('testmanager', 'default_interval', TESTMANAGER_DEFAULT_INTERVAL)
         
         req_content = req.args.get('content')
         testplan = None
@@ -312,6 +325,7 @@ class TestStatsPlugin(Component):
                 for tc_outcome in tc_statuses['red']:
                     num_all_failed += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
 
+                num_all = 0
                 num_all_untested = 0
                 if testplan_contains_all:
                     num_all = self._get_num_testcases(None, cur_date, catpath, req)
@@ -319,6 +333,7 @@ class TestStatsPlugin(Component):
                 else:
                     for tc_outcome in tc_statuses['yellow']:
                         num_all_untested += self._get_num_tcs_by_status(from_date, cur_date, tc_outcome, testplan, req)
+                    num_all = num_all_untested + num_all_successful + num_all_failed
 
 
                 count.append( {'from_date': format_date(last_date),
@@ -413,7 +428,6 @@ class TestStatsPlugin(Component):
             data['baseurl'] = req.base_url
             data['testplans'] = testplan_list
             data['ctestplan'] = testplan
-            data['yui_base_url'] = self.yui_base_url
             return 'testmanagerstats.html', data, None
  
     # ITemplateProvider methods

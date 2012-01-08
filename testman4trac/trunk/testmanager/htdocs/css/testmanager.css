@@ -107,6 +107,11 @@ ul.statusContextMenuUl > li > ul > li:hover {
 	background-color: purple;
 }
 
+@media print {
+    .collapsed > div, .collapsed > table, .collapsed > ul, .collapsed > dl { 
+        display: block; 
+    }
+}
 .ninja {
     color: black;
     visibility: hidden;

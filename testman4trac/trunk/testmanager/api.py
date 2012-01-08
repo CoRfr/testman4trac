@@ -1,6 +1,23 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010 Roberto Longobardi
+# Copyright (C) 2010-2011 Roberto Bordolanghi
+# 
+# This file is part of the Test Manager plugin for Trac.
+# 
+# The Test Manager plugin for Trac is free software: you can 
+# redistribute it and/or modify it under the terms of the GNU 
+# General Public License as published by the Free Software Foundation, 
+# either version 3 of the License, or (at your option) any later 
+# version.
+# 
+# The Test Manager plugin for Trac is distributed in the hope that it 
+# will be useful, but WITHOUT ANY WARRANTY; without even the implied 
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+# See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with the Test Manager plugin for Trac. See the file LICENSE.txt. 
+# If not, see <http://www.gnu.org/licenses/>.
 #
 
 import csv
@@ -14,14 +31,19 @@ import traceback
 
 from datetime import datetime
 from operator import itemgetter
+from StringIO import StringIO
 
 from trac.core import *
+from trac.mimeview.api import Context
 from trac.perm import IPermissionRequestor, PermissionError
 from trac.resource import Resource, IResourceManager, render_resource_link, get_resource_url
-from trac.util import get_reporter_id
+from trac.util import get_reporter_id, format_datetime, format_date
 from trac.util.datefmt import utc
 from trac.web.api import IRequestHandler
+from trac.web.chrome import add_notice, add_warning, add_stylesheet
+from trac.wiki.formatter import Formatter, format_to_html
 from trac.wiki.model import WikiPage
+from trac.wiki.parser import WikiParser
 
 from tracgenericclass.model import GenericClassModelProvider
 from tracgenericclass.util import *
@@ -37,6 +59,7 @@ except ImportError:
 	tag_ = _
 	add_domain = lambda env_path, locale_dir: None
 
+    
 class TestManagerSystem(Component):
     """Test Manager system for Trac."""
 
@@ -50,6 +73,7 @@ class TestManagerSystem(Component):
     
     TEMPLATE_TYPE_TESTCASE = 'TC'
     TEMPLATE_TYPE_TESTCATALOG = 'TCAT'
+    DOUBLE_QUOTES = re.compile("\"")
 
     outcomes_by_color = {}
     outcomes_by_name = {}
@@ -279,6 +303,8 @@ class TestManagerSystem(Component):
             match = True
         elif (req.path_info.startswith('/testimport') and ('TEST_MODIFY' in req.perm)):
             match = True
+        elif (req.path_info.startswith('/testexport') and ('TEST_VIEW' in req.perm)):
+            match = True
             
         return match
 
@@ -313,7 +339,7 @@ class TestManagerSystem(Component):
                 self.env.log.error(formatExceptionInfo())
         
         elif req.path_info.startswith('/testcreate'):
-            type = req.args.get('type')
+            object_type = req.args.get('type')
             path = req.args.get('path')
             title = req.args.get('title')
 
@@ -323,11 +349,11 @@ class TestManagerSystem(Component):
             paste = req.args.get('paste')
             tcId = req.args.get('tcId')
 
-            id = self.get_next_id(type)
+            id = self.get_next_id(object_type)
 
             pagename = path
             
-            if type == 'catalog':
+            if object_type == 'catalog':
                 req.perm.require('TEST_MODIFY')
                 pagename += '_TT'+str(id)
 
@@ -349,7 +375,7 @@ class TestManagerSystem(Component):
                 # Redirect to see the new wiki page.
                 req.redirect(req.href.wiki(pagename))
                 
-            elif type == 'testplan':
+            elif object_type == 'testplan':
                 req.perm.require('TEST_PLAN_ADMIN')
 
                 contains_all_str = req.args.get('containsAll', 'true')
@@ -378,7 +404,7 @@ class TestManagerSystem(Component):
                 # Display the new test plan
                 req.redirect(req.href.wiki(path, planid=str(id)))
                     
-            elif type == 'testcase':
+            elif object_type == 'testcase':
                 req.perm.require('TEST_MODIFY')
                 
                 pagename += '_TC'+str(id)
@@ -417,7 +443,7 @@ class TestManagerSystem(Component):
                                     self.env.log.debug("Test case not found")
 
                             # Generate a new Id for the next iteration
-                            id = self.get_next_id(type)
+                            id = self.get_next_id(object_type)
                             pagename = path + '_TC'+str(id)
                                     
                     except:
@@ -474,13 +500,13 @@ class TestManagerSystem(Component):
                     req.redirect(req.href.wiki(pagename, action='edit'))
 
         elif req.path_info.startswith('/testdelete'):
-            type = req.args.get('type')
+            object_type = req.args.get('type')
             path = req.args.get('path')
             author = get_reporter_id(req, 'author')
             mode = req.args.get('mode', 'tree')
             fulldetails = req.args.get('fulldetails', 'False')
 
-            if type == 'testplan':
+            if object_type == 'testplan':
                 req.perm.require('TEST_PLAN_ADMIN')
                 
                 planid = req.args.get('planid')
@@ -534,6 +560,31 @@ class TestManagerSystem(Component):
                     
                     return 'testimportresults.html', testcaseimport_info, None
                     
+        elif req.path_info.startswith('/testexport'):
+            object_type = req.args.get('type')
+            cat_name = req.args.get('cat_name')
+            planid = req.args.get('planid', '-1')
+            separator = req.args.get('separator', ',')
+            fulldetails_str = req.args.get('fulldetails', '')
+            raw_wiki_format_str = req.args.get('raw_wiki_format', '')
+            
+            catid = cat_name.rpartition('_TT')[2]
+            fulldetails = (fulldetails_str == 'on')
+            raw_wiki_format = (raw_wiki_format_str == 'on')
+
+            context = Context.from_request(req, WikiPage('TC').resource)
+
+            data_model = self.get_test_catalog_data_model(cat_name, (planid != '-1'), planid)
+            csvstr = self.get_catalog_model_csv_markup(context, planid, data_model, catid, separator, (planid != '-1'), fulldetails, raw_wiki_format)
+            
+            if isinstance(csvstr, unicode): 
+                csvstr = csvstr.encode('utf-8') 
+
+            req.send_header("Content-Length", len(csvstr))
+            req.send_header("Content-Disposition", "attachment;filename=Test_catalogs.csv")
+            req.write(csvstr)
+            return
+
         elif req.path_info.startswith('/testman4debug'):
             id = req.args.get('id')
             path = req.args.get('path')
@@ -937,4 +988,398 @@ class TestManagerSystem(Component):
             items.append(cat)
             
         return sorted(items, key=itemgetter('title'))
+
+    def get_test_catalog_data_model(self, pagename, include_status=False, planid=None, sortby='name'):
+        
+        # Create the catalog subtree model
+        if pagename != 'TC':
+            tcat_id = pagename.rpartition('_TT')[2]
+            tcat = TestCatalog(self.env, tcat_id)
+
+            components = {'id': pagename, 'name': pagename.rpartition('_')[2], 'title': tcat.title, 'childrenC': {},'childrenT': {}, 'tot': 0}
+        else:
+            components = {'name': pagename, 'childrenC': {},'childrenT': {}, 'tot': 0}
+
+        if planid is not None:
+            tp = TestPlan(self.env, planid)
+            contains_all = tp['contains_all']
+            snapshot = tp['freeze_tc_versions']
+        else:
+            contains_all = True
+            snapshot = False
+
+        ts = 0
+        author = ''
+        status = ''
+        version = -1                
+
+        default_status = self.get_default_tc_status()
+        
+        unique_idx = 0
+
+        for subpage_name, text in self.list_matching_subpages(pagename+'_'):
+            subpage_title = get_page_title(text)
+
+            path_name = subpage_name.partition(pagename+'_')[2]
+            tokens = path_name.split("_")
+            parent = components
+            ltok = len(tokens)
+            count = 1
+            curr_path = pagename
+            for tc in tokens:
+                curr_path += '_'+tc
+                
+                if tc == '':
+                    break
+
+                if not tc.startswith('TC'):
+                    # It is a test catalog page
+                    comp = {}
+                    if (tc not in parent['childrenC']):
+                        comp = {'id': curr_path, 'name': tc, 'title': subpage_title, 'childrenC': {},'childrenT': {}, 'tot': 0, 'parent': parent}
+                        parent['childrenC'][tc]=comp
+                    else:
+                        comp = parent['childrenC'][tc]
+                    parent = comp
+
+                else:
+                    # It is a test case page
+                    tc_id = tc.partition('TC')[2]
+                    
+                    if include_status:
+                        tcip = TestCaseInPlan(self.env, tc_id, planid)
+                        if tcip.exists:
+                            version = tcip['page_version']
+
+                            for ts, author, status in tcip.list_history():
+                                break
+                            
+                            if not isinstance(ts, datetime):
+                                ts = from_any_timestamp(ts)
+
+                        else:
+                            if not contains_all:
+                                continue
+                                
+                            ts = tp['time']
+                            author = tp['author']
+                            status = default_status
+                            version = -1                
+                        
+                    if sortby == 'name':
+                        key = subpage_title
+                    else:
+                        key = ts.isoformat()
+
+                    if key in parent['childrenT']:
+                        unique_idx += 1
+                        key = key+str(unique_idx)
+                        
+                    parent['childrenT'][key]={'id':curr_path, 'tc_id': tc_id, 'title': subpage_title, 'status': status.lower(), 'ts': ts, 'author': author, 'version': version}
+                    compLoop = parent
+                    
+                    while (True):
+                        compLoop['tot']+=1
+                        if ('parent' in compLoop):
+                            compLoop = compLoop['parent']
+                        else:
+                            break
+                count+=1
+
+        return components
+        
+    def get_catalog_model_csv_markup(self, context, planid, components, root_catalog_id, separator=',', include_status=False, fulldetails=False, raw_wiki_format=True):
+        # Generate the markup
+        ind = {'count': 0}
+        text = ''
+        
+        tcat_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcatalog')
+        tcat_has_custom = tcat_fields is not None and len(tcat_fields) > 0
+        
+        tc_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcase')
+        tc_has_custom = tc_fields is not None and len(tc_fields) > 0
+        
+        tcip_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcaseinplan')
+        tcip_has_custom = tcip_fields is not None and len(tcip_fields) > 0
+
+        tp_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testplan')
+        tp_has_custom = tp_fields is not None and len(tp_fields) > 0
+
+        custom_ctx = {
+            'testcatalog': [tcat_has_custom, tcat_fields],
+            'testcase': [tc_has_custom, tc_fields],
+            'testcaseinplan': [tcip_has_custom, tcip_fields],
+            'testplan': [tp_has_custom, tp_fields]
+            }
+
+        text += _("Type")+separator+_("ID")+separator+_("Parent ID")
+        
+        if include_status:
+            text += separator+_("Test Plan Title")
+         
+        text += separator+_("Title")
+            
+        if include_status:
+            text += separator+_("Contains all Test Cases")+separator+_("Snapshot")
+        
+        # Include long description only if required
+        if fulldetails:
+            text += separator+_("Description")
+
+        # Custom testcatalog columns
+        if custom_ctx['testcatalog'][0]:
+            for f in custom_ctx['testcatalog'][1]:
+                if f['type'] == 'text':
+                    text += separator+f['label']
+
+        # Custom testplan columns
+        if include_status and custom_ctx['testplan'][0]:
+            for f in custom_ctx['testplan'][1]:
+                if f['type'] == 'text':
+                    text += separator+f['label']
+                    
+        # Custom testcase columns
+        if custom_ctx['testcase'][0]:
+            for f in custom_ctx['testcase'][1]:
+                if f['type'] == 'text':
+                    text += separator+f['label']
+
+        # Base testcaseinplan columns
+        if include_status:
+            text += separator+_("Status")+separator+_("Author")+separator+_("Last Change")
+        
+            # Custom testcaseinplan columns
+            if custom_ctx['testcaseinplan'][0]:
+                for f in custom_ctx['testcaseinplan'][1]:
+                    if f['type'] == 'text':
+                        text += separator+f['label']
+
+        text += '\r\n'
+
+        text += self._get_catalog_csv_markup(context, planid, components, 0, None, '', custom_ctx, separator, include_status, fulldetails, raw_wiki_format)
+        text += self._get_subtree_csv_markup(context, planid, components, ind, 0, None, root_catalog_id, custom_ctx, separator, include_status, fulldetails, raw_wiki_format)
+
+        return text
+
+    # Render a single catalog in CSV
+    def _get_catalog_csv_markup(self, context, planid, data, level, tp=None, parent_id='', custom_ctx=None, separator=',', include_status=False, fulldetails=False, raw_wiki_format=True):
+        text = ''
+
+        tcat_id = data['id'].rpartition('TT')[2]
+        tcat = TestCatalog(self.env, tcat_id)
+        tcat_title = data['title']
+        
+        object_type = 'testcatalog'
+        if (level == 0):
+            object_type = ('testplan', 'testcatalog')[planid=='-1']
+
+        # Common columns
+        text += object_type
+        
+        tplan_title = ''
+        tplan_contains_all = ''
+        tplan_freeze_tc_versions = ''
+
+        # Common columns
+        if object_type == 'testplan':
+            tp = TestPlan(self.env, planid)
+            if tp.exists:
+                tplan_title = tp['name']
+                tplan_contains_all = (_("No"), _("Yes"))[tp['contains_all']]
+                tplan_freeze_tc_versions = (_("No"), _("Yes"))[tp['freeze_tc_versions']]
+
+            text += separator+planid+separator+tcat_id+separator+tplan_title+separator+((3*level) * ' ')+tcat_title+separator+tplan_contains_all+separator+tplan_freeze_tc_versions
+        else:
+            text += separator+tcat_id+separator+parent_id+separator+((3*level) * ' ')+tcat_title
+
+        # Include long description only if required
+        if fulldetails:
+            description = self._get_object_description(tcat.description, raw_wiki_format, context)
+            text += separator+description
+            
+        # Custom testcatalog columns
+        if custom_ctx['testcatalog'][0]:
+            text += self._get_custom_fields_columns(tcat, custom_ctx['testcatalog'][1], separator)
+        
+        if object_type == 'testplan':
+            # Custom testplan columns
+            if custom_ctx['testplan'][0]:
+                text += self._get_custom_fields_columns(tp, custom_ctx['testplan'][1], separator)
+
+        text += '\r\n'
+
+        if ('childrenT' in data):            
+            cmtData=data['childrenT']
+            tcat_id = data['id'].rpartition('TT')[2]
+            text += self._get_testcases_csv_markup(context, planid, cmtData, level+1, tp, tcat_id, custom_ctx, separator, include_status, fulldetails, raw_wiki_format)
+                    
+        return text
+
+    # Render the subtree in CSV
+    def _get_subtree_csv_markup(self, context, planid, components, ind, level, tp=None, parent_id='', custom_ctx=None, separator=',', include_status=False, fulldetails=False, raw_wiki_format=True):
+        text = ''
+
+        if (level == 0):
+            data = components['childrenC']
+        else:
+            data = components
+
+        keyList = data.keys()
+        sortedList = sorted(keyList)
+        for x in sortedList:
+            ind['count'] += 1
+            comp = data[x]
+            if ('childrenC' in comp):
+                subcData=comp['childrenC']
+                
+                index = str(ind['count'])
+
+                tcat_id = comp['id'].rpartition('TT')[2]
+                tcat = TestCatalog(self.env, tcat_id)
+                
+                # Common columns
+                text += 'testcatalog'+separator+tcat_id+separator+parent_id
+
+                if include_status:
+                    text += separator+''+separator+((3*(level+1)) * ' ')+comp['title']+separator+separator
+                else:
+                    text += separator+((3*(level+1)) * ' ')+comp['title']
+
+                # Include long description only if required
+                if fulldetails:
+                    description = self._get_object_description(tcat.description, raw_wiki_format, context)
+                    text += separator+description
+                    
+                # Custom testcatalog columns
+                if custom_ctx['testcatalog'][0]:
+                    text += self._get_custom_fields_columns(tcat, custom_ctx['testcatalog'][1], separator)
+
+                # Custom testplan columns
+                if include_status and custom_ctx['testplan'][0]:
+                    for f in custom_ctx['testplan'][1]:
+                        text += separator
+                
+                text += '\r\n'
+                    
+                ind['count']+=1
+                text += self._get_subtree_csv_markup(context, planid, subcData, ind, level+1, tp, tcat_id, custom_ctx, separator, include_status, fulldetails, raw_wiki_format)
+                if ('childrenT' in comp):            
+                    mtData=comp['childrenT']
+                    text += self._get_testcases_csv_markup(context, planid, mtData, level+1, tp, tcat_id, custom_ctx, separator, include_status, fulldetails, raw_wiki_format)
+
+        return text
+
+    def _get_testcases_csv_markup(self, context, planid, data, level=0, tp=None, parent_id='', custom_ctx=None, separator=',', include_status=False, fulldetails=False, raw_wiki_format=True): 
+
+        if include_status:
+            object_type = 'testcaseinplan'
+        else:
+            object_type = 'testcase'
+            
+        text=''
+        keyList = data.keys()
+        sortedList = sorted(keyList)
+        for x in sortedList:
+            tick = data[x]
+            status = tick['status']
+
+            version = tick['version']
+            version_str = (str(version), '')[version == -1]
+
+            tc = None
+            if fulldetails or custom_ctx['testcase'][0]:
+                tc = TestCase(self.env, tick['tc_id'])
+
+            # Common columns
+            text += object_type+separator+tick['tc_id']+separator+parent_id
+            
+            if include_status:
+                text += separator
+
+            text += separator+((3*(level+1)) * ' ')+tick['title']
+
+            if include_status:
+                text += separator+separator
+
+            if fulldetails:
+                description = self._get_object_description(tc.description, raw_wiki_format, context)
+                text += separator+description
+                        
+            # Custom testcatalog columns
+            if custom_ctx['testcatalog'][0]:
+                for f in custom_ctx['testcatalog'][1]:
+                    text += separator
+
+            # Custom testplan columns
+            if include_status and custom_ctx['testplan'][0]:
+                for f in custom_ctx['testplan'][1]:
+                    text += separator
+
+            # Custom testcase columns
+            if custom_ctx['testcase'][0]:
+                if tc and tc.exists:
+                    text += self._get_custom_fields_columns(tc, custom_ctx['testcase'][1], separator)
+                else:
+                    for f in custom_ctx['testcase'][1]:
+                        text += separator
+
+            has_status = False
+            if include_status:
+                if status is not None and len(status) > 0 and status != '__none__':
+                    # Base testcaseinplan columns
+                    text += separator+status+separator+tick['author']+separator+format_datetime(tick['ts'])
+                else:
+                    text += separator+separator+separator
+            
+                # Custom testcaseinplan columns
+                if custom_ctx['testcaseinplan'][0]:
+                    tcip = TestCaseInPlan(self.env, tick['tc_id'], planid)
+                    if tcip and tcip.exists:
+                        text += self._get_custom_fields_columns(tcip, custom_ctx['testcaseinplan'][1], separator)
+                    else:
+                        for f in custom_ctx['testcaseinplan'][1]:
+                            text += separator
+
+            text += '\r\n'
+
+        return text
+
+    def _get_object_description(self, text, raw_wiki_format, context):
+        if raw_wiki_format:
+            description = re.sub(self.DOUBLE_QUOTES, "\"\"", text)
+        else:
+            wikidom = WikiParser(self.env).parse(text)
+            out = StringIO()
+            f = Formatter(self.env, context)
+            f.reset(wikidom)
+            f.format(wikidom, out, False)
+            description = re.sub(self.DOUBLE_QUOTES, "\"\"", out.getvalue())
+
+        return '"' + description + '"'
+
+    def _get_custom_fields_columns(self, obj, fields, separator):
+        result = ''
+        
+        for f in fields:
+            if f['type'] == 'text':
+                result += separator
+                if obj[f['name']] is not None:
+                    result += obj[f['name']]
+
+            # TODO Support other field types
+
+        return result
+        
+    def list_matching_subpages(self, curpage):
+        db = get_db(self.env)
+        cursor = db.cursor()
+
+        sql = "SELECT w1.name, w1.text, w1.version FROM wiki w1, (SELECT name, max(version) as ver FROM wiki WHERE name LIKE '%s%%' GROUP BY name) w2 WHERE w1.version = w2.ver AND w1.name = w2.name ORDER BY w2.name" % curpage
+        
+        cursor.execute(sql)
+        for name, text, version in cursor:
+            yield name, text
+        
+        return
+        
 

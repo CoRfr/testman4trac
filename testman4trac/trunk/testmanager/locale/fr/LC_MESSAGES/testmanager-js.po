@@ -1,0 +1,60 @@
+# French translations for TestManager.
+# Copyright (C) 2011 Roberto Bordolanghi
+# This file is distributed under the same license as the TestManager
+# project.
+#
+# Translators:
+# <frederic.chareyron@c-s.fr>, 2011.
+msgid ""
+msgstr ""
+"Project-Id-Version: Test Manager for Trac plugin\n"
+"Report-Msgid-Bugs-To: http://trac-hacks.org/wiki/TestManagerForTracPlugin"
+"\n"
+"POT-Creation-Date: 2012-01-03 23:58+0100\n"
+"PO-Revision-Date: 2011-09-28 21:08+0000\n"
+"Last-Translator: chareyron <>\n"
+"Language-Team: French "
+"(http://www.transifex.net/projects/p/testman4trac/team/fr/)\n"
+"Plural-Forms: nplurals=2; plural=(n > 1)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 0.9.6\n"
+
+#: testmanager/htdocs/js/testmanager.js:33
+#: testmanager/htdocs/js/testmanager.js:52
+#: testmanager/htdocs/js/testmanager.js:71
+msgid "You must specify a name. Length between 4 and 90 characters."
+msgstr "Vous devez spécifier un nom. Longueur entre 4 et 90 caractères."
+
+#: testmanager/htdocs/js/testmanager.js:38
+#: testmanager/htdocs/js/testmanager.js:57
+#: testmanager/htdocs/js/testmanager.js:76
+msgid "Length between 4 and 90 characters."
+msgstr "Longueur entre 4 et 90 caractères."
+
+#: testmanager/htdocs/js/testmanager.js:151
+msgid "[Insert problem summary]"
+msgstr ""
+
+#: testmanager/htdocs/js/testmanager.js:163
+msgid ""
+"Are you sure you want to duplicate the test catalog and all its contained"
+" test cases?"
+msgstr ""
+"Êtes-vous sûr de vouloir dupliquer le Catalogue de Tests et toutes les "
+"Fiches de Test qu'il contient ?"
+
+#: testmanager/htdocs/js/testmanager.js:170
+msgid ""
+"Are you sure you want to delete the test plan and the state of all its "
+"contained test cases?"
+msgstr ""
+"Êtes-vous sûr de vouloir supprimer le Plan de Tests et l'état de toutes "
+"les Fiches de test qu'il contient ?"
+
+#: testmanager/htdocs/js/testmanager.js:402
+#: testmanager/htdocs/js/testmanager.js:557
+msgid "Results: "
+msgstr "Résultats :"
+

@@ -1,6 +1,21 @@
 Test Manager plugin for Trac
 
-  Copyright 2010 Roberto Longobardi
+  Copyright 2010-2011 Roberto Bordolanghi
+  
+  The Test Manager plugin for Trac is free software: you can 
+  redistribute it and/or modify it under the terms of the GNU General 
+  Public License as published by the Free Software Foundation, either 
+  version 3 of the License, or (at your option) any later version.
+  
+  The Test Manager plugin for Trac is distributed in the hope that it 
+  will be useful, but WITHOUT ANY WARRANTY; without even the implied 
+  warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+  See the GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with he Test Manager plugin for Trac. See LICENSE.txt.
+  If not, see <http://www.gnu.org/licenses/>.
+
 
   Project web page on TracHacks: http://trac-hacks.org/wiki/TestManagerForTracPlugin
   
@@ -9,16 +24,163 @@ Test Manager plugin for Trac
   Project web page on Pypi: http://pypi.python.org/pypi/TestManager
 
 
-A Trac plugin to create Test Cases, organize them in catalogs, generate test plans and track their execution status and outcome.
-
 Refer to BUILD.txt for details about how to build.
 
 Refer to INSTALL.txt for installation details.
+
+
+A Trac plugin to create Test Cases, organize them in catalogs, generate test plans 
+and track their execution status and outcome.
+
+The same code works well with Python 2.5, 2.6 and 2.7 and on Trac 0.11 and 0.12.
+The same egg file runs on both Trac 0.11 and 0.12.
+All database backends are supported.
+
+The Test Manager functionality is split up into three plugins:
+
+
+    TracGenericClass:
+    
+        This module provides a framework to help creating classes on Trac that:
+         * Are persisted on the DB
+         * Support change history
+         * Support extensibility through custom properties that the User can specify declaratively in the trac.ini file
+         * Support custom operations to be performed before and after the standard object lifecycle events.
+         * Listener interface for Components willing to be notified on any object lifecycle event (i.e. creation, modification, deletion).
+
+        Database tables are also automatically created by the framework as declaratively stated by the client Components.
+         
+        Also provides an intermediate class to build objects that wrap Wiki pages and have additional properties.
+
+
+        More details:
+
+        A generic object framework supporting programmatic and declarative definition of its standard fields, declarative definition of custom fields (in trac.ini) and keeping track of change history has been created, by generalizing the base Ticket code.
+
+        The specific object "type" is specified during construction as the "realm" parameter.
+        This name must also correspond to the database table storing the corresponding objects, and is used as the base name for the custom fields table and the change tracking table (see below).
+
+        Features:
+            * Support for custom fields, specified in the trac.ini file
+              with the same syntax as for custom Ticket fields. Custom
+              fields are kept in a "<schema>_custom" table
+            * Keeping track of all changes to any field, into a separate
+              "<schema>_change" table
+            * A set of callbacks to allow for subclasses to control and 
+              perform actions pre and post any operation pertaining the 
+              object's lifecycle
+            * Registering listeners, via the ITestObjectChangeListener
+              interface, for object creation, modification and deletion.
+            * Searching objects by similarity, i.e. matching any set of 
+              valorized fields (even non-key fields), applying the 
+              "dynamic record" pattern.
+              See the method list_matching_objects.
+            * Integration with the Trac Search page.
+            * Integration with the Trac Resource API.
+            * Support for declarative specification of the database 
+              backing a particular class. The tables are created 
+              automatically.
+            * Fine-grained security access control to any operation on 
+              any resource type or instance.
+
+
+    TracGenericWorkflow:
+    
+        Provides a framework to help creating workflows around any Trac Resource.
+
+        Features:
+            * Declarative definition of the workflow, specified in trac.ini.
+            * Same syntax as the basic Ticket workflow (I may have derived
+              some line of code from Trac itself... ;-))
+            * Easy GUI integration support. You can expose the workflow 
+              operation widgets anywhere in your application pages.
+            * Fine-grained authorization control. You can specify which role
+              is required to perform each state transition, and to execute
+              each corresponding action.
+            * Custom actions. An open API allows you to program your own 
+              custom actions to be executed at any workflow state transition.
+            * Out-of-the-box built-in actions are provided.
+            * XML-RPC remote API.
+
+
+    TestManager:
+        
+        Provides the test management-related funcitonality.
+        
+        Features:
+            * Define test cases and organize in test catalogs (test suites).
+            * Define a hierarchy of catalogs and sub-catalogs, whatever deep.
+            * Test case and catalogs versioning and history of changes.
+            * Test cases and catalogs support Wiki formatting and attachments.
+            * Copy/move individual or a set of test cases among catalogs.
+            * Define one or more test plans (test rounds) based on all or a portion 
+              of the test cases in a (sub-)catalog. Specify whether the test 
+              case version should be freezed in the test plan, or always link 
+              to the latest version. 
+            * One-click change status of a test case.
+            * Ticket integration: open tickets directly from a (failed) test case,
+              keep track of the relationship. Navigate froma a test case to its
+              related tickets and vice-versa.
+            * Test cases, catalogs and plans can have their own custom properties,
+              defined in trac.ini like tickets.
+            * Definition of custom test outcomes (statuses), in addition to the 
+              built-in "Untested", "Success", "Failed".
+            * Test execution statistical charts. Export to CSV.
+            * Statistical charts about tickets related to test plans. Export to CSV.
+            * Tree and tabular view of the test catalogs or test plans, and the 
+              contained test cases.
+            * Type-ahead searching and filtering from the tree and tabular view.
+            * Breadcrumbs to easily navigate through test catalogs and plans.
+            * Integration with Trac search engine.
+            * Fina-grained security with six new Trac permissions.
+            * Create templates for test cases and test catalogs. Specify which default
+              template should be used for test cases in any particular catalog.
+            * Import/export test cases from/to Excel in CSV format.
+            * National Language Support (NLS) and currently translated in Italian, 
+              French, German and Spanish.
+            * Remote APIs: XML-RPC, RESTful.
+            * Python API.
+              
+        
+An additional plugin is only useful for debugging and should not be installed 
+in a production environment.
+
+    SQLExecutor:
+    
+        Allows for running arbitrary SQL statements on the internal Trac database
+        from a simple web page, and see the results.
+
 
 =================================================================================================  
 Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
+
+Release 1.4.9 (2012-01-04):
+
+  o Enhancement #8958 (Track-Hacks): An ability to export test data to CSV format needed.
+                                     You can now export to CSV a test catalog or a test plan.
+                                     In the test catalog and test plan pages you will find an "Export ..." button.
+                                     The export format is designed to eventually import the stuff back into another 
+                                     Test Manager plugin evironment, as soon as a compatible import feature will be 
+                                     implemented :D (the current import feature is simpler than that.)
+
+  o Enhancement #9287 (Track-Hacks): New browser tab for existing testcases. Now you have an option in trac.ini to choose what
+                                     to do when clicking on a test case in the catalog/plan. 
+                                     The default is to NOT open it in a new window, but you can change that from the admin panel,
+                                     under Testmanage->Settings, or directly in the trac.ini file like this:
+                                     
+                                        [testmanager]
+                                        testcase.open_new_window = True
+
+  o Fixed Ticket #9297 (Track-Hacks): Can't print testplan table overview. There was a problem with the default print css from Trac.
+
+  o Fixed Ticket #9510 (Track-Hacks): TestStats for single Testplans at 1.4.8 not working - patched. 
+                                      Thanks so much Andreas for finding it and for patching it!!!
+
+  o Fixed Ticket #9530 (Track-Hacks): Expand all / Collapse all is not running
+
+  o Fixed Ticket #9654 (Track-Hacks): Error when creating test plans
 
 Release 1.4.8 (2011-10-23):
   o Strongly enhanced the upgrade mechanism. Now it's more robust, should work with all the databases and between arbitrary Test Manager versions.

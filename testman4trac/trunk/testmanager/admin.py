@@ -1,7 +1,25 @@
-"""
- Created by Christian Masopust 2011
- Copyright (c) 2011 Christian Masopust. All rights reserved.
-"""
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2011 Christian Masopust and Roberto Bordolanghi. 
+# All rights reserved.
+# 
+# This file is part of the Test Manager plugin for Trac.
+# 
+# The Test Manager plugin for Trac is free software: you can 
+# redistribute it and/or modify it under the terms of the GNU 
+# General Public License as published by the Free Software Foundation, 
+# either version 3 of the License, or (at your option) any later 
+# version.
+# 
+# The Test Manager plugin for Trac is distributed in the hope that it 
+# will be useful, but WITHOUT ANY WARRANTY; without even the implied 
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+# See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with the Test Manager plugin for Trac. See the file LICENSE.txt. 
+# If not, see <http://www.gnu.org/licenses/>.
+#
 
 import re
 import os.path
@@ -55,11 +73,14 @@ class TestManagerAdmin(Component):
             if req.method == 'POST':
                 default_days_back = req.args.get('default_days_back')
                 default_interval = req.args.get('default_interval')
-                yui_base_url = req.args.get('yui_base_url')
+                testplan_sortby = req.args.get('testplan_sortby')
+                open_new_window = req.args.get('open_new_window')
 
                 self.env.config.set('testmanager', 'default_days_back', default_days_back)
                 self.env.config.set('testmanager', 'default_interval', default_interval)
-                self.env.config.set('testmanager', 'yui_base_url', yui_base_url)
+                self.env.config.set('testmanager', 'testplan.sortby', testplan_sortby)
+                self.env.config.set('testmanager', 'testcase.open_new_window', ("False", "True")[open_new_window == "on"])
+
                 self.env.config.save()
                 add_notice(req, _("Settings saved"))
         except:
@@ -68,7 +89,8 @@ class TestManagerAdmin(Component):
 
         data['default_days_back'] = self.env.config.get('testmanager', 'default_days_back')
         data['default_interval'] = self.env.config.get('testmanager', 'default_interval')
-        data['yui_base_url'] = self.env.config.get('testmanager', 'yui_base_url')
+        data['testplan_sortby'] = self.env.config.get('testmanager', 'testplan.sortby')
+        data['open_new_window'] = self.env.config.get('testmanager', 'testcase.open_new_window')
 
         return 'admin_settings.html', data
 

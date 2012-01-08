@@ -1,7 +1,25 @@
-﻿/*- coding: utf-8
- *
- * Copyright (C) 2010 Roberto Longobardi - seccanj@gmail.com
- */
+﻿/* -*- coding: utf-8 -*-
+#
+# Copyright (C) 2010-2011 Roberto Bordolanghi
+# 
+# This file is part of the Test Manager plugin for Trac.
+# 
+# The Test Manager plugin for Trac is free software: you can 
+# redistribute it and/or modify it under the terms of the GNU 
+# General Public License as published by the Free Software Foundation, 
+# either version 3 of the License, or (at your option) any later 
+# version.
+# 
+# The Test Manager plugin for Trac is distributed in the hope that it 
+# will be useful, but WITHOUT ANY WARRANTY; without even the implied 
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+# See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with the Test Manager plugin for Trac. See the file LICENSE.txt. 
+# If not, see <http://www.gnu.org/licenses/>.
+#
+*/
 
 /******************************************************/
 /**         Test case, catalog, plan creation         */
@@ -272,7 +290,7 @@ function cancelTCsCopy() {
 }
 
 /******************************************************/
-/**                 Import Test Cases                 */
+/**         Import and export Test Cases              */
 /******************************************************/
 
 function importTestCasesIntoCatalog(catName) {
@@ -287,6 +305,22 @@ function importTestCasesCancel() {
 	(function($) {
         $(function() {
             $("#dialog_import").dialog('close');
+        });
+    })(jQuery_testmanager);	
+}
+
+function exportTestCasesFromCatalog(catName) {
+	(function($) {
+        $(function() {
+            $("#dialog_export").dialog({width: 640, height: 300, modal: true});
+        });
+    })(jQuery_testmanager);	
+}
+
+function exportTestCasesCancel() {
+	(function($) {
+        $(function() {
+            $("#dialog_export").dialog('close');
         });
     })(jQuery_testmanager);	
 }

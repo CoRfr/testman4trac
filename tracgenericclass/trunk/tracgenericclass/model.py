@@ -1,6 +1,23 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Longobardi
+# Copyright (C) 2010-2011 Roberto Bordolanghi
+# 
+# This file is part of the Test Manager plugin for Trac.
+# 
+# The Test Manager plugin for Trac is free software: you can 
+# redistribute it and/or modify it under the terms of the GNU 
+# General Public License as published by the Free Software Foundation, 
+# either version 3 of the License, or (at your option) any later 
+# version.
+# 
+# The Test Manager plugin for Trac is distributed in the hope that it 
+# will be useful, but WITHOUT ANY WARRANTY; without even the implied 
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+# See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with the Test Manager plugin for Trac. See the file LICENSE.txt. 
+# If not, see <http://www.gnu.org/licenses/>.
 #
 
 import copy
@@ -333,15 +350,16 @@ class AbstractVariableFieldsObject(object):
 
         # Fetch custom fields if available
         custom_fields = [f['name'] for f in self.fields if f.get('custom')]
-        cursor.execute(("SELECT name,value FROM %s_custom " + sql_where)
-                       % self.realm, self.get_key_prop_values())
+        if len(custom_fields) > 0:
+            cursor.execute(("SELECT name,value FROM %s_custom " + sql_where)
+                           % self.realm, self.get_key_prop_values())
 
-        for name, value in cursor:
-            if name in custom_fields:
-                if value is None:
-                    self.values[name] = '0'
-                else:
-                    self.values[name] = value
+            for name, value in cursor:
+                if name in custom_fields:
+                    if value is None:
+                        self.values[name] = '0'
+                    else:
+                        self.values[name] = value
 
         self.post_fetch_object(db)
         
@@ -493,7 +511,7 @@ class AbstractVariableFieldsObject(object):
         # Insert custom fields
         key_names = self.get_key_prop_names()
         key_values = self.get_key_prop_values()
-        if custom_fields:
+        if len(custom_fields) > 0:
             self.env.log.debug('  Inserting custom fields')
             cursor.executemany("""
             INSERT INTO %s_custom (%s,name,value) VALUES (%s,%%s,%%s)
@@ -583,16 +601,17 @@ class AbstractVariableFieldsObject(object):
                     % (self.realm, name),
                     to_list((self[name], key_values)))
             
-            cursor.execute(("""
-                INSERT INTO %s_change
-                    (%s, time,author,field,oldvalue,newvalue)
-                VALUES (%s, %%s, %%s, %%s, %%s, %%s)
-                """
-                % (self.realm, 
-                ','.join(key_names),
-                ','.join(['%s'] * len(key_names)))),
-                to_list((key_values, when_ts, author, name, 
-                self._old[name], self[name])))
+            if self.metadata['has_change']:
+                cursor.execute(("""
+                    INSERT INTO %s_change
+                        (%s, time,author,field,oldvalue,newvalue)
+                    VALUES (%s, %%s, %%s, %%s, %%s, %%s)
+                    """
+                    % (self.realm, 
+                    ','.join(key_names),
+                    ','.join(['%s'] * len(key_names)))),
+                    to_list((key_values, when_ts, author, name, 
+                    self._old[name], self[name])))
         
         self.post_save_changes(db)
 
@@ -642,10 +661,14 @@ class AbstractVariableFieldsObject(object):
                        
         cursor.execute(("DELETE FROM %s " + sql_where)
             % self.realm, key_values)
-        cursor.execute(("DELETE FROM %s_change " + sql_where)
-            % self.realm, key_values)
-        cursor.execute(("DELETE FROM %s_custom " + sql_where) 
-            % self.realm, key_values)
+            
+        if self.metadata['has_change']:
+            cursor.execute(("DELETE FROM %s_change " + sql_where)
+                % self.realm, key_values)
+                
+        if self.metadata['has_custom'] and len(custom_fields) > 0:
+            cursor.execute(("DELETE FROM %s_custom " + sql_where) 
+                % self.realm, key_values)
 
         self.post_delete(db)
                 
@@ -697,23 +720,24 @@ class AbstractVariableFieldsObject(object):
         """
         self.env.log.debug('>>> list_change_history')
 
-        std_fields = [f['name'] for f in self.fields
-                      if not f.get('custom')]
+        if self.metadata['has_change']:
+            std_fields = [f['name'] for f in self.fields
+                          if not f.get('custom')]
 
-        sql_where = "WHERE 1=1"
-        for k in self.get_key_prop_names():
-            sql_where += " AND " + k + "=%%s" 
+            sql_where = "WHERE 1=1"
+            for k in self.get_key_prop_names():
+                sql_where += " AND " + k + "=%%s" 
 
-        if db is None:
-            db = get_db(self.env, db)
+            if db is None:
+                db = get_db(self.env, db)
 
-        cursor = db.cursor()
+            cursor = db.cursor()
 
-        cursor.execute(("SELECT time,author,field,oldvalue,newvalue FROM %s_change " + sql_where+ " ORDER BY time DESC")
-                       % self.realm, self.get_key_prop_values())
+            cursor.execute(("SELECT time,author,field,oldvalue,newvalue FROM %s_change " + sql_where+ " ORDER BY time DESC")
+                           % self.realm, self.get_key_prop_values())
 
-        for ts, author, fname, oldvalue, newvalue in cursor:
-            yield ts, author, fname, oldvalue, newvalue
+            for ts, author, fname, oldvalue, newvalue in cursor:
+                yield ts, author, fname, oldvalue, newvalue
 
         self.env.log.debug('<<< list_change_history')
 
@@ -775,7 +799,7 @@ class AbstractVariableFieldsObject(object):
         """
         pass
             
-    def list_matching_objects(self, exact_match=True, db=None):
+    def list_matching_objects(self, exact_match=True, operator=None, db=None):
         """
         List the objects that match the current values of this object's
         fields.
@@ -804,9 +828,10 @@ class AbstractVariableFieldsObject(object):
         non_empty_std_values = self.get_values(non_empty_std_names)
         non_empty_custom_values = self.get_values(non_empty_custom_names)
 
-        operator = '='
-        if not exact_match:
-            operator = ' LIKE '
+        if operator == None:
+            operator = '='
+            if not exact_match:
+                operator = ' LIKE '
         
         sql_where = '1=1'
         for k in non_empty_std_names:

@@ -33,16 +33,17 @@
     }
 
 	</style>
-	
-    <script src="${yui_base_url}/build/yahoo-dom-event/yahoo-dom-event.js"></script>
-    <script src="${yui_base_url}/build/element/element-min.js"></script>
-    <script src="${yui_base_url}/build/datasource/datasource-min.js"></script>
-    <script src="${yui_base_url}/build/json/json-min.js"></script>
-    <script src="${yui_base_url}/build/swf/swf-min.js"></script>
+
+    <script src="chrome/testmanager/js/yahoo-dom-event.js"></script>
+    <script src="chrome/testmanager/js/element-min.js"></script>
+    <script src="chrome/testmanager/js/datasource-min.js"></script>
+    <script src="chrome/testmanager/js/json-min.js"></script>
+    <script src="chrome/testmanager/js/swf-min.js"></script>
+
     <!-- OPTIONAL: Connection (enables XHR) -->
-    <script src="${yui_base_url}/build/connection/connection-min.js"></script>
+    <script src="chrome/testmanager/js/connection-min.js"></script>
     <!-- Source files -->
-    <script src="${yui_base_url}/build/charts/charts-min.js"></script>
+    <script src="chrome/testmanager/js/charts-min.js"></script>
 
     <script type="text/javascript">
         var jQuery_trac_old = $.noConflict(true);
@@ -226,7 +227,7 @@
     setProvided();
 	updateStaticURL();
 
-	YAHOO.widget.Chart.SWFURL = "${yui_base_url}/build/charts/assets/charts.swf";
+	YAHOO.widget.Chart.SWFURL = "chrome/testmanager/js/charts.swf";
 
 	var myDataSource = new YAHOO.util.DataSource( "?content=chartdata" );
 
