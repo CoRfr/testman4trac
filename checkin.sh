@@ -7,7 +7,7 @@ cd testman4trac.$VER.SVN
 cp -R ../testman4trac.$VER/* .
 svn status
 svn add
-svn commit
+#svn commit
 
 cd ..
 
@@ -16,8 +16,8 @@ cd testman4trac.$VER.BITBKT
 cp -R ../testman4trac.$VER/* .
 hg status
 hg add
-hg commit
-hg push
+#hg commit
+#hg push
 
 cd ..
 #rm -rf testman4trac.$VER testman4trac.$VER.SVN testman4trac.$VER.BITBKT

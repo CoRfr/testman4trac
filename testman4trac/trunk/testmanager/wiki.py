@@ -611,7 +611,7 @@ class WikiTestManagerInterface(Component):
             
             text += '<tr>'
             text += '<td>'+format_datetime(from_any_timestamp(ts))+'</td>'
-            text += '<td>'+author+'</td>'
+            text += '<td>'+html_escape(author)+'</td>'
             text += '<td>'+fname+'</td>'
             text += '<td>'+oldvalue+'</td>'
             text += '<td>'+newvalue+'</td>'
@@ -1038,7 +1038,7 @@ class WikiTestManagerInterface(Component):
         for tp in sorted(cat.list_testplans(), cmp=lambda x,y: cmp(x['time'],y['time']), reverse=True):
             result += '<tr>'
             result += '<td><a title="'+_("Open Test Plan")+'" href="'+tp['page_name']+'?planid='+tp['id']+'">'+tp['name']+'</a></td>'
-            result += '<td>'+tp['author']+'</td>'
+            result += '<td>'+html_escape(tp['author'])+'</td>'
             result += '<td>'+format_datetime(tp['time'])+'</td>'
             
             if show_delete_button:
@@ -1304,7 +1304,7 @@ class WikiTestManagerInterface(Component):
 
             if has_status:
                 # Base testcaseinplan columns
-                text += '<td>'+statusLabel+'</td><td>'+tick['author']+'</td><td>'+format_datetime(tick['ts'])+'</td>'
+                text += '<td>'+statusLabel+'</td><td>'+html_escape(tick['author'])+'</td><td>'+format_datetime(tick['ts'])+'</td>'
 
                 # Custom testcaseinplan columns
                 if custom_ctx['testcaseinplan'][0]:
@@ -1425,7 +1425,7 @@ class WikiTestManagerInterface(Component):
 
             text += '<tr>'
             text += '<td>'+format_datetime(from_any_timestamp(ts))+'</td>'
-            text += '<td>'+author+'</td>'
+            text += '<td>'+html_escape(author)+'</td>'
             text += '<td>'+statusLabel+'</td>'
             text += '</tr>'
             
