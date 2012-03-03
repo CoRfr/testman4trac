@@ -20,6 +20,7 @@
 # If not, see <http://www.gnu.org/licenses/>.
 #
 
+from operator import itemgetter
 from StringIO import StringIO
 
 from trac.core import *
@@ -741,6 +742,15 @@ class WikiTestManagerInterface(Component):
         
         return result
     
+    def _get_error_dialog_markup(self, req):
+        result = """
+            <div id="dialog_error" style="padding:20px; display:none;" title="Error">
+                %s
+            </div>
+        """ % (_("An error occurred performing the operation.<br /><br />Please try again."))
+        
+        return result
+    
     def _write_common_code(self, req, add_statuses_and_colors=False, add_menu=False):
         add_stylesheet(req, 'common/css/report.css')
         add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.8.13.custom.css')
@@ -748,7 +758,7 @@ class WikiTestManagerInterface(Component):
 
         before_jquery = 'var baseLocation="'+fix_base_location(req)+'";' + \
             'var jQuery_trac_old = $.noConflict(true);'
-        after_jquery = 'var jQuery_testmanager = $.noConflict(true);$ = jQuery_trac_old;'
+        after_jquery = 'var jQuery_testmanager = $.noConflict(true);$ = jQuery_trac_old;jQuery = $;'
 
         if add_statuses_and_colors and 'TEST_EXECUTE' in req.perm:
             after_jquery += self._get_statuses_and_colors_javascript()
@@ -756,6 +766,7 @@ class WikiTestManagerInterface(Component):
             after_jquery += "var statuses_by_color = null;"
         
         common_code = tag.div()(
+            HTML(self._get_error_dialog_markup(req)),
             tag.script(before_jquery, type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/jquery-1.5.1.min.js', type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/jquery-ui-1.8.13.custom.min.js', type='text/javascript'),
@@ -1089,8 +1100,9 @@ class WikiTestManagerInterface(Component):
         if (level == 0):
             data = component['childrenC']
             text +='<ul style="list-style: none;">';
-        keyList = data.keys()
-        sortedList = sorted(keyList)
+        
+        sortedList = sorted(data, key=lambda k: data[k]['title'])
+        
         for x in sortedList:
             ind['count'] += 1
             text+='<li style="font-weight: normal">'
@@ -1134,8 +1146,7 @@ class WikiTestManagerInterface(Component):
         tc_target = ("", " target='_blank'")[self.open_new_window]
         
         text=''
-        keyList = data.keys()
-        sortedList = sorted(keyList)
+        sortedList = sorted(data)
         for x in sortedList:
             tick = data[x]
             status = tick['status']
@@ -1202,8 +1213,8 @@ class WikiTestManagerInterface(Component):
         if (level == 0):
             data = component['childrenC']
 
-        keyList = data.keys()
-        sortedList = sorted(keyList)
+        sortedList = sorted(data, key=lambda k: data[k]['title'])
+
         for x in sortedList:
             ind['count'] += 1
             comp = data[x]
@@ -1248,8 +1259,7 @@ class WikiTestManagerInterface(Component):
         tc_target = ("", " target='_blank'")[self.open_new_window]
         
         text=''
-        keyList = data.keys()
-        sortedList = sorted(keyList)
+        sortedList = sorted(data)
         for x in sortedList:
             tick = data[x]
             status = tick['status']

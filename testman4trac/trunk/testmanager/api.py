@@ -323,6 +323,8 @@ class TestManagerSystem(Component):
             path = req.args.get('path')
             status = req.args.get('status')
 
+            result = 'ERROR'
+
             try:
                 self.env.log.debug("Setting status %s to test case %s in plan %s" % (status, id, planid))
                 tcip = TestCaseInPlan(self.env, id, planid)
@@ -334,9 +336,15 @@ class TestManagerSystem(Component):
                     tcip['page_name'] = tc['page_name']
                     tcip.set_status(status, author)
                     tcip.insert()
+
+                result = 'OK'
                 
             except:
                 self.env.log.error(formatExceptionInfo())
+
+            req.send_header("Content-Length", len(result))
+            req.write(result)
+            return 
         
         elif req.path_info.startswith('/testcreate'):
             object_type = req.args.get('type')
@@ -586,6 +594,8 @@ class TestManagerSystem(Component):
             return
 
         elif req.path_info.startswith('/testman4debug'):
+            req.perm.require('TRAC_ADMIN')
+            
             id = req.args.get('id')
             path = req.args.get('path')
             planid = req.args.get('planid')

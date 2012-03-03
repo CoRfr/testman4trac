@@ -4,11 +4,12 @@
 # project.
 # FIRST AUTHOR <EMAIL@ADDRESS>, 2012.
 #
+#, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: TestManager 1.4.9\n"
+"Project-Id-Version: TestManager 1.4.10\n"
 "Report-Msgid-Bugs-To: seccanj@gmail.com\n"
-"POT-Creation-Date: 2012-01-03 23:58+0100\n"
+"POT-Creation-Date: 2012-03-03 23:25+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"

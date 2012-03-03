@@ -1,24 +1,25 @@
-# Translations template for TestManager.
+# German translations for TestManager.
 # Copyright (C) 2012 Roberto Bordolanghi
 # This file is distributed under the same license as the TestManager
 # project.
-# 
+#
 # Translators:
-#   <andreas.podskalsky@siemens.com>, 2011, 2012.
+# <andreas.podskalsky@siemens.com>, 2011, 2012.
 msgid ""
 msgstr ""
 "Project-Id-Version: Test Manager for Trac plugin\n"
-"Report-Msgid-Bugs-To: http://trac-hacks.org/wiki/TestManagerForTracPlugin\n"
-"POT-Creation-Date: 2012-01-03 23:58+0100\n"
+"Report-Msgid-Bugs-To: http://trac-hacks.org/wiki/TestManagerForTracPlugin"
+"\n"
+"POT-Creation-Date: 2012-03-03 23:25+0100\n"
 "PO-Revision-Date: 2012-01-04 07:24+0000\n"
 "Last-Translator: podskalsky <andreas.podskalsky@siemens.com>\n"
-"Language-Team: German (http://www.transifex.net/projects/p/testman4trac/team/de/)\n"
+"Language-Team: German "
+"(http://www.transifex.net/projects/p/testman4trac/team/de/)\n"
+"Plural-Forms: nplurals=2; plural=(n != 1)\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 0.9.6\n"
-"Language: de\n"
-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
 
 #: testmanager/htdocs/js/testmanager.js:33
 #: testmanager/htdocs/js/testmanager.js:52
@@ -38,11 +39,11 @@ msgstr "[Problem Zusammenfassung einfügen]"
 
 #: testmanager/htdocs/js/testmanager.js:163
 msgid ""
-"Are you sure you want to duplicate the test catalog and all its contained "
-"test cases?"
+"Are you sure you want to duplicate the test catalog and all its contained"
+" test cases?"
 msgstr ""
-"Sind Sie sich sicher, daß Sie dieses Testverzeichnis mit allen dazugehörigen"
-" Testfällen kopieren möchten?"
+"Sind Sie sich sicher, daß Sie dieses Testverzeichnis mit allen "
+"dazugehörigen Testfällen kopieren möchten?"
 
 #: testmanager/htdocs/js/testmanager.js:170
 msgid ""
@@ -56,5 +57,4 @@ msgstr ""
 #: testmanager/htdocs/js/testmanager.js:557
 msgid "Results: "
 msgstr "Ergebnisse:"
-
 

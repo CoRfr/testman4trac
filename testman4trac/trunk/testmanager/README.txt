@@ -156,6 +156,21 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.10 (2012-03-03):
+
+  o Enhancement #9751 (Track-Hacks): Ability to sort catalogs.
+                                     Test Catalogs are now sorted by title in the tree and table views.
+
+  o Fixed Ticket #9776 (Track-Hacks): Testplans not visible with latest Agilo Plugin.
+
+  o Fixed Ticket #9530 (Track-Hacks): Expand all / Collapse all is not running.
+                                      This only happened with the Agilo plugin installed.
+
+  o Fixed Ticket #9754 (Track-Hacks): Setting test result seemingly succeeds with expired login.
+                                      Now operations such as setting a test case status and updating a custom field,
+                                      when failing will display a dialog box with an error message.
+  o Fixed Ticket #9758 (Track-Hacks): Can't delete Test Case in v1.4.9.
+
 Release 1.4.9 (2012-01-04):
 
   o Enhancement #8958 (Track-Hacks): An ability to export test data to CSV format needed.
@@ -177,8 +192,6 @@ Release 1.4.9 (2012-01-04):
 
   o Fixed Ticket #9510 (Track-Hacks): TestStats for single Testplans at 1.4.8 not working - patched. 
                                       Thanks so much Andreas for finding it and for patching it!!!
-
-  o Fixed Ticket #9530 (Track-Hacks): Expand all / Collapse all is not running
 
   o Fixed Ticket #9654 (Track-Hacks): Error when creating test plans
 

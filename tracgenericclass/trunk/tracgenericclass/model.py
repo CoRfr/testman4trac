@@ -665,10 +665,12 @@ class AbstractVariableFieldsObject(object):
         if self.metadata['has_change']:
             cursor.execute(("DELETE FROM %s_change " + sql_where)
                 % self.realm, key_values)
-                
-        if self.metadata['has_custom'] and len(custom_fields) > 0:
-            cursor.execute(("DELETE FROM %s_custom " + sql_where) 
-                % self.realm, key_values)
+
+        if self.metadata['has_custom']:
+            custom_fields = [f['name'] for f in self.fields if f.get('custom')]
+            if len(custom_fields) > 0:
+                cursor.execute(("DELETE FROM %s_custom " + sql_where) 
+                    % self.realm, key_values)
 
         self.post_delete(db)
                 

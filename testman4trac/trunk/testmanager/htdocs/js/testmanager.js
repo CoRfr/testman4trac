@@ -651,29 +651,45 @@ function changestate(tc, planid, path, newStatus, newStatusColor, newLabel) {
     
     result = doAjaxCall(url, "GET", "");
     
-    oldIconSpan = document.getElementById("tcStatus"+currStatusColor);
-    oldIconSpan.style.border="";
-    
-    newIconSpan = document.getElementById("tcStatus"+newStatusColor);
-    newIconSpan.style.border="2px solid black";
-    
-    displayNode("tcTitleStatusIcon"+currStatusColor, false);
+    // Handle errors in the Ajax call
+    if (result == 'OK') {
+        oldIconSpan = document.getElementById("tcStatus"+currStatusColor);
+        oldIconSpan.style.border="";
+        
+        newIconSpan = document.getElementById("tcStatus"+newStatusColor);
+        newIconSpan.style.border="2px solid black";
+        
+        displayNode("tcTitleStatusIcon"+currStatusColor, false);
 
-    document.getElementById("tcTitleStatusIcon"+newStatusColor).title = newLabel;
-    displayNode("tcTitleStatusIcon"+newStatusColor, true);
+        document.getElementById("tcTitleStatusIcon"+newStatusColor).title = newLabel;
+        displayNode("tcTitleStatusIcon"+newStatusColor, true);
 
-    currStatus = newStatus; 
-    currStatusColor = newStatusColor;
+        currStatus = newStatus; 
+        currStatusColor = newStatusColor;
+    } else {
+        (function($) {
+            $(function() {
+                $("#dialog_error").dialog({width: 320, height: 150, modal: true});
+            });
+        })(jQuery_testmanager);	
+    }
 }
 
 function changestateOnPlan(imgNodeId, tc, planid, newStatus, newStatusColor, newLabel) {
     var url = baseLocation+"/teststatusupdate?id="+tc+"&planid="+planid+"&status="+newStatus;
     result = doAjaxCall(url, "GET", "");
     
-    // TODO: Handle errors in the Ajax call
-    
-    $('#'+imgNodeId)[0].src = "../chrome/testmanager/images/"+newStatusColor+".png";
-    $('#'+imgNodeId)[0].title = newLabel;
+    // Handle errors in the Ajax call
+    if (result == 'OK') {
+        $('#'+imgNodeId)[0].src = "../chrome/testmanager/images/"+newStatusColor+".png";
+        $('#'+imgNodeId)[0].title = newLabel;
+    } else {
+        (function($) {
+            $(function() {
+                $("#dialog_error").dialog({width: 320, height: 150, modal: true});
+            });
+        })(jQuery_testmanager);	
+    }
 }
 
 function showColorOutcomes(imgNodeId, color) {
@@ -820,28 +836,30 @@ function displayNode(id, show, mode) {
 }
 
 function doAjaxCall(url, method, params) {
-    if (window.XMLHttpRequest) {
-        /* code for IE7+, Firefox, Chrome, Opera, Safari */
-         xmlhttp = new XMLHttpRequest();
-    } else {
-        /* code for IE6, IE5 */
-        xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+    try {
+        if (window.XMLHttpRequest) {
+            /* code for IE7+, Firefox, Chrome, Opera, Safari */
+             xmlhttp = new XMLHttpRequest();
+        } else {
+            /* code for IE6, IE5 */
+            xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        
+        xmlhttp.open(method, url, false);
+        
+        if (method == "POST") {
+            xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            params = "__FORM_TOKEN="+getCookie('trac_form_token')+"&"+params;
+        }
+        
+        xmlhttp.send(params);
+        responseText = xmlhttp.responseText;
+    } catch (e) {
+        responseText = 'ERROR';
     }
-    
-    xmlhttp.open(method, url, false);
-    
-    if (method == "POST") {
-        xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-        params = "__FORM_TOKEN="+getCookie('trac_form_token')+"&"+params;
-    }
-    
-    xmlhttp.send(params);
-    responseText = xmlhttp.responseText;
     
     return responseText;
 }
-
-
 
 function editField(name) {
     displayNode('custom_field_value_'+name, false);
@@ -864,12 +882,21 @@ function sendUpdate(realm, name) {
     
     result = doAjaxCall(url, "POST", params); 
 
-   	var readonlyField = document.getElementById("custom_field_value_"+name);
-    readonlyField.innerHTML = value;
+    // Handle errors in the Ajax call
+    if (result == 'OK') {
+        var readonlyField = document.getElementById("custom_field_value_"+name);
+        readonlyField.innerHTML = value;
 
-    displayNode('custom_field_value_'+name, true);
-    displayNode('custom_field_'+name, false);
-    displayNode('update_button_'+name, false);
+        displayNode('custom_field_value_'+name, true);
+        displayNode('custom_field_'+name, false);
+        displayNode('update_button_'+name, false);
+    } else {
+        (function($) {
+            $(function() {
+                $("#dialog_error").dialog({width: 320, height: 150, modal: true});
+            });
+        })(jQuery_testmanager);	
+    }
 }
 
 function getLocale() {

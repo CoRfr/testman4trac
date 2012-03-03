@@ -30,7 +30,7 @@ from datetime import datetime
 
 from trac.core import *
 from trac.perm import IPermissionRequestor
-from trac.util.text import CRLF
+from trac.util.text import CRLF, to_unicode
 from trac.util.translation import _, N_, gettext
 from trac.web.api import IRequestHandler
 from trac.web.chrome import ITemplateProvider, INavigationContributor
@@ -73,6 +73,7 @@ class SqlExecutor(Component):
         
         if req.path_info.startswith('/sqlexec'):
             sql = req.args.get('sql', '')
+            format = req.args.get('format', '')
             result = []
             message = ""
             
@@ -88,11 +89,11 @@ class SqlExecutor(Component):
                         curr_row = []
                         for i in row:
                             if isinstance(i, basestring):
-                                curr_row.append(i.encode('utf-8'))
+                                curr_row.append(to_unicode(i))
                             elif isinstance(i, long):
-                                curr_row.append(from_any_timestamp(i).isoformat() + ' (' + str(i) + ')')
+                                curr_row.append(to_unicode(str(from_any_timestamp(i).isoformat()) + ' (' + str(i) + ')'))
                             else:
-                                curr_row.append(str(i).encode('utf-8'))
+                                curr_row.append(to_unicode(str(i)))
                             
                         result.append(curr_row)
 
@@ -107,7 +108,26 @@ class SqlExecutor(Component):
                     self.env.log.debug("SqlExecutor - Exception: ")
                     self.env.log.debug(message)
 
-            data = {'sql': sql, 'result': result, 'message': message, 'baseurl': fix_base_location(req)}
+            if format == 'tab':
+                tsv_result = ''
+
+                for row in result:
+                    for col in row:
+                        tsv_result += '"' + col.replace('"','""') + '"\t'
+                    tsv_result += '\n'
+                
+                tsv_result = tsv_result.strip()
+                
+                if isinstance(tsv_result, unicode): 
+                    tsv_result = tsv_result.encode('utf-8') 
+
+                req.send_header("Content-Disposition", "filename=sqlresult.tsv")
+                req.send_header("Content-Length", len(tsv_result))
+                req.send_header("Content-Type", "text/tab-separated-values;charset=utf-8")
+                req.write(tsv_result)
+                return
+            else:
+                data = {'sql': sql, 'result': result, 'message': message, 'baseurl': fix_base_location(req)}
             
             return 'result.html', data, None
 
