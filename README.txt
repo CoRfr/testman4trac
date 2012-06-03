@@ -156,6 +156,18 @@ Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
 
+Release 1.4.11 (2012-06-03):
+
+  The data referential integrity in case of test catalog, test case and test plan deletion has been enhanced.
+  Deleting a test catalog now also deletes all of the contained sub-catalogs, test cases and test plans, as well
+  as the corresponding status change history.
+
+  o Fixed Ticket #9857 (Track-Hacks): Deleted test plan is still shown in Test Stats
+
+  o Fixed Ticket #9953 (Track-Hacks): Changing a testcase custom field value gives and error
+
+  o Fixed Ticket #10043 (Track-Hacks): Deleting "zombie" TestPlans
+
 Release 1.4.10 (2012-03-03):
 
   o Enhancement #9751 (Track-Hacks): Ability to sort catalogs.

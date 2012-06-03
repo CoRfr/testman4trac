@@ -11,7 +11,7 @@ msgstr ""
 "Project-Id-Version: Test Manager for Trac plugin\n"
 "Report-Msgid-Bugs-To: http://trac-hacks.org/wiki/TestManagerForTracPlugin"
 "\n"
-"POT-Creation-Date: 2012-03-03 23:25+0100\n"
+"POT-Creation-Date: 2012-06-03 12:56+0200\n"
 "PO-Revision-Date: 2012-01-03 23:06+0000\n"
 "Last-Translator: Roberto Longobardi <seccanj@gmail.com>\n"
 "Language-Team: Italian "
@@ -102,19 +102,19 @@ msgstr "I template di default per i Casi di Test sono stati aggiornati"
 msgid "Template saved"
 msgstr "Template salvato"
 
-#: testmanager/api.py:247 testmanager/wiki.py:600 testmanager/wiki.py:1045
-#: testmanager/wiki.py:1427
+#: testmanager/api.py:247 testmanager/wiki.py:640 testmanager/wiki.py:1085
+#: testmanager/wiki.py:1467
 msgid "Timestamp"
 msgstr "Timestamp"
 
-#: testmanager/api.py:247 testmanager/api.py:1159 testmanager/model.py:634
-#: testmanager/wiki.py:600 testmanager/wiki.py:998 testmanager/wiki.py:1045
-#: testmanager/wiki.py:1427
+#: testmanager/api.py:247 testmanager/api.py:1159 testmanager/model.py:683
+#: testmanager/wiki.py:640 testmanager/wiki.py:1038 testmanager/wiki.py:1085
+#: testmanager/wiki.py:1467
 msgid "Author"
 msgstr "Autore"
 
 #: testmanager/api.py:247 testmanager/api.py:260 testmanager/api.py:1159
-#: testmanager/model.py:627 testmanager/wiki.py:998 testmanager/wiki.py:1427
+#: testmanager/model.py:676 testmanager/wiki.py:1038 testmanager/wiki.py:1467
 msgid "Status"
 msgstr "Stato"
 
@@ -130,9 +130,9 @@ msgstr "Errore nell'aggiunta di un caso di test"
 msgid "Type"
 msgstr "Tipo"
 
-#: testmanager/api.py:1125 testmanager/model.py:615 testmanager/model.py:619
-#: testmanager/model.py:623 testmanager/model.py:630 testmanager/wiki.py:913
-#: testmanager/wiki.py:989
+#: testmanager/api.py:1125 testmanager/model.py:664 testmanager/model.py:668
+#: testmanager/model.py:672 testmanager/model.py:679 testmanager/wiki.py:953
+#: testmanager/wiki.py:1029
 msgid "ID"
 msgstr "ID"
 
@@ -148,7 +148,7 @@ msgstr "Titolo del Piano di Test"
 msgid "Title"
 msgstr "Titolo"
 
-#: testmanager/api.py:1133 testmanager/model.py:636
+#: testmanager/api.py:1133 testmanager/model.py:685
 msgid "Contains all Test Cases"
 msgstr "Contiene tutti i Casi di Test"
 
@@ -156,14 +156,14 @@ msgstr "Contiene tutti i Casi di Test"
 msgid "Snapshot"
 msgstr "Istantanea"
 
-#: testmanager/api.py:1137 testmanager/wiki.py:923
+#: testmanager/api.py:1137 testmanager/wiki.py:963
 #: testmanager/templates/admin_templates.html:28
 #: testmanager/templates/admin_templates.html:59
 #: testmanager/templates/admin_templates.html:139
 msgid "Description"
 msgstr "Descrizione"
 
-#: testmanager/api.py:1159 testmanager/wiki.py:998
+#: testmanager/api.py:1159 testmanager/wiki.py:1038
 msgid "Last Change"
 msgstr "Ultima Modifica"
 
@@ -175,24 +175,24 @@ msgstr "No"
 msgid "Yes"
 msgstr "Sì"
 
-#: testmanager/model.py:616 testmanager/model.py:620 testmanager/model.py:625
-#: testmanager/model.py:632
+#: testmanager/model.py:665 testmanager/model.py:669 testmanager/model.py:674
+#: testmanager/model.py:681
 msgid "Wiki page name"
 msgstr "Nome della pagina wiki"
 
-#: testmanager/model.py:624
+#: testmanager/model.py:673
 msgid "Plan ID"
 msgstr "ID del Piano"
 
-#: testmanager/model.py:626
+#: testmanager/model.py:675
 msgid "Wiki page version"
 msgstr "Versione della pagina wiki"
 
-#: testmanager/model.py:631
+#: testmanager/model.py:680
 msgid "Catalog ID"
 msgstr "ID del Catalogo"
 
-#: testmanager/model.py:633 testmanager/wiki.py:904 testmanager/wiki.py:980
+#: testmanager/model.py:682 testmanager/wiki.py:944 testmanager/wiki.py:1020
 #: testmanager/templates/admin_settings.html:32
 #: testmanager/templates/admin_templates.html:28
 #: testmanager/templates/admin_templates.html:59
@@ -200,31 +200,31 @@ msgstr "ID del Catalogo"
 msgid "Name"
 msgstr "Nome"
 
-#: testmanager/model.py:635
+#: testmanager/model.py:684
 msgid "Created"
 msgstr "Creato"
 
-#: testmanager/model.py:637
+#: testmanager/model.py:686
 msgid "Freeze Test Case versions"
 msgstr "Congela le versioni dei Casi di Test"
 
-#: testmanager/model.py:768 testmanager/wiki.py:365 testmanager/wiki.py:425
+#: testmanager/model.py:817 testmanager/wiki.py:405 testmanager/wiki.py:465
 msgid "Test Case"
 msgstr "Caso di Test"
 
-#: testmanager/model.py:772
+#: testmanager/model.py:821
 msgid "Test Plan"
 msgstr "Piano di Test: "
 
-#: testmanager/model.py:777 testmanager/stats.py:241
+#: testmanager/model.py:826 testmanager/stats.py:241
 msgid "Successful"
 msgstr "Passato"
 
-#: testmanager/model.py:778
+#: testmanager/model.py:827
 msgid "Untested"
 msgstr "Da Testare"
 
-#: testmanager/model.py:779 testmanager/stats.py:241
+#: testmanager/model.py:828 testmanager/stats.py:241
 msgid "Failed"
 msgstr "Fallito"
 
@@ -236,7 +236,29 @@ msgstr "Da Testare"
 msgid "Test Manager"
 msgstr "Test Manager"
 
-#: testmanager/wiki.py:158
+#: testmanager/wiki.py:150
+msgid ""
+"You cannot delete a Test Plan this way. Expand the Test Plans list under "
+"the corrisponding Catalog and use the X buttons to delete the Test Plans."
+msgstr ""
+"Non puoi eliminate un Piano di Test in questo modo. Espandi la lista dei "
+"Piani di Test sotto il corrispondente Catalogo e usa i bottoni con la 'X' "
+"per eliminare i Piani di Test"
+
+#: testmanager/wiki.py:159
+msgid "You cannot delete the root catalogs list."
+msgstr "Non è possibile eliminare la lista principale dei cataloghi di test."
+
+#: testmanager/wiki.py:164
+msgid ""
+"Deleting this Test Catalog will delete all the contained Test Catalogs, "
+"Test Cases, Test Plans and the status history of them."
+msgstr ""
+"Eliminando questo Catalogo di Test si elimineranno anche i sotto Cataloghi "
+"contenuti, i Casi di Test, i Piani di Test e la storia dei loro cambiamenti "
+"di stato."
+
+#: testmanager/wiki.py:188
 msgid ""
 "Select the catalog into which to paste the Test Cases and click on 'Paste"
 " the copied Test Cases here'. "
@@ -244,13 +266,13 @@ msgstr ""
 "Seleziona il catalogo dove incollare il Caso di Test copiato e clicca su "
 "'Sposta il Caso di Test copiato qui'. "
 
-#: testmanager/wiki.py:159 testmanager/wiki.py:163 testmanager/wiki.py:185
-#: testmanager/wiki.py:190 testmanager/wiki.py:355 testmanager/wiki.py:360
+#: testmanager/wiki.py:189 testmanager/wiki.py:193 testmanager/wiki.py:215
+#: testmanager/wiki.py:220 testmanager/wiki.py:395 testmanager/wiki.py:400
 #: testmanager/templates/admin_templates.html:155
 msgid "Cancel"
 msgstr "Annulla"
 
-#: testmanager/wiki.py:162
+#: testmanager/wiki.py:192
 msgid ""
 "Select the catalog into which to paste the Test Case and click on 'Move "
 "the copied Test Case here'. "
@@ -258,19 +280,19 @@ msgstr ""
 "Seleziona il catalogo dove incollare il Caso di Test copiato e clicca su "
 "'Sposta il Caso di Test copiato qui'. "
 
-#: testmanager/wiki.py:165
+#: testmanager/wiki.py:195
 msgid "Test Catalogs List"
 msgstr "Lista dei Cataloghi di Test"
 
-#: testmanager/wiki.py:168
+#: testmanager/wiki.py:198
 msgid "New Catalog:"
 msgstr "Nuovo Catalogo:"
 
-#: testmanager/wiki.py:169
+#: testmanager/wiki.py:199
 msgid "Add a Catalog"
 msgstr "Aggungi un Catalogo"
 
-#: testmanager/wiki.py:184
+#: testmanager/wiki.py:214
 msgid ""
 "Select the catalog (even this one) into which to paste the Test Cases and"
 " click on 'Paste the copied Test Cases here'. "
@@ -278,7 +300,7 @@ msgstr ""
 "Seleziona il catalogo (anche questo stesso) dove incollare i Casi di Test"
 " copiati e clicca su 'Incolla qui i Casi di Test copiati'. "
 
-#: testmanager/wiki.py:189
+#: testmanager/wiki.py:219
 msgid ""
 "Select the catalog (even this one) into which to paste the Test Case and "
 "click on 'Move the copied Test Case here'. "
@@ -286,71 +308,79 @@ msgstr ""
 "Seleziona il catalogo (anche questo stesso) dove incollare il Caso di "
 "Test copiato e clicca su 'Sposta il Caso di Test copiato qui'. "
 
-#: testmanager/wiki.py:193 testmanager/templates/admin_templates.html:102
+#: testmanager/wiki.py:223 testmanager/templates/admin_templates.html:102
 msgid "Test Catalog"
 msgstr "Catalogo di Test"
 
-#: testmanager/wiki.py:195
+#: testmanager/wiki.py:225
 msgid "New Sub-Catalog:"
 msgstr "Nuovo Sotto Catalogo:"
 
-#: testmanager/wiki.py:196
+#: testmanager/wiki.py:226
 msgid "Add a Sub-Catalog"
 msgstr "Aggiungi un Sotto Catalogo"
 
-#: testmanager/wiki.py:227
+#: testmanager/wiki.py:257
 msgid "New Test Case:"
 msgstr "Nuovo Caso di Test:"
 
-#: testmanager/wiki.py:231
+#: testmanager/wiki.py:261
 msgid "Add a Test Case"
 msgstr "Aggiungi un Caso di Test"
 
-#: testmanager/wiki.py:235
+#: testmanager/wiki.py:265
 msgid "New Test Plan:"
 msgstr "Nuovo Piano di Test:"
 
-#: testmanager/wiki.py:239
+#: testmanager/wiki.py:269
 msgid "Generate a new Test Plan"
 msgstr "Genera un Piano di Test"
 
-#: testmanager/wiki.py:249
+#: testmanager/wiki.py:279
 msgid "Select Multiple Test Cases"
 msgstr "Seleziona piu' Casi di Test"
 
-#: testmanager/wiki.py:252
+#: testmanager/wiki.py:282
 msgid "Copy the Selected Test Cases"
 msgstr "Copia i Casi di Test Selezionati"
 
-#: testmanager/wiki.py:256
+#: testmanager/wiki.py:286
 msgid "Paste the copied Test Cases here"
 msgstr "Incolla qui i Casi di Test copiati"
 
-#: testmanager/wiki.py:259
+#: testmanager/wiki.py:289
 msgid "Move the copied Test Case here"
 msgstr "Sposta qui il Caso di Test tagliato"
 
-#: testmanager/wiki.py:263
+#: testmanager/wiki.py:293
 msgid "Import Test Cases"
 msgstr "Importa Casi di Test"
 
-#: testmanager/wiki.py:266
+#: testmanager/wiki.py:296
 msgid "Export Test Catalog"
 msgstr "Esporta il Catalogo di Test"
 
-#: testmanager/wiki.py:298 testmanager/wiki.py:465
+#: testmanager/wiki.py:310
+msgid "Delete this version"
+msgstr "Elimina questa versione"
+
+#: testmanager/wiki.py:311
+msgid "Delete Test Catalog"
+msgstr "Elimina il Catalogo di Test"
+
+#: testmanager/wiki.py:336 testmanager/wiki.py:505
 msgid "Back to the Catalog"
 msgstr "Torna al Catalogo"
 
-#: testmanager/wiki.py:309
+#: testmanager/wiki.py:347
 msgid "Test Plan: "
 msgstr "Piano di Test: "
 
-#: testmanager/wiki.py:319
+#: testmanager/wiki.py:357
 msgid "Export Test Plan"
 msgstr "Esporta il Piano di Test"
 
-#: testmanager/wiki.py:354
+#: testmanager/wiki.py:394
 msgid ""
 "The Test Cases have been copied. Now select the catalog into which to "
 "paste the Test Cases and click on 'Paste the copied Test Cases here'.  "
@@ -358,7 +388,7 @@ msgstr ""
 "I Casi di Test sono stati copiati. Adesso seleziona il catalogo dove "
 "incollarli e clicca su 'Incolla qui i Casi di Test Copiati'. "
 
-#: testmanager/wiki.py:359
+#: testmanager/wiki.py:399
 msgid ""
 "The Test Case has been cut. Now select the catalog into which to move the"
 " Test Case and click on 'Move the copied Test Case here'. "
@@ -366,65 +396,65 @@ msgstr ""
 "Il Caso di Test è stato tagliato. Adesso seleziona il catalogo dove "
 "spostarlo e clicca su 'Sposta qui il Caso di Test tagliato'. "
 
-#: testmanager/wiki.py:374 testmanager/wiki.py:436
+#: testmanager/wiki.py:414 testmanager/wiki.py:476
 msgid "Open a Ticket on this Test Case"
 msgstr "Apri una Segnalazione su questo Caso di Test"
 
-#: testmanager/wiki.py:376 testmanager/wiki.py:438
+#: testmanager/wiki.py:416 testmanager/wiki.py:478
 msgid "Show Related Tickets"
 msgstr "Mostra le Segnalazioni correlate"
 
-#: testmanager/wiki.py:378
+#: testmanager/wiki.py:418
 msgid "Move the Test Case into another catalog"
 msgstr "Sposta il Caso di Test in altro catalogo"
 
-#: testmanager/wiki.py:380
+#: testmanager/wiki.py:420
 msgid "Duplicate the Test Case"
 msgstr "Duplica il Caso di Test"
 
-#: testmanager/wiki.py:458
+#: testmanager/wiki.py:498
 msgid "Back to the Test Plan"
 msgstr "Torna al Piano di Test"
 
-#: testmanager/wiki.py:522
+#: testmanager/wiki.py:562
 msgid "Edit"
 msgstr "Modifica"
 
-#: testmanager/wiki.py:526
+#: testmanager/wiki.py:566
 msgid "Save"
 msgstr "Salva"
 
-#: testmanager/wiki.py:597
+#: testmanager/wiki.py:637
 msgid "Object change history"
 msgstr "Storia dei cambiamenti dell'oggetto"
 
-#: testmanager/wiki.py:600
+#: testmanager/wiki.py:640
 msgid "Property"
 msgstr "Proprietà"
 
-#: testmanager/wiki.py:600
+#: testmanager/wiki.py:640
 msgid "Previous Value"
 msgstr "Valore Precedente"
 
-#: testmanager/wiki.py:600
+#: testmanager/wiki.py:640
 msgid "New Value"
 msgstr "Nuovo Valore"
 
-#: testmanager/wiki.py:750
+#: testmanager/wiki.py:790
 msgid "An error occurred performing the operation.<br /><br />Please try again."
 msgstr "Si è verificato un errore nell'eseguire l'operazione. Riprovare più tardi."
 
-#: testmanager/wiki.py:837
+#: testmanager/wiki.py:877
 msgid "All Catalogs"
 msgstr "Tutti i Cataloghi"
 
-#: testmanager/wiki.py:878 testmanager/wiki.py:899 testmanager/wiki.py:953
-#: testmanager/wiki.py:975 testmanager/wiki.py:1031
+#: testmanager/wiki.py:918 testmanager/wiki.py:939 testmanager/wiki.py:993
+#: testmanager/wiki.py:1015 testmanager/wiki.py:1071
 msgid "Filter:"
 msgstr "Filtro:"
 
-#: testmanager/wiki.py:878 testmanager/wiki.py:899 testmanager/wiki.py:953
-#: testmanager/wiki.py:975
+#: testmanager/wiki.py:918 testmanager/wiki.py:939 testmanager/wiki.py:993
+#: testmanager/wiki.py:1015
 msgid ""
 "Type the test to search for, even more than one word. You can also filter"
 " on the test case status (untested, successful, failed)."
@@ -432,51 +462,51 @@ msgstr ""
 "Inserire il testo da cercare, anche più parole. Si può filtrare anche in "
 "base allo stato dei casi di test (da testare, passato, fallito)."
 
-#: testmanager/wiki.py:879 testmanager/wiki.py:954
+#: testmanager/wiki.py:919 testmanager/wiki.py:994
 msgid "Expand all"
 msgstr "Espandi tutto"
 
-#: testmanager/wiki.py:879 testmanager/wiki.py:954
+#: testmanager/wiki.py:919 testmanager/wiki.py:994
 msgid "Collapse all"
 msgstr "Comprimi tutto"
 
-#: testmanager/wiki.py:1030
+#: testmanager/wiki.py:1070
 msgid "Available Test Plans"
 msgstr "Piani di Test disponibili"
 
-#: testmanager/wiki.py:1031
+#: testmanager/wiki.py:1071
 msgid "Type the test to search for, even more than one word."
 msgstr "Digita il testo da cercare, anche più di una parola."
 
-#: testmanager/wiki.py:1045
+#: testmanager/wiki.py:1085
 msgid "Plan Name"
 msgstr "Nome del Piano"
 
-#: testmanager/wiki.py:1051
+#: testmanager/wiki.py:1091
 msgid "Open Test Plan"
 msgstr "Apri il Piano di Test"
 
-#: testmanager/wiki.py:1056
+#: testmanager/wiki.py:1096
 msgid "Delete"
 msgstr "Elimina"
 
-#: testmanager/wiki.py:1125 testmanager/wiki.py:1231
+#: testmanager/wiki.py:1165 testmanager/wiki.py:1271
 msgid "Open"
 msgstr "Apri"
 
-#: testmanager/wiki.py:1173 testmanager/wiki.py:1175
+#: testmanager/wiki.py:1213 testmanager/wiki.py:1215
 msgid "Edit the Test Case"
 msgstr "Modifica il Caso di Test"
 
-#: testmanager/wiki.py:1199 testmanager/wiki.py:1296 testmanager/wiki.py:1434
+#: testmanager/wiki.py:1239 testmanager/wiki.py:1336 testmanager/wiki.py:1474
 msgid "Unknown"
 msgstr "Sconosciuto"
 
-#: testmanager/wiki.py:1376
+#: testmanager/wiki.py:1416
 msgid "Change the Status:"
 msgstr "Modifica lo Stato:"
 
-#: testmanager/wiki.py:1424
+#: testmanager/wiki.py:1464
 msgid "Status change history"
 msgstr "Storia dei cambiamenti di stato"
 

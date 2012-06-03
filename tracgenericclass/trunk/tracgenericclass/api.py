@@ -102,6 +102,8 @@ class GenericClassSystem(Component):
             name = req.args.get('name')
             value = req.args.get('value')
             
+            result = 'ERROR'
+            
             key = get_dictionary_from_string(key_str)
 
             try:
@@ -137,8 +139,14 @@ class GenericClassSystem(Component):
                     # Call listeners
                     self.object_created(obj)
 
+                result = 'OK'
+
             except:
                 self.env.log.debug(formatExceptionInfo())
+
+            req.send_header("Content-Length", len(result))
+            req.write(result)
+            return 
 
         return 'empty.html', {}, None
 

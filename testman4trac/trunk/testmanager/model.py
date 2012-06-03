@@ -44,8 +44,8 @@ from testmanager.util import *
 try:
     from testmanager.api import _, tag_, N_
 except ImportError:
-	from trac.util.translation import _, N_
-	tag_ = _
+    from trac.util.translation import _, N_
+    tag_ = _
 
 class AbstractTestDescription(AbstractWikiPageWrapper):
     """
@@ -210,6 +210,33 @@ class TestCatalog(AbstractTestDescription):
         for tp in tp_search.list_matching_objects(db=db):
             yield tp
 
+    def pre_delete(self, db):
+        """ 
+        Delete all contained test catalogs and test cases, recursively.
+        """
+        AbstractTestDescription.pre_delete(self, db)
+        
+        self.env.log.debug("Deleting all test cases related to this catalog id '%s'" % self['id'])
+        for tc in self.list_testcases(db=db):
+            tc.delete(db=db)
+            
+        self.env.log.debug("Deleting all sub catalogs in this catalog id '%s'" % self['id'])
+        for tcat in self.list_subcatalogs(db=db):
+            tcat.delete(db=db)
+        
+        return True
+
+    def post_delete(self, db):
+        """
+        Deletes the test plans associated to this catalog and the status 
+        of the test cases in those plans and their status change 
+        history.
+        """
+        self.env.log.debug("Deleting all test plans related to this catalog id '%s'" % self['id'])
+
+        for tp in self.list_testplans(db):
+            tp.delete(db=db)
+
     def create_instance(self, key):
         return TestCatalog(self.env, key['id'])
 
@@ -295,6 +322,21 @@ class TestCase(AbstractTestDescription):
             yield row[0]
 
         self.env.log.debug('<<< get_related_tickets')
+
+    def post_delete(self, db):
+        """
+        Deletes the test case from all plans and its status change 
+        history.
+        """
+        self.env.log.debug("Deleting the case case from all plans and its status change history")
+
+        cursor = db.cursor()
+        
+        # Delete test cases in plan
+        cursor.execute('DELETE FROM testcaseinplan WHERE id = %s' % self['id'])
+
+        # Delete test case status history
+        cursor.execute('DELETE FROM testcasehistory WHERE id = %s' % self['id'])
 
         
 class TestCaseInPlan(AbstractVariableFieldsObject):
@@ -498,17 +540,24 @@ class TestPlan(AbstractVariableFieldsObject):
                     tcip.set_status(default_status, author)
                     tcip.insert()
             
-
     def post_delete(self, db):
         self.env.log.debug("Deleting this test plan %s" % self['id'])
         
         # Remove all test cases (in plan) from this plan
-        self.env.log.debug("Deleting all test cases in the plan...")
-        tcip_search = TestCaseInPlan(self.env)
-        tcip_search['planid'] = self.values['id']
-        for tcip in tcip_search.list_matching_objects(db=db):
-            self.env.log.debug("Deleting test case in plan, with id %s" % tcip['id'])
-            tcip.delete(db)
+        #self.env.log.debug("Deleting all test cases in the plan...")
+        #tcip_search = TestCaseInPlan(self.env)
+        #tcip_search['planid'] = self.values['id']
+        #for tcip in tcip_search.list_matching_objects(db=db):
+        #    self.env.log.debug("Deleting test case in plan, with id %s" % tcip['id'])
+        #    tcip.delete(db)
+
+        cursor = db.cursor()
+        
+        # Delete test cases in plan
+        cursor.execute('DELETE FROM testcaseinplan WHERE planid = %s' % self['id'])
+
+        # Delete test case status history
+        cursor.execute('DELETE FROM testcasehistory WHERE planid = %s' % self['id'])
 
     def get_related_tickets(self, db):
         pass

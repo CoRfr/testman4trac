@@ -73,6 +73,9 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.1.3 (2012-06-03):
+  o Fixed Ticket #9953 (Track-Hacks): Changing a testcase custom field value gives and error
+
 Release 1.0.7 (2011-08-28):
   o Enhanced upgrade process
 

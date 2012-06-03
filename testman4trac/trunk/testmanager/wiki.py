@@ -90,15 +90,25 @@ class WikiTestManagerInterface(Component):
 
     def wiki_page_deleted(self, page):
         if page.name.find('_TC') >= 0:
-            # Only Test Case deletion is supported. 
-            # Deleting a Test Catalog will not delete all of the inner
-            #   Test Cases.
+            # Delete test case
             tc_id = page.name.rpartition('_TC')[2]
+            self.env.log.debug("Deleting Test case with id '%s" % tc_id)
             tc = TestCase(self.env, tc_id)
             if tc.exists:
                 tc.delete(del_wiki_page=False)
             else:
-                self.env.log.debug("Test case not found")
+                self.env.log.debug("Test case with id '%s' not found" % tc_id)
+        
+        elif page.name.find('_TT') >= 0:
+            # Delete test catalog and all its contained test cases
+            tcat_id = page.name.rpartition('_TT')[2]
+            self.env.log.debug("Deleting Test catalog with id '%s" % tcat_id)
+            tcat = TestCatalog(self.env, tcat_id)
+            if tcat.exists:
+                tcat.delete(del_wiki_page=False)
+            else:
+                self.env.log.debug("Test catalog with id '%s' not found" % tcat_id)
+
 
     def wiki_page_version_deleted(self, page):
         pass
@@ -110,6 +120,8 @@ class WikiTestManagerInterface(Component):
 
         page_name = req.args.get('page', 'WikiStart')
         planid = req.args.get('planid', '-1')
+        delete_version = req.args.get('delete_version', '')
+        version = req.args.get('version', '')
 
         formatter = Formatter(
             self.env, Context.from_request(req, Resource('testmanager'))
@@ -124,17 +136,35 @@ class WikiTestManagerInterface(Component):
                         return self._testcase_wiki_view(req, formatter, planid, page_name, stream)
                     else:
                         return self._testcase_in_plan_wiki_view(req, formatter, planid, page_name, stream)
-            else:
+            elif page_name == 'TC' or page_name.find('_TT') >= 0:
                 if filename == 'wiki_view.html':
                     if not planid or planid == '-1':
                         return self._catalog_wiki_view(req, formatter, page_name, stream)
                     else:
                         return self._testplan_wiki_view(req, formatter, page_name, planid, stream)
+                elif filename == 'wiki_delete.html':
+                    if not planid or planid == '-1':
+                        if not delete_version or delete_version == '' or version == '1':
+                            return self._catalog_wiki_delete(req, formatter, page_name, stream)
+                    else:
+                        raise TracError(_("You cannot delete a Test Plan this way. Expand the Test Plans list under the corrisponding Catalog and use the X buttons to delete the Test Plans."))
 
         return stream
 
         
     # Internal methods
+
+    def _catalog_wiki_delete(self, req, formatter, page_name, stream):
+        if page_name == 'TC':
+            raise TracError(_("You cannot delete the root catalogs list."))
+
+        return stream | Transformer('//input[contains(@value, "delete")]').after(tag.div()(
+            tag.br(),
+            tag.p(style='font-size: 150%;font-weight: bold;')(
+                    _("Deleting this Test Catalog will delete all the contained Test Catalogs, Test Cases, Test Plans and the status history of them.")
+                    )
+            ))
+
 
     def _catalog_wiki_view(self, req, formatter, page_name, stream):
         path_name = req.path_info
@@ -276,7 +306,15 @@ class WikiTestManagerInterface(Component):
 
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
         
+        insert3 = tag.div(id='new_delete')(
+            tag.input(type='submit', value=_("Delete this version"), name='delete_version'),
+            tag.input(type='submit', value=_("Delete Test Catalog"))
+            )
+        
         common_code = self._write_common_code(req)
+        
+        stream = stream | Transformer('//div[contains(@id, "delete")]').wrap(tag.div(id='old_delete', style='display: none;'))
+        stream = stream | Transformer('//div[contains(@id, "old_delete")]').after(insert3)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
 
@@ -326,6 +364,8 @@ class WikiTestManagerInterface(Component):
                     )
                             
         common_code = self._write_common_code(req, True)
+        
+        stream = stream | Transformer('//div[contains(@id, "delete")]').append(tag.input(name='planid', type='hidden', value='%s' % planid))
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
         
