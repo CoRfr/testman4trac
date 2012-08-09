@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Bordolanghi
+# Copyright (C) 2010-2012 Roberto Longobardi
 # 
 # This file is part of the Test Manager plugin for Trac.
 # 
@@ -138,16 +138,18 @@ class TestManagerSystem(Component):
             for outcome in self.outcomes_by_color[color]:
                 self.outcomes_by_name[outcome] = [color, self.outcomes_by_color[color][outcome]]
 
-    def get_next_id(self, type):
-        propname = self.NEXT_PROPERTY_NAME[type]
-    
-        # Get current latest ID for the desired object type
-        latest_id = self.get_config_property(propname)
-        if not latest_id:
-            latest_id = '0'
+    def get_next_id(self, type_):
+        latest_id = -1
+        if type_ in self.NEXT_PROPERTY_NAME:
+            propname = self.NEXT_PROPERTY_NAME[type_]
+        
+            # Get current latest ID for the desired object type
+            latest_id = self.get_config_property(propname)
+            if not latest_id:
+                latest_id = '0'
 
-        # Increment next ID
-        self.set_config_property(propname, str(int(latest_id)+1))
+            # Increment next ID
+            self.set_config_property(propname, str(int(latest_id)+1))
 
         return latest_id
     
@@ -295,11 +297,11 @@ class TestManagerSystem(Component):
             match = True
         
         if req.path_info.startswith('/testcreate') and (((type == 'catalog' or type == 'testcase') and ('TEST_MODIFY' in req.perm)) or 
-             (type == 'testplan' and ('TEST_PLAN_ADMIN' in req.perm))):
+             ((type == 'testplan' or type == 'testcaseinplan') and ('TEST_PLAN_ADMIN' in req.perm))):
             match = True
         elif (req.path_info.startswith('/teststatusupdate') and 'TEST_EXECUTE' in req.perm):
             match = True
-        elif (req.path_info.startswith('/testdelete') and type == 'testplan' and 'TEST_PLAN_ADMIN' in req.perm):
+        elif (req.path_info.startswith('/testdelete') and (type == 'testplan' or type == 'testcaseinplan') and 'TEST_PLAN_ADMIN' in req.perm):
             match = True
         elif (req.path_info.startswith('/testimport') and ('TEST_MODIFY' in req.perm)):
             match = True
@@ -377,7 +379,7 @@ class TestManagerSystem(Component):
                 except:
                     self.env.log.error("Error adding test catalog!")
                     self.env.log.error(formatExceptionInfo())
-                    add_notice(req, _("Error adding test catalog"))
+                    add_warning(req, _("An error occurred while adding the test catalog."))
                     req.redirect(req.href.wiki(path))
 
                 # Redirect to see the new wiki page.
@@ -385,33 +387,99 @@ class TestManagerSystem(Component):
                 
             elif object_type == 'testplan':
                 req.perm.require('TEST_PLAN_ADMIN')
+                is_update = req.args.get('update', 'false')
 
-                contains_all_str = req.args.get('containsAll', 'true')
-                snapshot_str = req.args.get('snapshot', 'false')
-                selected_tcs_str = req.args.get('selectedTCs', '')
-
-                contains_all = (0, 1)[contains_all_str == 'true']
-                snapshot = (0, 1)[snapshot_str == 'true']
-                selected_tcs = []
-                if contains_all_str == 'false' and not selected_tcs_str == '':
-                    selected_tcs = selected_tcs_str.split(',')
-
-                catid = path.rpartition('_TT')[2]
-
-                try:
-                    # Add the new test plan in the database
-                    new_tc = TestPlan(self.env, id, catid, pagename, title, author, contains_all, snapshot, selected_tcs)
-                    new_tc.insert()
-
-                except:
-                    self.env.log.error("Error adding test plan!")
-                    self.env.log.error(formatExceptionInfo())
-                    # Back to the catalog
-                    req.redirect(req.href.wiki(path))
-
-                # Display the new test plan
-                req.redirect(req.href.wiki(path, planid=str(id)))
+                if is_update == 'true':
+                    planId = req.args.get('planid')
                     
+                    try:
+                        # Update the version of the test case in plan to 
+                        # the latest wiki page version
+                        pagename = tcId
+                        id = tcId.rpartition('_TC')[2]
+                        tcip = TestCaseInPlan(self.env, id, planId, pagename)
+                        tcip.update_version()
+                        tcip.save_changes(author, "Version updated")
+                        add_notice(req, _("The test case version was updated successfully."))
+                        
+                    except:
+                        self.env.log.error("Error updating the test case version!")
+                        self.env.log.error(formatExceptionInfo())
+                        add_warning(req, _("An error occurred while updating the test case version."))
+                
+                    # Display the updated test case in plan
+                    req.redirect(req.href.wiki(tcId, planid=planId))
+                    
+                else:
+                    contains_all_str = req.args.get('containsAll', 'true')
+                    snapshot_str = req.args.get('snapshot', 'false')
+                    selected_tcs_str = req.args.get('selectedTCs', '')
+
+                    contains_all = (0, 1)[contains_all_str == 'true']
+                    snapshot = (0, 1)[snapshot_str == 'true']
+                    selected_tcs = []
+                    if contains_all_str == 'false' and not selected_tcs_str == '':
+                        selected_tcs = selected_tcs_str.split(',')
+
+                    catid = path.rpartition('_TT')[2]
+
+                    try:
+                        # Add the new test plan in the database
+                        new_tc = TestPlan(self.env, id, catid, pagename, title, author, contains_all, snapshot, selected_tcs)
+                        new_tc.insert()
+
+                    except:
+                        self.env.log.error("Error adding test plan!")
+                        self.env.log.error(formatExceptionInfo())
+                        # Back to the catalog
+                        add_warning(req, _("An error occurred while generating the test plan."))
+                        req.redirect(req.href.wiki(path))
+
+                    # Display the new test plan
+                    req.redirect(req.href.wiki(path, planid=str(id)))
+                    
+            elif object_type == 'testcaseinplan':
+                req.perm.require('TEST_PLAN_ADMIN')
+                
+                tcatId = req.args.get('tcatId')
+                planid = req.args.get('planid')
+                self.env.log.debug("About to add test case %s to test plan %s" % (tcId, planid))
+
+                tp = None
+                tcip = None
+                page_name = None
+                try:
+                    tc = TestCase(self.env, tcId)
+                    tp = TestPlan(self.env, planid, tcatId)
+                    
+                    page_name = tc['page_name']
+
+                    # Add the test case to the plan, i.e. add a testcaseinplan object
+                    tcip = TestCaseInPlan(self.env, tcId, planid)
+                    if not tcip.exists:
+                        tcip['page_name'] = page_name
+                        if tp['freeze_tc_versions']:
+                            # Set the wiki page version to the current latest version
+                            tcip['page_version'] = tc.wikipage.version
+                        tcip.set_status(self.get_default_tc_status(), author)
+                        tcip.insert()
+                        add_notice(req, _("The Test Case was successfully added to the plan."))
+                    else:
+                        add_warning(req, _("The Test Case was already contained in the specified Test Plan."))
+                    
+                except:
+                    self.env.log.error("Error adding test case to plan!")
+                    self.env.log.error(formatExceptionInfo())
+                    # Back to the test case
+                    add_warning(req, _("An error occurred while adding the test case into the plan."))
+                    req.redirect(req.href.wiki(page_name))
+
+                # Redirect to test case in plan
+                if tp['freeze_tc_versions']:
+                    req.redirect(req.href.wiki(page_name, planid=planid, version=tcip['page_version']))
+                else:
+                    req.redirect(req.href.wiki(page_name, planid=planid))
+                
             elif object_type == 'testcase':
                 req.perm.require('TEST_MODIFY')
                 
@@ -453,10 +521,13 @@ class TestManagerSystem(Component):
                             # Generate a new Id for the next iteration
                             id = self.get_next_id(object_type)
                             pagename = path + '_TC'+str(id)
-                                    
+
+                        add_notice(req, _("The Test Case(s) were successfully pasted into the catalog."))
+                            
                     except:
                         self.env.log.error("Error pasting test cases!")
                         self.env.log.error(formatExceptionInfo())
+                        add_warning(req, _("An error occurred while pasting the test case(s) into the catalog."))
                         req.redirect(req.href.wiki(pagename))
                 
                     # Redirect to test catalog, forcing a page refresh by means of a random request parameter
@@ -482,6 +553,7 @@ class TestManagerSystem(Component):
                     except:
                         self.env.log.error("Error duplicating test case!")
                         self.env.log.error(formatExceptionInfo())
+                        add_warning(req, _("An error occurred while duplicating the test case."))
                         req.redirect(req.href.wiki(tcId))
 
                     # Redirect tp allow for editing the copy test case
@@ -501,7 +573,7 @@ class TestManagerSystem(Component):
                     except:
                         self.env.log.error("Error adding test case!")
                         self.env.log.error(formatExceptionInfo())
-                        add_notice(req, _("Error adding test case"))
+                        add_warning(req, _("An error occurred while adding the test case."))
                         req.redirect(req.path_info)
 
                     # Redirect to edit the test case description
@@ -523,19 +595,53 @@ class TestManagerSystem(Component):
                 self.env.log.debug("About to delete test plan %s on catalog %s" % (planid, catid))
 
                 try:
-                    # Add the new test plan in the database
+                    # Delete the test plan
                     tp = TestPlan(self.env, planid, catid)
                     tp.delete()
 
+                    add_notice(req, _("The Test Plan was deleted successfully."))
+                    
                 except:
                     self.env.log.error("Error deleting test plan!")
                     self.env.log.error(formatExceptionInfo())
                     # Back to the catalog
+                    add_warning(req, _("An error occurred while deleting the test plan."))
                     req.redirect(req.href.wiki(path))
 
                 # Redirect to test catalog, forcing a page refresh by means of a random request parameter
                 req.redirect(req.href.wiki(path, mode=mode, fulldetails=fulldetails, random=str(datetime.now(utc).microsecond)))
+                
+            elif object_type == 'testcaseinplan':
+                req.perm.require('TEST_PLAN_ADMIN')
+                
+                planid = req.args.get('planid')
+                tcId = req.args.get('tcId')
+                id = tcId.rpartition('TC')[2]
+                
+                self.env.log.debug("About to remove test case %s from test plan %s" % (tcId, planid))
 
+                tp = None
+                try:
+                    tp = TestPlan(self.env, planid)
+
+                    # Remove the test case from the plan, i.e. delete the testcaseinplan object
+                    tcip = TestCaseInPlan(self.env, id, planid)
+                    
+                    tcip.delete_history()
+                    tcip.delete()
+
+                    add_notice(req, _("The Test Case was successfully removed from the plan."))
+                    
+                except:
+                    self.env.log.error("Error removing test case from plan!")
+                    self.env.log.error(formatExceptionInfo())
+                    # Back to the test case in plan
+                    add_warning(req, _("An error occurred while removing the test case from the plan."))
+                    req.redirect(req.href.wiki(tcId, planid=planid))
+
+                # Redirect to test plan, forcing a page refresh by means of a random request parameter
+                req.redirect(req.href.wiki(tp['page_name'], planid=planid, random=str(datetime.now(utc).microsecond)))
+                
         elif req.path_info.startswith('/testimport'):
             if req.method == 'POST':
                 if 'import_file' in req.args:
@@ -572,7 +678,7 @@ class TestManagerSystem(Component):
             object_type = req.args.get('type')
             cat_name = req.args.get('cat_name')
             planid = req.args.get('planid', '-1')
-            separator = req.args.get('separator', ',')
+            separator = req.args.get('column_separator', ',')
             fulldetails_str = req.args.get('fulldetails', '')
             raw_wiki_format_str = req.args.get('raw_wiki_format', '')
             

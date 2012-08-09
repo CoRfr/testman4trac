@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Bordolanghi
+# Copyright (C) 2010-2012 Roberto Longobardi
 # 
 # This file is part of the Test Manager plugin for Trac.
 # 
@@ -42,6 +42,7 @@ from tracgenericclass.model import GenericClassModelProvider
 from tracgenericclass.util import *
 
 from testmanager.util import *
+from testmanager.admin import get_all_table_columns_for_object
 from testmanager.api import TestManagerSystem
 from testmanager.model import TestCatalog, TestCase, TestCaseInPlan, TestPlan, TestManagerModelProvider
 
@@ -82,13 +83,16 @@ class WikiTestManagerInterface(Component):
                         
     # IWikiChangeListener methods
     def wiki_page_added(self, page):
+        """Called whenever a new Wiki page is added."""
         #page_on_db = WikiPage(self.env, page.name)
         pass
 
     def wiki_page_changed(self, page, version, t, comment, author, ipnr):
+        """Called when a page has been modified."""
         pass
 
     def wiki_page_deleted(self, page):
+        """Called when a page has been deleted."""
         if page.name.find('_TC') >= 0:
             # Delete test case
             tc_id = page.name.rpartition('_TC')[2]
@@ -109,11 +113,18 @@ class WikiTestManagerInterface(Component):
             else:
                 self.env.log.debug("Test catalog with id '%s' not found" % tcat_id)
 
-
     def wiki_page_version_deleted(self, page):
+        """Called when a version of a page has been deleted."""
+        
+        # TODO Maybe should look into all test plans with "snapshot" test case versions and handle this deletion in some way?
         pass
 
-
+    def wiki_page_renamed(self, page, old_name): 
+        """Called when a page has been renamed.""" 
+        
+        if page.name.find('TC_') == 0:
+            raise TracError(_("You cannot rename Test Catalog, Test Case or Test Plan wiki pages this way. If you wish to modify the TITLE of the object, just Edit the page and change the text between '==' and '=='. If you wish to move the object elsewhere, instead, use the 'move' Test Manager functions."))
+        
     # ITemplateStreamFilter methods
     def filter_stream(self, req, method, filename, stream, data):
         self._parse_config_options()
@@ -171,8 +182,14 @@ class WikiTestManagerInterface(Component):
         cat_name = path_name.rpartition('/')[2]
         cat_id = cat_name.rpartition('TT')[2]
 
-        mode = req.args.get('mode', 'tree')
+        mode = req.args.get('mode', self.env.config.get('testmanager', 'testcatalog.default_view', 'tree'))
         fulldetails = req.args.get('fulldetails', 'False')
+        
+        table_columns = None
+        table_columns_map = None
+        custom_ctx = None
+        if mode == 'tree_table':
+            table_columns, table_columns_map, custom_ctx = get_all_table_columns_for_object(self.env, 'testcatalog', self.env.config)
         
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_catalog = TestCatalog(self.env, cat_id, page_name)
@@ -188,7 +205,6 @@ class WikiTestManagerInterface(Component):
                         tag.div(id='pasteMultipleTCsHereMessage', class_='messageBox', style='display: none;')(_("Select the catalog into which to paste the Test Cases and click on 'Paste the copied Test Cases here'. "),
                             tag.a(href='javascript:void(0);', onclick='cancelTCsCopy()')(_("Cancel"))
                             ),
-                        tag.br(), 
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(_("Select the catalog into which to paste the Test Case and click on 'Move the copied Test Case here'. "),
                             tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
                             ),
@@ -201,20 +217,13 @@ class WikiTestManagerInterface(Component):
             insert1 = tag.div()(
                         self._get_breadcrumb_markup(formatter, None, page_name, mode, fulldetails),
                         tag.div(style='border: 1px, solid, gray; padding: 1px;')(
-                            tag.span()(
-                                tag.a(href=req.href.wiki(page_name, mode='tree'))(
-                                    tag.img(src='../chrome/testmanager/images/tree.png', title="Tree View"))
-                                ),
-                            tag.span()(
-                                tag.a(href=req.href.wiki(page_name, mode='tree_table', fulldetails='True'))(
-                                    tag.img(src='../chrome/testmanager/images/tree_table.png', title="Table View"))
-                                )),
+                            self._get_switch_view_icon_markup(req, page_name, mode, fulldetails)
+                            ),
                         tag.br(), 
                         tag.div(id='pasteMultipleTCsHereMessage', class_='messageBox', style='display: none;')(
                             _("Select the catalog (even this one) into which to paste the Test Cases and click on 'Paste the copied Test Cases here'. "),
                             tag.a(href='javascript:void(0);', onclick='cancelTCsCopy()')(_("Cancel"))
                             ),
-                        tag.br(),
                         tag.div(id='pasteTCHereMessage', class_='messageBox', style='display: none;')(
                             _("Select the catalog (even this one) into which to paste the Test Case and click on 'Move the copied Test Case here'. "),
                             tag.a(href='javascript:void(0);', onclick='cancelTCMove()')(_("Cancel"))
@@ -226,7 +235,7 @@ class WikiTestManagerInterface(Component):
             buttonLabel = _("Add a Sub-Catalog")
 
         insert2 = tag.div()(
-                    HTML(self._build_catalog_tree(formatter.context, page_name, mode, fulldetails)),
+                    HTML(self._build_catalog_tree(formatter.context, page_name, mode, fulldetails, table_columns, table_columns_map, custom_ctx)),
                     tag.div(class_='testCaseList')(
                         tag.br(), tag.br()
                     ))
@@ -305,11 +314,14 @@ class WikiTestManagerInterface(Component):
                 ))
 
         insert2.append(tag.div()(tag.br(), tag.br(), tag.br(), tag.br()))
-        
-        insert3 = tag.div(id='new_delete')(
-            tag.input(type='submit', value=_("Delete this version"), name='delete_version'),
-            tag.input(type='submit', value=_("Delete Test Catalog"))
-            )
+
+        if not page_name == 'TC':        
+            insert3 = tag.div(id='new_delete')(
+                tag.input(type='submit', value=_("Delete this version"), name='delete_version'),
+                tag.input(type='submit', value=_("Delete Test Catalog"))
+                )
+        else:
+            insert3 = HTML('')
         
         common_code = self._write_common_code(req)
         
@@ -324,9 +336,15 @@ class WikiTestManagerInterface(Component):
         cat_name = path_name.rpartition('/')[2]
         cat_id = cat_name.rpartition('TT')[2]
         
-        mode = req.args.get('mode', 'tree')
+        mode = req.args.get('mode', self.env.config.get('testmanager', 'testplan.default_view', 'tree'))
         fulldetails = req.args.get('fulldetails', 'False')
 
+        table_columns = None
+        table_columns_map = None
+        custom_ctx = None
+        if mode == 'tree_table':
+            table_columns, table_columns_map, custom_ctx = get_all_table_columns_for_object(self.env, 'testplan', self.env.config)
+            
         tmmodelprovider = GenericClassModelProvider(self.env)
         test_plan = TestPlan(self.env, planid, cat_id, page_name)
         
@@ -335,20 +353,17 @@ class WikiTestManagerInterface(Component):
         insert1 = tag.div()(
                     tag.a(href=req.href.wiki(page_name))(_("Back to the Catalog")),
                     tag.div(style='border: 1px, solid, gray; padding: 1px;')(
-                        tag.span()(
-                            tag.a(href=req.href.wiki(page_name, mode='tree', planid=planid))(
-                                tag.img(src='../chrome/testmanager/images/tree.png', title="Tree View"))
-                            ),
-                        tag.span()(
-                            tag.a(href=req.href.wiki(page_name, mode='tree_table', planid=planid))(
-                                tag.img(src='../chrome/testmanager/images/tree_table.png', title="Table View"))
-                            )),
+                        self._get_switch_view_icon_markup(req, page_name, mode, fulldetails, planid)
+                        ),
                     tag.br(), 
-                    tag.h1(_("Test Plan: ")+tp['name'])
+                    tag.h1(_("Test Plan: ")+tp['name']),
+                    tag.div(class_='testArtifactPropertiesDiv')(
+                        HTML(self._get_testplan_properties_markup(planid, cat_id, page_name))
+                        ),
                     )
 
         insert2 = tag.div()(
-                    HTML(self._build_testplan_tree(formatter.context, str(planid), page_name, mode, self.sortby)),
+                    HTML(self._build_testplan_tree(formatter.context, str(planid), page_name, mode, self.sortby, table_columns, table_columns_map, custom_ctx)),
                     tag.div(class_='testCaseList')(
                     tag.br(),
                     self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
@@ -369,10 +384,33 @@ class WikiTestManagerInterface(Component):
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
         
+    def _get_testplan_properties_markup(self, planid, catid, page_name):
+        tp = TestPlan(self.env, planid, catid, page_name)
+        
+        result = ''
+        result += _("Author")+': '+html_escape(tp['author'])+'<br />'
+        result += _("Created")+': '+format_datetime(tp['time'])+'<br />'
+        result += _("Contained Test Cases")+': '+(_("Contains selected Test Cases"), _("Contains all Test Cases"))[tp['contains_all']]+'<br />'
+        result += _("Test Case Versions")+': '+(_("Points to latest Test Case versions"), _("Contains a snapshot of Test Case versions"))[tp['freeze_tc_versions']]
+        
+        return result
 
+    def _get_switch_view_icon_markup(self, req, page_name, mode='tree', fulldetails='False', planid='-1'):
+        if mode == 'tree':
+            return tag.span()(
+                tag.a(href=req.href.wiki(page_name, mode='tree_table', fulldetails=fulldetails, planid=planid))(
+                    tag.img(src='../chrome/testmanager/images/tree_table.png', title=_("Switch to Tabular View"), alt=_("Switch to Tabular View")))
+                )
+        else:
+            return tag.span()(
+                tag.a(href=req.href.wiki(page_name, mode='tree', fulldetails=fulldetails, planid=planid))(
+                    tag.img(src='../chrome/testmanager/images/tree.png', title=_("Switch to Tree View"), alt=_("Switch to Tree View")))
+                )
+        
     def _testcase_wiki_view(self, req, formatter, planid, page_name, stream):
         tc_name = page_name
         cat_name = page_name.partition('_TC')[0]
+        cat_id = cat_name.rpartition('_TT')[2]
         
         mode = req.args.get('mode', 'tree')
         fulldetails = req.args.get('fulldetails', 'False')
@@ -384,6 +422,8 @@ class WikiTestManagerInterface(Component):
         tc_id = tc_name.partition('_TC')[2]
         test_case = TestCase(self.env, tc_id, tc_name)
         summary = test_case.title
+
+        tcat = TestCatalog(self.env, cat_id)
         
         tmmodelprovider = GenericClassModelProvider(self.env)
         
@@ -418,12 +458,16 @@ class WikiTestManagerInterface(Component):
                     tag.input(type='button', id='moveTCButton', value=_("Move the Test Case into another catalog"), onclick='copyTestCaseToClipboard("'+tc_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', id='duplicateTCButton', value=_("Duplicate the Test Case"), onclick='duplicateTestCase("'+tc_name+'", "'+cat_name+'")'),
+                    HTML('&nbsp;&nbsp;'), 
+                    tag.input(type='button', id='addToTestPlanTCButton', value=_("Add to a Test Plan"), onclick='addTestCaseToTestplanDialog("'+tc_name+'")'),
                     tag.div(class_='field')(
                         self._get_object_change_history_markup(test_case)
                         ),
                     tag.br(), tag.br(), tag.br(), tag.br()
                     )
 
+        insert2.append(HTML(self._get_select_testplan_dialog_markup(req, test_case, tcat)))
+                    
         common_code = self._write_common_code(req)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
@@ -473,10 +517,12 @@ class WikiTestManagerInterface(Component):
                     tag.br(), 
                     self._get_testcase_change_status_markup(formatter, has_status, page_name, planid),
                     tag.br(), tag.br(),
+                    self._get_update_to_latest_version_markup(tp, tc_name, planid),
                     tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'", "'+summary+'")'),
                     HTML('&nbsp;&nbsp;'), 
                     tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
                     HTML('&nbsp;&nbsp;'), 
+                    self._get_remove_from_tp_markup(tp, tc_name, planid),
                     tag.br(), tag.br(), 
                     self._get_testcase_status_history_markup(formatter, has_status, page_name, planid),
                     self._get_object_change_history_markup(tcip, ['status']),
@@ -486,6 +532,18 @@ class WikiTestManagerInterface(Component):
         common_code = self._write_common_code(req, False, need_menu)
         
         return stream | Transformer('//body').append(common_code) | Transformer('//div[contains(@class,"wikipage")]').after(insert2) | Transformer('//div[contains(@class,"wikipage")]').before(insert1)
+
+    def _get_update_to_latest_version_markup(self, tp, tc_name, planid):
+        if tp['freeze_tc_versions']:
+            return tag.input(type='button', value=_("Update to latest version of Test Case"), onclick='updateTestCase("'+tc_name+'", "'+planid+'")'), HTML('&nbsp;&nbsp;')
+        else:
+            return HTML('')
+        
+    def _get_remove_from_tp_markup(self, tp, tc_name, planid):
+        if not tp['contains_all']:
+            return tag.input(type='button', value=_("Remove from the Test Plan"), onclick='removeTestCase("'+tc_name+'", "'+planid+'")'), HTML('&nbsp;&nbsp;')
+        else:
+            return HTML('')
     
     def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree', fulldetails='False'):
         if planid and not planid == '-1':
@@ -578,24 +636,24 @@ class WikiTestManagerInterface(Component):
         result = """
             <div id="dialog_testplan" style="padding:20px; display:none;" title="New Test Plan">
                 <form id="new_testplan_form" class="addnew">
-                    Specify the new Test Plan properties.
+                """ + _("Specify the new Test Plan properties.") + """
                 <br />
                 <fieldset>
-                    <legend>Test Plan properties</legend>
+                    <legend>""" + _("Test Plan properties") + """</legend>
                     <table><tbody>
                         <tr>
                             <td>
                                 <div class="field">
                                   <label>
-                                    The new Test Plan will contain:
+                                    """ + _("The new Test Plan will contain:") + """
                                   </label>
                                 </div>
                             </td>
                         </tr>
                         <tr>
                             <td>
-                                <input type="radio" name="testplan_contains_all" value="true" checked="checked" /> All the Test Cases in the Catalog<br />
-                                <input type="radio" name="testplan_contains_all" value="false" /> Only the Test Cases selected before
+                                <input type="radio" name="testplan_contains_all" value="true" checked="checked" /> """ + _("All the Test Cases in the Catalog") + """<br />
+                                <input type="radio" name="testplan_contains_all" value="false" /> """ + _("Only the Test Cases selected before") + """
                             </td>
                         </tr>
                         <tr>
@@ -607,15 +665,15 @@ class WikiTestManagerInterface(Component):
                             <td>
                                 <div class="field">
                                   <label>
-                                    The new Test Plan will:
+                                    """ + _("The new Test Plan will:") + """
                                   </label>
                                 </div>
                             </td>
                         </tr>
                         <tr>
                             <td>
-                                <input type="radio" name="testplan_snapshot" value="true" /> Refer to a current snapshot of the versions of the test cases<br />
-                                <input type="radio" name="testplan_snapshot" value="false" checked="checked" /> Always point to the latest version of the Test Cases
+                                <input type="radio" name="testplan_snapshot" value="true" /> """ + _("Refer to a current snapshot of the versions of the test cases") + """<br />
+                                <input type="radio" name="testplan_snapshot" value="false" checked="checked" /> """ + _("Always point to the latest version of the Test Cases") + """
                             </td>
                         </tr>
                     </tbody></table>
@@ -623,13 +681,15 @@ class WikiTestManagerInterface(Component):
                 <fieldset>
                     <div class="buttons">
                         <input type="hidden" name="cat_name" value="%s" />
-                        <input type="button" value="Create Test Plan" onclick="createTestPlanConfirm('%s')" style="text-align: right;"></input>
-                        <input type="button" value="Cancel" onclick="createTestPlanCancel()" style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Create Test Plan") + """' onclick="createTestPlanConfirm('%s')" style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Cancel") + """' onclick="createTestPlanCancel()" style="text-align: right;"></input>
                     </div>
                 </fieldset>
                 </form>
             </div>
-        """ % (cat_name, cat_name)
+        """
+        
+        result = result % (cat_name, cat_name)
         
         return result
     
@@ -667,25 +727,25 @@ class WikiTestManagerInterface(Component):
         result = """
             <div id="dialog_import" style="padding:20px; display:none;" title="Import test cases">
                 <form id="import_file" class="addnew" method="post" enctype="multipart/form-data" action="%s/testimport">
-                Select a file in CSV format to import the test cases from.
+                """ + _("Select a file in CSV format to import the test cases from.") + """
                 <br />
-                The first row will have column names. The data must start from the second row.
-                The file should have the following required columns:
+                """ + _("The first row will have column names. The data must start from the second row.") + """
+                """ + _("The file should have the following required columns:") + """
                 <ul>
                     <li>title</li>
                     <li>description</li>
                 </ul>
-                Any subsequent columns are optional, and will generate <a href="http://trac-hacks.org/wiki/TestManagerForTracPlugin#Customfields" target="_blank">custom test case fields</a>.
-                Use lowercase identifiers, with no blanks, for the column names.
+                """ + _("Any subsequent columns are optional, and will generate <a href='http://trac-hacks.org/wiki/TestManagerForTracPlugin#Customfields' target='_blank'>custom test case fields</a>.") + """
+                """ + _("Use lowercase identifiers, with no blanks, for the column names.") + """
                 <br />
                 <fieldset>
-                    <legend>Upload file</legend>
+                    <legend>""" + _("Upload file") + """</legend>
                     <table><tbody>
                         <tr>
                             <td>
                                 <div class="field">
                                   <label>
-                                    File name:
+                                    """ + _("File name:") + """
                                   </label>
                                 </div>
                             </td>
@@ -697,7 +757,7 @@ class WikiTestManagerInterface(Component):
                             <td>
                                 <div class="field">
                                   <label>
-                                    Column separator:
+                                    """ + _("Column separator:") + """
                                   </label>
                                 </div>
                             </td>
@@ -710,13 +770,15 @@ class WikiTestManagerInterface(Component):
                 <fieldset>
                     <div class="buttons">
                         <input type="hidden" name="cat_name" value="%s" />
-                        <input type="submit" name="import_file" value="Import" style="text-align: right;"></input>
-                        <input type="button" value="Cancel" onclick="importTestCasesCancel()" style="text-align: right;"></input>
+                        <input type="submit" name="import_file" value='""" + _("Import") + """' style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Cancel") + """' onclick="importTestCasesCancel()" style="text-align: right;"></input>
                     </div>
                 </fieldset>
                 </form>
             </div>
-        """ % (fix_base_location(req), cat_name)
+        """
+        
+        result = result % (fix_base_location(req), cat_name)
         
         return result
     
@@ -724,16 +786,16 @@ class WikiTestManagerInterface(Component):
         result = """
             <div id="dialog_export" style="padding:20px; display:none;" title="Export test cases">
                 <form id="export_file" class="addnew" method="post" action="%s/testexport">
-                Select a name and a location on your machine for the CSV file to export the test cases to.
+                """ + _("Select a name and a location on your machine for the CSV file to export the test cases to.") + """
                 <br />
                 <fieldset>
-                    <legend>Export options</legend>
+                    <legend>""" + _("Export options") + """</legend>
                     <table><tbody>
                         <tr>
                             <td>
                                 <div class="field">
                                   <label>
-                                    Include full description:
+                                    """ + _("Include full description:") + """
                                   </label>
                                 </div>
                             </td>
@@ -745,7 +807,7 @@ class WikiTestManagerInterface(Component):
                             <td>
                                 <div class="field">
                                   <label>
-                                    Raw wiki syntax:
+                                    """ + _("Raw wiki syntax:") + """
                                   </label>
                                 </div>
                             </td>
@@ -757,7 +819,7 @@ class WikiTestManagerInterface(Component):
                             <td>
                                 <div class="field">
                                   <label>
-                                    Column separator:
+                                    """ + _("Column separator:") + """
                                   </label>
                                 </div>
                             </td>
@@ -772,19 +834,81 @@ class WikiTestManagerInterface(Component):
                         <input type="hidden" name="cat_name" value="%s" />
                         <input type="hidden" name="planid" value="%s" />
                         <input type="hidden" name="type" value="%s" />
-                        <input type="submit" name="export_file" value="Export" style="text-align: right;"></input>
-                        <input type="button" value="Cancel" onclick="exportTestCasesCancel()" style="text-align: right;"></input>
+                        <input type="submit" name="export_file" value='""" + _("Export") + """' style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Cancel") + """' onclick="exportTestCasesCancel()" style="text-align: right;"></input>
                     </div>
                 </fieldset>
                 </form>
             </div>
-        """ % (fix_base_location(req), cat_name, planid, object_type)
+        """
         
+        result = result % (fix_base_location(req), cat_name, planid, object_type)
+        
+        return result
+    
+    def _get_select_testplan_dialog_markup(self, req, tc, tcat):
+        result = """
+            <div id="dialog_select_testplan" style="padding:20px; display:none;" title='""" + _("Add Test Case to a Test Plan") + """'>
+                <form id="add_to_testplan_form" class="addnew">
+                    """ + _("Select the Test Plan to add the Test Case to.") + """
+                <br />
+                <fieldset style="height: 210px; overflow: auto;">
+                    <legend>""" + _("Test Plans") + """</legend>
+                    <table class="listing"><tbody>
+                        <thead>
+                            <tr>
+                                <th></th><th>""" + _("Name") + """</th><th>""" + _("Author") + """</th><th>""" + _("Created") + """</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        """
+        
+        num_plans = 0
+        
+        tp_search = TestPlan(self.env)
+        # Go up to outer enclosing Test Catalog
+        tp_search['page_name'] = 'TC_TT' + tcat['page_name'].partition('TC_TT')[2].partition('_')[0] + '%'
+        tp_search['contains_all'] = None
+        tp_search['freeze_tc_versions'] = None
+        
+        for tp in sorted(tp_search.list_matching_objects(exact_match=False), cmp=lambda x,y: cmp(x['time'],y['time']), reverse=True):
+            if not tp['contains_all']:
+                result += '<tr>'
+
+                result += '<td><input type="radio" name="selected_planid" value="'+tp['id']+'" /></td>'
+                result += '<td>'+tp['name']+'</td>'
+                result += '<td>'+html_escape(tp['author'])+'</td>'
+                result += '<td>'+format_datetime(tp['time'])+'</td>'
+                
+                result += '</tr>'
+                num_plans += 1
+
+        if num_plans == 0:
+            result += '<tr>'
+            result += '<td colspan="99">'+_("No suitable Test Plans (i.e. with only selected Test Cases) found.")+'</td>'
+            result += '</tr>'
+
+        result += """
+                        </tbody>
+                    </table>
+                </fieldset>
+                <fieldset>
+                    <div class="buttons">
+                        <input type="button" value='""" + _("Add to Test Plan") + """' onclick="addTestCaseToPlan('%s', '%s')" style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Cancel") + """' onclick="addTestCaseToPlanCancel()" style="text-align: right;"></input>
+                    </div>
+                </fieldset>
+                </form>
+            </div>
+        """
+        
+        result = result % (tc['id'], tcat['id'])
+
         return result
     
     def _get_error_dialog_markup(self, req):
         result = """
-            <div id="dialog_error" style="padding:20px; display:none;" title="Error">
+            <div id="dialog_error" style="padding:20px; display:none;" title='""" + _("Error") + """'>
                 %s
             </div>
         """ % (_("An error occurred performing the operation.<br /><br />Please try again."))
@@ -894,7 +1018,7 @@ class WikiTestManagerInterface(Component):
 
         return text    
                 
-    def _build_catalog_tree(self, context, curpage, mode='tree', fulldetails=False):
+    def _build_catalog_tree(self, context, curpage, mode='tree', fulldetails=False, table_columns=None, table_columns_map=None, custom_ctx=None):
         # Determine current catalog name
         cat_name = 'TC'
         if curpage.find('_TC') >= 0:
@@ -911,7 +1035,7 @@ class WikiTestManagerInterface(Component):
         components = TestManagerSystem(self.env).get_test_catalog_data_model(curpage)
 
         # Generate the markup
-        ind = {'count': 0}
+        ind = {'count': 0, 'totals': None}
         text = ''
 
         if mode == 'tree':
@@ -924,54 +1048,32 @@ class WikiTestManagerInterface(Component):
             text +='</div>'
             
         elif mode == 'tree_table':
-            tcat_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcatalog')
-            tcat_has_custom = tcat_fields is not None and len(tcat_fields) > 0
-            
-            tc_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcase')
-            tc_has_custom = tc_fields is not None and len(tc_fields) > 0
-            
-            custom_ctx = {
-                'testcatalog': [tcat_has_custom, tcat_fields],
-                'testcase': [tc_has_custom, tc_fields],
-                'testcaseinplan': [False, None]
-                }
-
             text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(\'testcaseList\', this.value)"/>&nbsp;&nbsp;<span id="testcaseList_searchResultsNumberId" style="font-weight: bold;"></span></div>'
             text += '<form id="testCatalogRunBook" class="printableform"><fieldset id="testCatalogRunBookFields" class="expanded">'
             text += '<table id="testcaseList" class="listing"><thead><tr>';
             
-            # Common columns
-            text += '<th>'+_("Name")+'</th>'
-            
-            # Custom testcatalog columns
-            if tcat_has_custom:
-                for f in tcat_fields:
-                    if f['type'] == 'text':
-                        text += '<th>'+f['label']+'</th>'
-
-            # Base testcase columns
-            text += '<th>'+_("ID")+'</th>'
-
-            # Custom testcase columns
-            if tc_has_custom:
-                for f in tc_fields:
-                    if f['type'] == 'text':
-                        text += '<th>'+f['label']+'</th>'
-            
-            # Test case full details
-            if fulldetails:
-                text += '<th>'+_("Description")+'</th>'
+            # Prepare a container for calculating and keeping the totals
+            totals = {}
+            for col in table_columns:
+                if col['visible'] == 'True':
+                    text += '<th>'+col['label']+'</th>'
                 
+                if col['totals'] is not None:
+                    totals[col['name']] = {'operation': col['totals'], 'count': 0, 'sum': 0, 'average': 0}
+
+            ind['totals'] = totals
             text += '</tr></thead><tbody>';
             
-            text += self._render_subtree_as_table(context, None, components, ind, 0, custom_ctx, fulldetails)
+            text += self._render_subtree_as_table(context, None, components, ind, 0, table_columns, table_columns_map, custom_ctx, fulldetails)
+            
+            text += self._render_totals(table_columns, ind['totals'])
             
             text += '</tbody></table>'
             text += '</fieldset></form>'
         
         return text
     
-    def _build_testplan_tree(self, context, planid, curpage, mode='tree',sortby='name'):
+    def _build_testplan_tree(self, context, planid, curpage, mode='tree', sortby='name', table_columns=None, table_columns_map=None, custom_ctx=None):
         testmanagersystem = TestManagerSystem(self.env)
         default_status = testmanagersystem.get_default_tc_status()
         
@@ -986,7 +1088,7 @@ class WikiTestManagerInterface(Component):
         components = TestManagerSystem(self.env).get_test_catalog_data_model(curpage, True, planid, sortby)
 
         # Generate the markup
-        ind = {'count': 0}
+        ind = {'count': 0, 'totals': None}
         text = ''
         
         if mode == 'tree':
@@ -997,56 +1099,27 @@ class WikiTestManagerInterface(Component):
             text +='</div>'
 
         elif mode == 'tree_table':
-            tcat_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcatalog')
-            tcat_has_custom = tcat_fields is not None and len(tcat_fields) > 0
-            
-            tc_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcase')
-            tc_has_custom = tc_fields is not None and len(tc_fields) > 0
-            
-            tcip_fields = GenericClassModelProvider(self.env).get_custom_fields_for_realm('testcaseinplan')
-            tcip_has_custom = tcip_fields is not None and len(tcip_fields) > 0
-
-            custom_ctx = {
-                'testcatalog': [tcat_has_custom, tcat_fields],
-                'testcase': [tc_has_custom, tc_fields],
-                'testcaseinplan': [tcip_has_custom, tcip_fields]
-                }
-
             text +='<div style="padding: 0px 0px 10px 10px">'+_("Filter:")+' <input id="tcFilter" title="'+_("Type the test to search for, even more than one word. You can also filter on the test case status (untested, successful, failed).")+'" type="text" size="40" onkeyup="starthighlightTable(\'testcaseList\', this.value)"/>&nbsp;&nbsp;<span id="testcaseList_searchResultsNumberId" style="font-weight: bold;"></span></div>'
             text += '<form id="testPlan" class="printableform"><fieldset id="testPlanFields" class="expanded">'
             text += '<table id="testcaseList" class="listing"><thead><tr>';
 
-            # Common columns
-            text += '<th>'+_("Name")+'</th>'
-            
-            # Custom testcatalog columns
-            if custom_ctx['testcatalog'][0]:
-                for f in custom_ctx['testcatalog'][1]:
-                    if f['type'] == 'text':
-                        text += '<th>'+f['label']+'</th>'
+            # Prepare a container for calculating and keeping the totals
+            totals = {}
+            for col in table_columns:
+                if col['visible'] == 'True':
+                    text += '<th>'+col['label']+'</th>'
+                    
+                if col['totals'] is not None:
+                    totals[col['name']] = {'operation': col['totals'], 'count': 0, 'sum': 0, 'average': 0}
 
-            # Base testcase columns
-            text += '<th>'+_("ID")+'</th>'
-
-            #Custom testcase columns
-            if custom_ctx['testcase'][0]:
-                for f in custom_ctx['testcase'][1]:
-                    if f['type'] == 'text':
-                        text += '<th>'+f['label']+'</th>'
-
-            # Base testcaseinplan columns
-            text += '<th>'+_("Status")+'</th><th>'+_("Author")+'</th><th>'+_("Last Change")+'</th>'
-            
-            # Custom testcaseinplan columns
-            if custom_ctx['testcaseinplan'][0]:
-                for f in custom_ctx['testcaseinplan'][1]:
-                    if f['type'] == 'text':
-                        text += '<th>'+f['label']+'</th>'
-
+            ind['totals'] = totals
+                    
             text += '</tr></thead><tbody>';
             
-            text += self._render_subtree_as_table(context, planid, components, ind, 0, custom_ctx)
+            text += self._render_subtree_as_table(context, planid, components, ind, 0, table_columns, table_columns_map, custom_ctx)
 
+            text += self._render_totals(table_columns, ind['totals'])
+            
             text += '</tbody></table>'
             text += '</fieldset></form>'
 
@@ -1082,7 +1155,7 @@ class WikiTestManagerInterface(Component):
         cat = TestCatalog(self.env, catid)
         
         result = '<table class="listing" id="testPlanListTable"><thead>'
-        result += '<tr><th>'+_("Plan Name")+'</th><th>'+_("Author")+'</th><th>'+_("Timestamp")+'</th><th></th></tr>'
+        result += '<tr><th>'+_("Plan Name")+'</th><th>'+_("Author")+'</th><th>'+_("Timestamp")+'</th><th>'+_("Contained Test Cases")+'</th><th>'+_("Test Case Versions")+'</th><th></th></tr>'
         result += '</thead><tbody>'
         
         num_plans = 0
@@ -1091,6 +1164,8 @@ class WikiTestManagerInterface(Component):
             result += '<td><a title="'+_("Open Test Plan")+'" href="'+tp['page_name']+'?planid='+tp['id']+'">'+tp['name']+'</a></td>'
             result += '<td>'+html_escape(tp['author'])+'</td>'
             result += '<td>'+format_datetime(tp['time'])+'</td>'
+            result += '<td>'+(_("Contains selected Test Cases"), _("Contains all Test Cases"))[tp['contains_all']]+'</td>'
+            result += '<td>'+(_("Points to latest Test Case versions"), _("Contains a snapshot of Test Case versions"))[tp['freeze_tc_versions']]+'</td>'
             
             if show_delete_button:
                 result += '<td style="cursor: pointer;"><img class="iconElement" width="16" height="16" alt="'+_("Delete")+'" title="'+_("Delete")+'" src="'+delete_icon+'" onclick="deleteTestPlan(\'../testdelete?type=testplan&path='+tp['page_name']+'&mode='+mode+'&fulldetails='+str(fulldetails)+'&planid='+tp['id']+'\')"/></td>'
@@ -1246,7 +1321,7 @@ class WikiTestManagerInterface(Component):
         return text
         
     # Render the subtree as a tree table
-    def _render_subtree_as_table(self, context, planid, component, ind, level, custom_ctx=None, fulldetails=False):
+    def _render_subtree_as_table(self, context, planid, component, ind, level, table_columns=None, table_columns_map=None, custom_ctx=None, fulldetails=False):
         data = component
         text = ''
 
@@ -1267,31 +1342,37 @@ class WikiTestManagerInterface(Component):
                 else:
                     plan_param = ''
                 
+                text += '<tr name="testcatalog">'
+
                 # Common columns
-                text += '<tr name="testcatalog"><td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+_("Open")+'">'+comp['title']+'</a></td>'
+                if table_columns_map['title']['visible'] == 'True':
+                    text += '<td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+_("Open")+'">'+comp['title']+'</a></td>'
 
                 # Custom testcatalog columns
+                tcat = None
                 if custom_ctx['testcatalog'][0]:
                     tcat_id = comp['id'].rpartition('TT')[2]
                     tcat = TestCatalog(self.env, tcat_id)
-                    text += self._get_custom_fields_columns(tcat, custom_ctx['testcatalog'][1])
+                    text += self._get_custom_fields_columns(tcat, table_columns, table_columns_map, custom_ctx['testcatalog'][1])
 
                 text += '</tr>'
+
+                self._update_totals(ind['totals'], tcat)
                 
                 ind['count']+=1
-                text += self._render_subtree_as_table(context, planid, subcData, ind, level+1, custom_ctx, fulldetails)
+                text += self._render_subtree_as_table(context, planid, subcData, ind, level+1, table_columns, table_columns_map, custom_ctx, fulldetails)
                 if ('childrenT' in comp):            
                     mtData=comp['childrenT']
-                    text += self._render_testcases_as_table(context, planid, mtData, level+1, custom_ctx, fulldetails)
+                    text += self._render_testcases_as_table(context, planid, mtData, ind, level+1, table_columns, table_columns_map, custom_ctx, fulldetails)
 
         if (level == 0):
             if ('childrenT' in component):            
                 cmtData = component['childrenT']
-                text += self._render_testcases_as_table(context, planid, cmtData, level+1, custom_ctx, fulldetails)
+                text += self._render_testcases_as_table(context, planid, cmtData, ind, level, table_columns, table_columns_map, custom_ctx, fulldetails)
 
         return text
 
-    def _render_testcases_as_table(self, context, planid, data, level=0, custom_ctx=None, fulldetails=False): 
+    def _render_testcases_as_table(self, context, planid, data, ind, level=0, table_columns=None, table_columns_map=None, custom_ctx=None, fulldetails=False): 
 
         testmanagersystem = TestManagerSystem(self.env)
         tc_statuses = testmanagersystem.get_tc_statuses_by_name()
@@ -1307,6 +1388,7 @@ class WikiTestManagerInterface(Component):
             version = tick['version']
             version_str = ('&version='+str(version), '')[version == -1]
             
+            stat_meaning = ''
             has_status = True
             if status is not None and len(status) > 0 and status != '__none__':
                 stat_meaning = 'yellow'
@@ -1323,7 +1405,7 @@ class WikiTestManagerInterface(Component):
                 has_status = False
 
             tc = None
-            if fulldetails or custom_ctx['testcase'][0]:
+            if fulldetails or custom_ctx['testcase'][0] or table_columns_map['description']['visible'] == 'True':
                 tc = TestCase(self.env, tick['tc_id'])
 
             text += '<tr name="testcase">'
@@ -1334,34 +1416,49 @@ class WikiTestManagerInterface(Component):
                     statusLabel = tc_statuses[status][1]
                 else:
                     statusLabel = _("Unknown")
-                    
-                text += '<td style="padding-left: '+str(level*30)+'px;"><img class="statusIconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+version_str+'&mode=tree_table" '+tc_target+'>'+tick['title']+'</a></td>'
-            else:
-                text += '<td style="padding-left: '+str(level*30)+'px;"><input name="select_tc_checkbox" value="'+tick['id']+'" type="checkbox" style="display: none;float: left; position: relative; top: 3px;" /><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+version_str+'" '+tc_target+'>'+tick['title']+'</a></td>'
 
+            # TODO Hide status icon if Status column deselected in preferences
+            if table_columns_map['title']['visible'] == 'True':
+                if has_status:
+                    text += '<td style="padding-left: '+str(level*30)+'px;"><img name="'+tick['tc_id']+','+planid+','+tick['id']+','+status+','+stat_meaning+','+statusLabel+'" id="statusIcon'+tick['id']+'" class="statusIconElement" src="'+statusIcon+'" title="'+statusLabel+'"></img><a href="'+tick['id']+'?planid='+planid+version_str+'&mode=tree_table" '+tc_target+'>'+tick['title']+'</a></td>'
+                else:
+                    text += '<td style="padding-left: '+str(level*30)+'px;"><input name="select_tc_checkbox" value="'+tick['id']+'" type="checkbox" style="display: none;float: left; position: relative; top: 3px;" /><a href="'+tick['id']+'?mode=tree_table&fulldetails='+str(fulldetails)+version_str+'" '+tc_target+'>'+tick['title']+'</a></td>'
                 
             # Custom testcatalog columns
             if custom_ctx['testcatalog'][0]:
                 for f in custom_ctx['testcatalog'][1]:
-                    text += '<td></td>'
+                    if table_columns_map[f['name']]['visible'] == 'True':
+                        text += '<td></td>'
 
             # Base testcase columns
-            text += '<td>'+tick['tc_id']+'</td>'
+            if table_columns_map['id']['visible'] == 'True':
+                text += '<td>'+tick['tc_id']+'</td>'
 
             # Custom testcase columns
             if tc and tc.exists and custom_ctx['testcase'][0]:
-                text += self._get_custom_fields_columns(tc, custom_ctx['testcase'][1])
+                text += self._get_custom_fields_columns(tc, table_columns, table_columns_map, custom_ctx['testcase'][1])
 
+            self._update_totals(ind['totals'], tc)
+                
             if has_status:
                 # Base testcaseinplan columns
-                text += '<td>'+statusLabel+'</td><td>'+html_escape(tick['author'])+'</td><td>'+format_datetime(tick['ts'])+'</td>'
-
+                if table_columns_map['status']['visible'] == 'True':
+                    text += '<td>'+statusLabel+'</td>'
+                if table_columns_map['author']['visible'] == 'True':
+                    text += '<td>'+html_escape(tick['author'])+'</td>'
+                if table_columns_map['time']['visible'] == 'True':
+                    text += '<td>'+format_datetime(tick['ts'])+'</td>'
+                
                 # Custom testcaseinplan columns
+                tcip = None
                 if custom_ctx['testcaseinplan'][0]:
                     tcip = TestCaseInPlan(self.env, tick['tc_id'], planid)
-                    text += self._get_custom_fields_columns(tcip, custom_ctx['testcaseinplan'][1])
+                    text += self._get_custom_fields_columns(tcip, table_columns, table_columns_map, custom_ctx['testcaseinplan'][1])
 
-            if fulldetails:
+                self._update_totals(ind['totals'], tcip)
+                    
+            #if fulldetails:
+            if table_columns_map['description']['visible'] == 'True':
                 wikidom = WikiParser(self.env).parse(tc.description)
                 out = StringIO()
                 f = Formatter(self.env, context)
@@ -1370,11 +1467,35 @@ class WikiTestManagerInterface(Component):
                 description = out.getvalue()
 
                 text += '<td>'+description+'</td>'
-                        
-            text += '</tr>'
 
+            text += '</tr>'
+            
         return text
 
+    def _render_totals(self, table_columns, totals):
+        text = ''
+    
+        for col in table_columns:
+            if col['visible'] == 'True':
+                if col['name'] in totals:
+                    text += '<td>'
+                
+                    col_totals = totals[col['name']]
+                    operation = col_totals['operation']
+                    if operation == 'sum':
+                        text += str(col_totals['sum']) + ' ' + _("(Sum)")
+                    elif operation == 'average':
+                        text += str(col_totals['average']) + ' ' + _("(Average)")
+                    elif operation == 'count':
+                        text += str(col_totals['count']) + ' ' + _("(Count)")
+                
+                    text += '</td>'
+                
+                else:
+                    text += '<td></td>'
+                
+        return text
+        
     def _build_testcase_change_status(self, planid, curpage):
         testmanagersystem = TestManagerSystem(self.env)
         tc_statuses = testmanagersystem.get_tc_statuses_by_name()
@@ -1483,18 +1604,63 @@ class WikiTestManagerInterface(Component):
         text += '</fieldset></form>'
 
         return text
-        
-    def _get_custom_fields_columns(self, obj, fields):
+
+    def _update_totals(self, totals, obj):
+        self.env.log.debug(">>> _update_totals: %s %s", totals, obj)
+        if obj is not None:
+            for col in totals:
+                col_totals = totals[col]
+                operation = col_totals['operation']
+                if operation == 'sum':
+                    col_totals['sum'] += self._get_field_value(col, obj)
+
+                elif operation == 'average':
+                    val = self._get_field_value(col, obj)
+                    
+                    if val != 0:
+                        prev_count = col_totals['count']
+                        if prev_count > 0:
+                            prev_average = col_totals['average']
+                            col_totals['average'] = (val + (prev_average * prev_count)) / (prev_count + 1)
+                        else:
+                            col_totals['average'] = val
+
+                        col_totals['count'] += 1
+                    
+                elif operation == 'count':
+                    val = self._get_field_value(col, obj)
+                    if val != 0:
+                        col_totals['count'] += 1
+
+        self.env.log.debug("<<< _update_totals: %s", totals)
+                        
+    def _get_custom_fields_columns(self, obj, table_columns, table_columns_map, fields):
         result = ''
         
         for f in fields:
-            if f['type'] == 'text':
-                result += '<td>'
-                if obj[f['name']] is not None:
-                    result += obj[f['name']]
-                result += '</td>'
+            if table_columns_map[f['name']]['visible'] == 'True':
+                if f['type'] == 'text':
+                    result += '<td>'
+                    if obj[f['name']] is not None:
+                        result += obj[f['name']]
+                    result += '</td>'
 
-            # TODO Support other field types
+                # TODO Support other field types
 
         return result
 
+    def _get_field_value(self, col_name, obj):
+        result = 0
+        self.env.log.debug(">>> _get_field_value %s %s", col_name, obj)
+        if obj[col_name] is not None and obj[col_name] != '':
+            try:
+                self.env.log.debug("    _get_field_value - value: %s", obj[col_name])
+                # Try to parse the value as a number
+                result = float(obj[col_name])
+            except:
+                # Just count as 1 (non-empty value)
+                result = 1
+
+        self.env.log.debug("<<< _get_field_value: %s", result)
+                
+        return result

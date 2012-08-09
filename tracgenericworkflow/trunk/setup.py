@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Bordolanghi
+# Copyright (C) 2010-2012 Roberto Longobardi
 # 
 # This file is part of the Test Manager plugin for Trac.
 # 
@@ -27,9 +27,9 @@ setup(
     version='1.0.3',
     packages=['tracgenericworkflow','tracgenericworkflow.upgrades'],
     package_data={'tracgenericworkflow' : ['*.txt', 'templates/*.html', 'htdocs/*.*', 'htdocs/js/*.js', 'htdocs/css/*.css', 'htdocs/images/*.*']},
-    author = 'Roberto Bordolanghi',
-    author_email='seccanj@gmail.com',
-    license='BSD. See the file LICENSE.txt contained in the package.',
+    author = 'Roberto Longobardi',
+    author_email='otrebor.dev@gmail.com',
+    license='GPL v. 3. See the file LICENSE.txt contained in the package.',
     url='http://trac-hacks.org/wiki/TestManagerForTracPlugin',
     download_url='https://sourceforge.net/projects/testman4trac/files/',
     description='Test management plugin for Trac - Generic Workflow Engine component',

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Bordolanghi
+# Copyright (C) 2010-2011 Roberto Longobardi
 # 
 # This file is part of the Test Manager plugin for Trac.
 # 
@@ -173,21 +173,26 @@ class TestCatalog(AbstractTestDescription):
             if cat_re.match(tc['page_name'].partition(self.values['page_name']+'_')[2]) :
                 yield tc
         
-    def list_testcases(self, plan_id=None, db=None):
+    def list_testcases(self, plan_id=None, deep=False, db=None):
         """
         Returns a list of the test cases in this catalog.
         If plan_id is provided, returns a list of TestCaseInPlan objects,
         otherwise, of TestCase objects.
+        
+        :deep: if True indicates to return all TCs in the catalog and 
+               recursively in all the contained sub-catalogs.
         """
-
+        self.env.log.debug('>>> list_testcases')
+        
         if plan_id is not None:
             from testmanager.api import TestManagerSystem
             default_status = TestManagerSystem(self.env).get_default_tc_status()
         
         tc_search = TestCase(self.env)
-        tc_search['page_name'] = self.values['page_name'] + '_TC%'
+        tc_search['page_name'] = self.values['page_name'] + ('_TC%', '%_TC%')[deep]
         
         for tc in tc_search.list_matching_objects(exact_match=False, db=db):
+            self.env.log.debug('    ---> Found testcase %s' % tc['id'])
             if plan_id is None:
                 yield tc
             else:
@@ -197,11 +202,15 @@ class TestCatalog(AbstractTestDescription):
 
                 yield tcip
 
+        self.env.log.debug('<<< list_testcases')
+                
     def list_testplans(self, db=None):
         """
         Returns a list of test plans for this catalog.
         """
 
+        self.env.log.debug('>>> list_testplans')
+        
         tp_search = TestPlan(self.env)
         tp_search['catid'] = self.values['id']
         tp_search['contains_all'] = None
@@ -210,6 +219,8 @@ class TestCatalog(AbstractTestDescription):
         for tp in tp_search.list_matching_objects(db=db):
             yield tp
 
+        self.env.log.debug('<<< list_testplans')
+        
     def pre_delete(self, db):
         """ 
         Delete all contained test catalogs and test cases, recursively.
@@ -333,10 +344,10 @@ class TestCase(AbstractTestDescription):
         cursor = db.cursor()
         
         # Delete test cases in plan
-        cursor.execute('DELETE FROM testcaseinplan WHERE id = %s' % self['id'])
+        cursor.execute('DELETE FROM testcaseinplan WHERE id = %s', (self['id'],))
 
         # Delete test case status history
-        cursor.execute('DELETE FROM testcasehistory WHERE id = %s' % self['id'])
+        cursor.execute('DELETE FROM testcasehistory WHERE id = %s', (self['id'],))
 
         
 class TestCaseInPlan(AbstractVariableFieldsObject):
@@ -444,6 +455,35 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
 
         self.env.log.debug('<<< get_related_tickets')
 
+    def update_version(self):
+        """
+        Updates the wiki page version reference to be the latest available version.
+        """
+        self.env.log.debug('>>> update_version')
+
+        wikipage = WikiPage(self.env, self.values['page_name'])
+        self['page_version'] = wikipage.version
+        
+        self.env.log.debug('<<< update_version')
+        
+    def delete_history(self, db=None):
+        """
+        Deletes all entries in the testcasehistory related to this test case in plan
+        """
+        self.env.log.debug('>>> delete_history')
+
+        db, handle_ta = get_db_for_write(self.env, db)
+
+        cursor = db.cursor()
+        
+        # Delete test case status history
+        cursor.execute('DELETE FROM testcasehistory WHERE id = %s and planid = %s', (self['id'], self['planid']))
+
+        if handle_ta:
+            db.commit()
+
+        self.env.log.debug('<<< delete_history')
+        
     
 class TestPlan(AbstractVariableFieldsObject):
     """
@@ -502,6 +542,9 @@ class TestPlan(AbstractVariableFieldsObject):
         If only some test cases must be in the plan, then create the
         corresponding TestCaseInPlan objects and relate them to this plan.
         """
+        
+        self.env.log.debug(">>> post_insert")
+
         if not self.values['contains_all']:
             # Create a TestCaseInPlan for each test case specified by the User
             from testmanager.api import TestManagerSystem
@@ -525,6 +568,8 @@ class TestPlan(AbstractVariableFieldsObject):
         elif self.values['freeze_tc_versions']:
             # Create a TestCaseInPlan for each test case in the catalog, and
             # set the wiki page version to the current latest version
+            self.env.log.debug(" - 1 -")
+
             tcat = TestCatalog(self.env, self.values['catid'], self.values['page_name'])
 
             from testmanager.api import TestManagerSystem
@@ -532,14 +577,20 @@ class TestPlan(AbstractVariableFieldsObject):
 
             author = self.values['author']
 
-            for tc in tcat.list_testcases():
+            for tc in tcat.list_testcases(deep=True):
+                self.env.log.debug(" - 2 -")
                 tcip = TestCaseInPlan(self.env, tc.values['id'], self.values['id'])
                 if not tcip.exists:
                     tcip['page_name'] = tc['page_name']
                     tcip['page_version'] = tc.wikipage.version
                     tcip.set_status(default_status, author)
+                    
+                    self.env.log.debug(" - 3 - %s %s", tcip['id'], tcip['page_name'])
+                    
                     tcip.insert()
-            
+
+        self.env.log.debug("<<< post_insert")
+                    
     def post_delete(self, db):
         self.env.log.debug("Deleting this test plan %s" % self['id'])
         
@@ -554,10 +605,10 @@ class TestPlan(AbstractVariableFieldsObject):
         cursor = db.cursor()
         
         # Delete test cases in plan
-        cursor.execute('DELETE FROM testcaseinplan WHERE planid = %s' % self['id'])
+        cursor.execute('DELETE FROM testcaseinplan WHERE planid = %s', (self['id'],))
 
         # Delete test case status history
-        cursor.execute('DELETE FROM testcasehistory WHERE planid = %s' % self['id'])
+        cursor.execute('DELETE FROM testcasehistory WHERE planid = %s', (self['id'],))
 
     def get_related_tickets(self, db):
         pass
@@ -829,6 +880,11 @@ class TestManagerModelProvider(Component):
                 self.config.set('test-outcomes', 'default', 'TO_BE_TESTED')
                 config_dirty = True
 
+            # Set config section for default visible columns in tabular view
+            if self.config.get('testmanager', 'testcatalog.visible_description') == '':
+                self.config.set('testmanager', 'testcatalog.visible_description', 'False')
+                config_dirty = True
+                
             if config_dirty:
                 self.config.save()
 
@@ -841,5 +897,8 @@ class TestManagerModelProvider(Component):
         # Check for config section for test case outcomes
         if 'test-outcomes' not in self.config:
             return True
-        
+
+        if 'testmanager' not in self.config:
+            return True
+            
         return False

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Bordolanghi
+# Copyright (C) 2010-2012 Roberto Longobardi
 # 
 # This file is part of the Test Manager plugin for Trac.
 # 
@@ -25,12 +25,32 @@ from trac.core import *
 from trac.util.text import CRLF
 
 def get_page_title(text):
-    return text.split('\n')[0].strip('\r\n').strip('= \'')
+    result = None
+    
+    if text is not None:
+        result = text.split('\n')[0].strip('\r\n').strip('= \'')
 
+    if result == None:
+        if text is not None:
+            result = text
+        else:
+            result = ''
+    
+    return result
     
 def get_page_description(text):
-    return text.partition(CRLF)[2]
+    result = None
+    
+    if text is not None:
+        result = text.partition(CRLF)[2]
 
+    if result == None:
+        if text is not None:
+            result = text
+        else:
+            result = ''
+        
+    return result
  
 html_escape_table = {
     "&": "&amp;",

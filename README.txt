@@ -1,6 +1,6 @@
 Test Manager plugin for Trac
 
-  Copyright 2010-2011 Roberto Bordolanghi
+  Copyright 2010-2011 Roberto Longobardi
   
   The Test Manager plugin for Trac is free software: you can 
   redistribute it and/or modify it under the terms of the GNU General 
@@ -155,6 +155,67 @@ in a production environment.
 Change History:
 
 (Refer to the tickets on trac-hacks or SourceForge for complete descriptions.)
+
+Release 1.5.1 (2012-08-12):
+
+  This is somewhat of a major release, in that it includes several new interesting features and many bug fixes.
+  See the list below for more details.
+  
+  In addition to that, I realized a VIDEO TUTORIAL showing out the main features of this Test Manager, to 
+  help new and existing users take confidence with recent changes, new features and so on.
+  
+  Check the tutorial on YouTube: http://www.youtube.com/watch?v=BIi3QMT0rT4 
+  
+  Also the trac-hacks user manual has been restructured, updated and enriched with the recent changes and features.
+
+  o Enhancement #353771 (SourceForge): Time tracking capability. 
+                                       
+                                       This is now possible by means of the enhancements to the tabular views of
+                                       both test catalogs and test plans and the addition of a custom field.
+                                       See the comments to the feature request and the video tutorial, where this
+                                       customization example is fully explored.
+
+  o Enhancement #3537704 (SourceForge): Possibility to select columns for the table view. 
+                                        
+                                        This is now possible from the administration panel.
+                                        
+                                        I also added an interesting feature that allows for adding a statistical
+                                        row to the test catalog and test plan tabular views, with the option to have
+                                        the sum, average or count of the values in any column, being it a standard
+                                        or a custom property of test cases or catalogs.
+                                        
+                                        This feature is also used to realize the feature #353771 above.
+                                        See the video tutorial for an interesting use of this one to track test
+                                        execution effort estimation of an entire test plan  and compare it to actual 
+                                        execution time.
+                                       
+  o Enhancement #3537700 (SourceForge): Option to select table view as default view. 
+                                        This is now possible from the administration panel.
+                                   
+  o Enhancement #3537696 (SourceForge): Possibility to change test plans. 
+                                        
+                                        This is now possible by means of several new actions available on test cases:
+                                         - On a test case definition page, you have a new action button to add the 
+                                           test case to a plan. A dialog box appears showing you the suitable plans 
+                                           (the ones not containing all test cases).
+                                         - On a test case instance (a test case inside a plan) page, you have a new 
+                                           action button to remove the test case from the plan.
+                                         - On a test case instance (a test case inside a plan) page, in case the plan
+                                           is containing an old snapshot of the test case and you wish to update its text 
+                                           description to the latest version, you have a new action button to do that.
+                                       
+  o Fixed Ticket #8932 (Track-Hacks): The test plan tabular view has been enhanced to also 
+                                      show test case full text description
+
+  o Fixed Ticket #10131 and #10217 (Track-Hacks): Deleting a Test Case, deleting Test Catalogs containing Test items.
+                                                  This only happened on PosgreSQL.
+
+  o Fixed some bugs that I found ad which were not reported:
+    - The quick search in test catalogs was not working.
+    - Indentation of test cases in tabular views for both catalogs and plans was incorrect.
+    - Localization (i.e. translation) did not work for some parts of the Administration panel, 
+      the Statistical charts page and several dialog boxes.
+    - Some more I can't recall :D
 
 Release 1.4.11 (2012-06-03):
 

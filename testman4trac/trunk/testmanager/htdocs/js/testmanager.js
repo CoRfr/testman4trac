@@ -1,6 +1,6 @@
 ﻿/* -*- coding: utf-8 -*-
 #
-# Copyright (C) 2010-2011 Roberto Bordolanghi
+# Copyright (C) 2010-2012 Roberto Longobardi
 # 
 # This file is part of the Test Manager plugin for Trac.
 # 
@@ -130,14 +130,50 @@ function createTestPlanCancel() {
     })(jQuery_testmanager);	
 }
 
+function addTestCaseToTestplanDialog() {
+	(function($) {
+		$(function() {
+			$("#dialog_select_testplan").dialog({width: 640, height: 430, modal: true});
+		});
+	})(jQuery_testmanager);	
+}
+
+function addTestCaseToPlan(tcId, tcatId) {
+	(function($) {
+		$(function() {
+			var planid = $("input[@name=selected_planid]:checked").val();
+			
+			if (planid && planid != '') {
+				var url = baseLocation+"/testcreate?type=testcaseinplan&tcatId="+tcatId+"&tcId="+tcId+"&planid="+planid;
+				window.location = url;
+			}
+		});
+	})(jQuery_testmanager);	
+}
+
+function addTestCaseToPlanCancel() {
+	(function($) {
+        $(function() {
+            $("#dialog_select_testplan").dialog('close');
+        });
+    })(jQuery_testmanager);	
+}
+
 function duplicateTestCase(tcName, catName) { 
 	var url = baseLocation+'/testcreate?type=testcase&duplicate=true&tcId='+tcName+'&path='+catName; 
 	window.location = url;
 }
 
-function regenerateTestPlan(planId, path) {
-    var url = baseLocation+"/testcreate?type=testplan&update=true&planid="+planId+"&path="+path;
+function updateTestCase(tcName, planId) {
+    var url = baseLocation+"/testcreate?type=testplan&update=true&tcId="+tcName+"&planid="+planId;
     window.location = url;
+}
+
+function removeTestCase(tcName, planId) {
+    if (confirm(_("Are you sure you want to remove the test case from the plan?"))) {
+		var url = baseLocation+"/testdelete?type=testcaseinplan&tcId="+tcName+"&planid="+planId;
+		window.location = url;
+	}
 }
 
 function creaTicket(tcName, planId, planName, summary){
@@ -408,7 +444,7 @@ function regexpescape(text) {
 }
 
 function filterMatch(node1,node2,res) {
-    var name=(node1.innerHTML + (node2 ? node2.innerHTML : "")).toLowerCase();
+    var name=(node1.innerText + ' ' + (node2 ? (node2.innerText ? node2.innerText : node2.textContent) : '')).toLowerCase();
     var match=true;
     for (var i=0;i<res.length;i++) {
         match=match && name.match(res[i]);
@@ -572,7 +608,7 @@ function filterMatchTable(node, res) {
     node = node.firstChild;
     while (node != null) {
         if (node.tagName === "TD") {
-            name += node.innerHTML;
+            name += ' ' + (node.innerText ? node.innerText : node.textContent);
         }
         
         node = node.nextSibling;

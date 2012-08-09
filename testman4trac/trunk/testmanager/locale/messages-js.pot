@@ -1,5 +1,5 @@
 # Translations template for TestManager.
-# Copyright (C) 2012 Roberto Bordolanghi
+# Copyright (C) 2012 Roberto Longobardi
 # This file is distributed under the same license as the TestManager
 # project.
 # FIRST AUTHOR <EMAIL@ADDRESS>, 2012.
@@ -7,9 +7,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: TestManager 1.4.10\n"
-"Report-Msgid-Bugs-To: seccanj@gmail.com\n"
-"POT-Creation-Date: 2012-03-03 23:25+0100\n"
+"Project-Id-Version: TestManager 1.5.1\n"
+"Report-Msgid-Bugs-To: otrebor.dev@gmail.com\n"
+"POT-Creation-Date: 2012-08-07 19:12+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -30,24 +30,28 @@ msgstr ""
 msgid "Length between 4 and 90 characters."
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:151
+#: testmanager/htdocs/js/testmanager.js:173
+msgid "Are you sure you want to remove the test case from the plan?"
+msgstr ""
+
+#: testmanager/htdocs/js/testmanager.js:187
 msgid "[Insert problem summary]"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:163
+#: testmanager/htdocs/js/testmanager.js:199
 msgid ""
 "Are you sure you want to duplicate the test catalog and all its contained"
 " test cases?"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:170
+#: testmanager/htdocs/js/testmanager.js:206
 msgid ""
 "Are you sure you want to delete the test plan and the state of all its "
 "contained test cases?"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:402
-#: testmanager/htdocs/js/testmanager.js:557
+#: testmanager/htdocs/js/testmanager.js:438
+#: testmanager/htdocs/js/testmanager.js:593
 msgid "Results: "
 msgstr ""
 

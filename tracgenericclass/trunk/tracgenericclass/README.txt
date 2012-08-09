@@ -1,6 +1,6 @@
 Trac Generic Class - Part of the Test Manager plugin for Trac
 
-  Copyright 2010-2011 Roberto Bordolanghi
+  Copyright 2010-2011 Roberto Longobardi
   
   The Test Manager plugin for Trac is free software: you can 
   redistribute it and/or modify it under the terms of the GNU General 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2011 Christian Masopust and Roberto Bordolanghi. 
+# Copyright (c) 2011 Christian Masopust and Roberto Longobardi. 
 # All rights reserved.
 # 
 # This file is part of the Test Manager plugin for Trac.
@@ -31,6 +31,8 @@ from trac.web.chrome import add_notice, add_warning, add_stylesheet
 from trac.admin.web_ui import IAdminPanelProvider
 from trac.wiki.formatter import format_to_html
 from trac.mimeview.api import Context
+
+from tracgenericclass.model import GenericClassModelProvider
 
 from testmanager.api import *
 from tracgenericclass.util import *
@@ -71,27 +73,45 @@ class TestManagerAdmin(Component):
 
         try:
             if req.method == 'POST':
-                default_days_back = req.args.get('default_days_back')
-                default_interval = req.args.get('default_interval')
-                testplan_sortby = req.args.get('testplan_sortby')
-                open_new_window = req.args.get('open_new_window')
+                default_days_back = req.args.get('default_days_back', '90')
+                default_interval = req.args.get('default_interval', '7')
+                testplan_sortby = req.args.get('testplan_sortby', 'name')
+                open_new_window = req.args.get('open_new_window', 'False')
+                testcatalog_default_view = req.args.get('testcatalog_default_view', 'tree')
+                testplan_default_view = req.args.get('testplan_default_view', 'tree')
 
                 self.env.config.set('testmanager', 'default_days_back', default_days_back)
                 self.env.config.set('testmanager', 'default_interval', default_interval)
                 self.env.config.set('testmanager', 'testplan.sortby', testplan_sortby)
-                self.env.config.set('testmanager', 'testcase.open_new_window', ("False", "True")[open_new_window == "on"])
+                self.env.config.set('testmanager', 'testcase.open_new_window', ('False', 'True')[open_new_window == 'on'])
+                self.env.config.set('testmanager', 'testcatalog.default_view', testcatalog_default_view)
+                self.env.config.set('testmanager', 'testplan.default_view', testplan_default_view)
 
+                _set_columns_visible(self.env, 'testcatalog', req.args, self.env.config)
+                _set_columns_visible(self.env, 'testplan', req.args, self.env.config)
+                
+                _set_columns_total_operation(self.env, 'testcatalog', req.args, self.env.config)
+                _set_columns_total_operation(self.env, 'testplan', req.args, self.env.config)
+                
                 self.env.config.save()
                 add_notice(req, _("Settings saved"))
         except:
             self.env.log.error(formatExceptionInfo())
             add_warning(req, _("Error saving the settings"))
 
-        data['default_days_back'] = self.env.config.get('testmanager', 'default_days_back')
-        data['default_interval'] = self.env.config.get('testmanager', 'default_interval')
-        data['testplan_sortby'] = self.env.config.get('testmanager', 'testplan.sortby')
-        data['open_new_window'] = self.env.config.get('testmanager', 'testcase.open_new_window')
-
+        data['default_days_back'] = self.env.config.get('testmanager', 'default_days_back', '90')
+        data['default_interval'] = self.env.config.get('testmanager', 'default_interval', '7')
+        data['testplan_sortby'] = self.env.config.get('testmanager', 'testplan.sortby', 'name')
+        data['open_new_window'] = self.env.config.get('testmanager', 'testcase.open_new_window', 'False')
+        data['testcatalog_default_view'] = self.env.config.get('testmanager', 'testcatalog.default_view', 'tree')
+        data['testplan_default_view'] = self.env.config.get('testmanager', 'testplan.default_view', 'tree')
+        
+        testcatalog_columns, foo, bar = get_all_table_columns_for_object(self.env, 'testcatalog', self.env.config)
+        testplan_columns, foo, bar = get_all_table_columns_for_object(self.env, 'testplan', self.env.config)
+        
+        data['testcatalog_columns'] = testcatalog_columns
+        data['testplan_columns'] = testplan_columns
+        
         return 'admin_settings.html', data
 
     def _render_templates(self, req, cat, page, component):
@@ -264,3 +284,106 @@ class TestManagerAdmin(Component):
         add_stylesheet(req, 'common/css/wiki.css')
         add_stylesheet(req, 'testmanager/css/admin.css')
         return 'admin_templates.html', data
+
+        
+def get_all_table_columns_for_object(env, objtype, settings):
+    genericClassModelProvider = GenericClassModelProvider(env)
+    
+    tcat_fields = genericClassModelProvider.get_custom_fields_for_realm('testcatalog')
+    tcat_has_custom = tcat_fields is not None and len(tcat_fields) > 0
+    
+    tc_fields = genericClassModelProvider.get_custom_fields_for_realm('testcase')
+    tc_has_custom = tc_fields is not None and len(tc_fields) > 0
+
+    if objtype == 'testplan':
+        tcip_fields = genericClassModelProvider.get_custom_fields_for_realm('testcaseinplan')
+        tcip_has_custom = tcip_fields is not None and len(tcip_fields) > 0
+    else:
+        tcip_fields = False
+        tcip_has_custom = None
+
+    custom_ctx = {
+        'testcatalog': [tcat_has_custom, tcat_fields],
+        'testcase': [tc_has_custom, tc_fields],
+        'testcaseinplan': [tcip_has_custom, tcip_fields]
+        }
+   
+    result = []
+    result_map = {}
+    
+    # Common columns
+    result.append({'name': 'title', 'label': _("Name"), 'visible': _is_column_visible(objtype, 'title', settings), 'totals': _get_column_total_operation(objtype, 'title', settings)})
+            
+    # Custom testcatalog columns
+    if tcat_has_custom:
+        for f in tcat_fields:
+            if f['type'] == 'text':
+                result.append(_get_column_settings(objtype, f, settings))
+
+    # Base testcase columns
+    result.append({'name': 'id', 'label': _("ID"), 'visible': _is_column_visible(objtype, 'id', settings), 'totals': _get_column_total_operation(objtype, 'id', settings)})
+
+    # Custom testcase columns
+    if tc_has_custom:
+        for f in tc_fields:
+            if f['type'] == 'text':
+                result.append(_get_column_settings(objtype, f, settings))
+
+    if objtype == 'testplan':
+        # Base testcaseinplan columns
+        result.append({'name': 'status', 'label': _("Status"), 'visible': _is_column_visible(objtype, 'status', settings), 'totals': _get_column_total_operation(objtype, 'status', settings)})
+        result.append({'name': 'author', 'label': _("Author"), 'visible': _is_column_visible(objtype, 'author', settings), 'totals': _get_column_total_operation(objtype, 'author', settings)})
+        result.append({'name': 'time', 'label': _("Last Change"), 'visible': _is_column_visible(objtype, 'time', settings), 'totals': _get_column_total_operation(objtype, 'time', settings)})
+
+        # Custom testcaseinplan columns
+        if tcip_has_custom:
+            for f in tcip_fields:
+                if f['type'] == 'text':
+                    result.append(_get_column_settings(objtype, f, settings))
+
+    # Full test case description
+    result.append({'name': 'description', 'label': _("Description"), 'visible': _is_column_visible(objtype, 'description', settings), 'totals': _get_column_total_operation(objtype, 'description', settings)})
+
+    for r in result:
+        result_map[r['name']] = r
+    
+    return result, result_map, custom_ctx
+    
+def _get_column_settings(objtype, field, settings):
+    return {'name': field['name'], 'label': field['label'], 'visible': _is_column_visible(objtype, field['name'], settings), 'totals': _get_column_total_operation(objtype, field['name'], settings)}
+
+def _is_column_visible(objtype, column_name, settings):
+    visible = settings.get('testmanager', objtype + '.visible_'+column_name)
+    
+    if visible is None or visible == '' or visible == 'True':
+        return 'True'
+    
+    return 'False'
+    
+def _set_columns_visible(env, objtype, args, settings):
+    columns, foo, bar = get_all_table_columns_for_object(env, objtype, settings)
+
+    for column in columns:
+        col_name = objtype + '.' + column['name']
+        if args.get(col_name, '') == 'on':
+            settings.remove('testmanager', objtype + '.visible_'+column['name'])
+        else:
+            settings.set('testmanager', objtype + '.visible_'+column['name'], 'False')
+
+def _get_column_total_operation(objtype, column_name, settings):
+    operation = settings.get('testmanager', objtype + '.totals_'+column_name)
+    
+    if operation is None or operation == '':
+        return None
+    
+    return operation
+    
+def _set_columns_total_operation(env, objtype, args, settings):
+    columns, foo, bar = get_all_table_columns_for_object(env, objtype, settings)
+
+    for column in columns:
+        arg_name = 'totals.' + objtype + '_' + column['name']
+        if args.get(arg_name, 'none') != 'none':
+            settings.set('testmanager', objtype + '.totals_'+column['name'], args.get(arg_name))
+        else:
+            settings.remove('testmanager', objtype + '.totals_'+column['name'])

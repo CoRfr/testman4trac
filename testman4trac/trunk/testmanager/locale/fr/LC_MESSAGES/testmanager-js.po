@@ -1,5 +1,5 @@
 # French translations for TestManager.
-# Copyright (C) 2011 Roberto Bordolanghi
+# Copyright (C) 2011 Roberto Longobardi
 # This file is distributed under the same license as the TestManager
 # project.
 #
