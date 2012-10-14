@@ -1,3 +1,5 @@
+Check the tutorial on YouTube: http://www.youtube.com/watch?v=BIi3QMT0rT4 
+
 Test Manager plugin for Trac
 
   Copyright 2010-2012 Roberto Longobardi
@@ -200,7 +202,7 @@ Change History:
 (Refer to the tickets on trac-hacks or SourceForge for complete 
 descriptions.)
 
-Release 1.5.1 (2012-10-14):
+Release 1.5.2 (2012-10-14):
 
   This release makes the plugins compatible with Trac 1.0.
   
