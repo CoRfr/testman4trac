@@ -23,11 +23,21 @@ Installation:
 2) Open your Trac project's home page, go to the admin panel and select 
    "Plugins"
 
+Repeat steps 3) to 7) for each plugin, in the following order:
+     a) TracGenericClass
+     b) TracGenericWorkflow
+     c) TestManager
+
 3) Notice the "Install Plugin" section. Browse for your Egg file and click 
    "Install".
 
-4) Open a shell or command prompt on your Trac server machine and run the 
-   database upgrade command that will be displayed in the Trac's page.
+4) Restart your Trac server (e.g. Apache or tracd).
+
+5) Reload the Trac page in your browser.
+
+6) If Trac says that a database upgrade is needed, open a shell or 
+   command prompt on your Trac server machine and run the database 
+   upgrade command that will be displayed in the Trac's page.
    
-5) Restart your Trac server (e.g. Apache or tracd).
+7) Restart your Trac server (e.g. Apache or tracd).
 

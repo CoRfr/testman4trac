@@ -29,6 +29,7 @@ import traceback
 from datetime import datetime
 
 from trac.core import *
+from trac.db import with_transaction
 
     
 def formatExceptionInfo(maxTBlevel=5):
@@ -85,36 +86,10 @@ def from_any_timestamp(ts):
         return datetime.fromtimestamp(ts, utc)
 
 def get_db(env, db=None):
-    global checked_compatibility
-    global has_read_db
-
-    if db:
-        return db
-
-    if not checked_compatibility:
-        check_compatibility(env)
-
-    if has_read_db:
-        return env.get_read_db()
-    else:
-        # Trac 0.11
-        return env.get_db_cnx()
+    raise TracError('get_db function is deprecated!')
 
 def get_db_for_write(env, db=None):
-    global checked_compatibility
-    global has_read_db
-
-    if db:
-        return (db, True)
-
-    if not checked_compatibility:
-        check_compatibility(env)
-
-    if has_read_db:
-        return (env.get_read_db(), True)
-    else:
-        # Trac 0.11
-        return (env.get_db_cnx(), True)
+    raise TracError('get_db_for_write function is deprecated!')
 
 def check_utimestamp():
     global checked_utimestamp
@@ -230,36 +205,38 @@ def upload_file_to_subdir(env, req, subdir, param_name, target_filename):
         target_file.close()
 
 
-def db_insert_or_ignore(env, tablename, propname, value):
-    if db_get_config_property(env, tablename, propname) is None:
-        db_set_config_property(env, tablename, propname, value)
+def db_insert_or_ignore(env, tablename, propname, value, db=None):
+    if db_get_config_property(env, tablename, propname, db) is None:
+        db_set_config_property(env, tablename, propname, value, db)
 
-def db_get_config_property(env, tablename, propname):
-    try:
-        db = get_db(env)
-        cursor = db.cursor()
-        sql = "SELECT value FROM %s WHERE propname=%%s" % tablename
+def db_get_config_property(env, tablename, propname, db=None):
+    if not db:
+        db = env.get_read_db()
         
+    cursor = db.cursor()
+    
+    sql = "SELECT value FROM %s WHERE propname=%%s" % tablename
+    row = None
+    
+    try:
         cursor.execute(sql, (propname,))
         row = cursor.fetchone()
-        
-        if not row or len(row) == 0:
-            return None
-            
-        return row[0]
-        
     except:
-        env.log.error("Error getting configuration property '%s' from table '%s'" % (propname, tablename))
-        env.log.error(formatExceptionInfo())
-        
-        return None
+        pass
 
-def db_set_config_property(env, tablename, propname, value):
-    db, handle_ta = get_db_for_write(env)
-    try:
+    if not row or len(row) == 0:
+        return None
+        
+    return row[0]
+        
+def db_set_config_property(env, tablename, propname, value, db=None):
+    @env.with_transaction(db)
+    def do_db_set_config_property(db):
         cursor = db.cursor()
+
         sql = "SELECT COUNT(*) FROM %s WHERE propname = %%s" % tablename
         cursor.execute(sql, (propname,))
+
         row = cursor.fetchone()
         if row is not None and int(row[0]) > 0:
             cursor.execute("""
@@ -272,17 +249,27 @@ def db_set_config_property(env, tablename, propname, value):
                            INSERT INTO %s (propname,value)
                                VALUES (%%s,%%s)
                            """ % tablename, (propname, str(value)))
-        if handle_ta:
-            db.commit()
 
-        return True
+    return True
 
-    except:
-        env.log.error("Error setting configuration property '%s' to '%s' into table '%s'" % (propname, str(value), tablename))
-        env.log.error(formatExceptionInfo())
-        db.rollback()
+def list_available_tables(dburi, cursor):
+    if dburi.startswith('sqlite:'): 
+        query = """
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND NOT name='sqlite_sequence'
+            """
+    elif dburi.startswith('postgres:'): 
+        query = """
+            SELECT tablename FROM pg_tables
+            WHERE schemaname = ANY (current_schemas(false))
+            """
+    elif dburi.startswith('mysql:'): 
+        query = "SHOW TABLES" 
+    else: 
+        raise TracError('Unsupported %s database' % dburi.split(':')[0]) 
+    cursor.execute(query) 
 
-    return False
+    return sorted([row[0] for row in cursor]) 
 
 def fix_base_location(req):
     return req.href('/').rstrip('/')

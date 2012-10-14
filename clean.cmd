@@ -5,17 +5,32 @@ rmdir /s /q build
 rmdir /s /q dist 
 rmdir /s /q TracGenericClass.egg-info
 
-cd ..\..\tracgenericworkflow/trunk
+cd ..\0.11
+rmdir /s /q build 
+rmdir /s /q dist 
+rmdir /s /q TracGenericClass.egg-info
+
+cd ..\..\tracgenericworkflow\trunk
 rmdir /s /q build 
 rmdir /s /q dist 
 rmdir /s /q TracGenericWorkflow.egg-info
 
-cd ..\..\sqlexecutor/trunk
+cd ..\0.11
+rmdir /s /q build 
+rmdir /s /q dist 
+rmdir /s /q TracGenericWorkflow.egg-info
+
+cd ..\..\sqlexecutor\trunk
 rmdir /s /q build 
 rmdir /s /q dist 
 rmdir /s /q SQLExecutor.egg-info
 
-cd ..\..\testman4trac/trunk
+cd ..\..\testman4trac\trunk
+rmdir /s /q build 
+rmdir /s /q dist 
+rmdir /s /q TestManager.egg-info
+
+cd ..\0.11
 rmdir /s /q build 
 rmdir /s /q dist 
 rmdir /s /q TestManager.egg-info

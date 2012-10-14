@@ -278,40 +278,37 @@ class TestCase(AbstractTestDescription):
         into the new name. This way, the page change history is kept.
         """
 
-        db, handle_ta = get_db_for_write(self.env, db)
+        @self.env.with_transaction(db)
+        def do_move_to(db):
+            # Rename the wiki page
+            new_page_name = tcat['page_name'] + '_TC' + self['id']
 
-        # Rename the wiki page
-        new_page_name = tcat['page_name'] + '_TC' + self['id']
+            cursor = db.cursor()
+            cursor.execute("UPDATE wiki SET name = %s WHERE name = %s", 
+                (new_page_name, self['page_name']))
 
-        cursor = db.cursor()
-        cursor.execute("UPDATE wiki SET name = %s WHERE name = %s", 
-            (new_page_name, self['page_name']))
+            # Invalidate Trac 0.12 page name cache
+            try:
+                del WikiSystem(self.env).pages
+            except:
+                pass
 
-        if handle_ta:
-            db.commit()
+            # TODO Move wiki page attachments
+            #from trac.attachment import Attachment
+            #Attachment.delete_all(self.env, 'wiki', self.name, db)
+            
+            # Remove test case from all the plans
+            tcip_search = TestCaseInPlan(self.env)
+            tcip_search['id'] = self.values['id']
+            for tcip in tcip_search.list_matching_objects(db=db):
+                tcip.delete(db)
 
-        # Invalidate Trac 0.12 page name cache
-        try:
-            del WikiSystem(self.env).pages
-        except:
-            pass
-
-        # TODO Move wiki page attachments
-        #from trac.attachment import Attachment
-        #Attachment.delete_all(self.env, 'wiki', self.name, db)
-        
-        # Remove test case from all the plans
-        tcip_search = TestCaseInPlan(self.env)
-        tcip_search['id'] = self.values['id']
-        for tcip in tcip_search.list_matching_objects(db=db):
-            tcip.delete(db)
-
-        # Update self properties and save
-        self['page_name'] = new_page_name
-        self.wikipage = WikiPage(self.env, new_page_name)
-        
-        self.save_changes('System', "Moved to a different catalog", 
-            datetime.now(utc), db)
+            # Update self properties and save
+            self['page_name'] = new_page_name
+            self.wikipage = WikiPage(self.env, new_page_name)
+            
+            self.save_changes('System', "Moved to a different catalog", 
+                datetime.now(utc), db)
 
     def get_related_tickets(self, db=None):
         """
@@ -320,8 +317,8 @@ class TestCase(AbstractTestDescription):
         """
         self.env.log.debug('>>> get_related_tickets')
     
-        if db is None:
-            db = get_db(self.env, db)
+        if not db:
+            db = self.env.get_read_db()
         
         cursor = db.cursor()
         cursor.execute("SELECT id FROM ticket WHERE id in " +
@@ -407,22 +404,19 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         status = status.lower()
         self['status'] = status
 
-        db, handle_ta = get_db_for_write(self.env, db)
-
-        cursor = db.cursor()
-        sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, %s, %s, %s)'
-        cursor.execute(sql, (self.values['id'], self.values['planid'], to_any_timestamp(datetime.now(utc)), author, status))
-
-        if handle_ta:
-            db.commit()
+        @self.env.with_transaction(db)
+        def do_set_status(db):
+            cursor = db.cursor()
+            sql = 'INSERT INTO testcasehistory (id, planid, time, author, status) VALUES (%s, %s, %s, %s, %s)'
+            cursor.execute(sql, (self.values['id'], self.values['planid'], to_any_timestamp(datetime.now(utc)), author, status))
 
     def list_history(self, db=None):
         """
         Returns an ordered list of status changes, along with timestamp
         and author, starting from the most recent.
         """
-        if db is None:
-            db = get_db(self.env, db)
+        if not db:
+            db = self.env.get_read_db()
         
         cursor = db.cursor()
 
@@ -439,8 +433,8 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         """
         self.env.log.debug('>>> get_related_tickets')
     
-        if db is None:
-            db = get_db(self.env, db)
+        if not db:
+            db = self.env.get_read_db()
 
         cursor = db.cursor()
         cursor.execute("SELECT id FROM ticket WHERE id in " +
@@ -472,15 +466,12 @@ class TestCaseInPlan(AbstractVariableFieldsObject):
         """
         self.env.log.debug('>>> delete_history')
 
-        db, handle_ta = get_db_for_write(self.env, db)
-
-        cursor = db.cursor()
-        
-        # Delete test case status history
-        cursor.execute('DELETE FROM testcasehistory WHERE id = %s and planid = %s', (self['id'], self['planid']))
-
-        if handle_ta:
-            db.commit()
+        @self.env.with_transaction(db)
+        def do_delete_history(db):
+            cursor = db.cursor()
+            
+            # Delete test case status history
+            cursor.execute('DELETE FROM testcasehistory WHERE id = %s and planid = %s', (self['id'], self['planid']))
 
         self.env.log.debug('<<< delete_history')
         
@@ -821,84 +812,83 @@ class TestManagerModelProvider(Component):
 
     # IEnvironmentSetupParticipant methods
     def environment_created(self):
-        self.upgrade_environment(get_db(self.env))
+        self.upgrade_environment()
 
-    def environment_needs_upgrade(self, db):
+    def environment_needs_upgrade(self, db=None):
         if self._need_upgrade(db):
             return True
         
         for realm in self.SCHEMA:
-            realm_metadata = self.SCHEMA[realm]
+            realm_schema = self.SCHEMA[realm]
 
-            if need_db_create_for_realm(self.env, realm, realm_metadata, db) or \
-                need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
+            if need_db_create_for_realm(self.env, realm, realm_schema, db) or \
+                need_db_upgrade_for_realm(self.env, realm, realm_schema, db):
                     
                 return True
                 
         return False
 
-    def upgrade_environment(self, db):
+    def upgrade_environment(self, db=None):
         # Create or update db
-        for realm in self.SCHEMA:
-            realm_metadata = self.SCHEMA[realm]
+        @self.env.with_transaction(db)
+        def do_upgrade_environment(db):
+            for realm in self.SCHEMA:
+                realm_schema = self.SCHEMA[realm]
 
-            if need_db_create_for_realm(self.env, realm, realm_metadata, db):
-                create_db_for_realm(self.env, realm, realm_metadata, db)
+                if need_db_create_for_realm(self.env, realm, realm_schema, db):
+                    create_db_for_realm(self.env, realm, realm_schema, db)
 
-            elif need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
-                upgrade_db_for_realm(self.env, 'testmanager.upgrades', realm, realm_metadata, db)
+                elif need_db_upgrade_for_realm(self.env, realm, realm_schema, db):
+                    upgrade_db_for_realm(self.env, 'testmanager.upgrades', realm, realm_schema, db)
+                    
+            # Create default values for configuration properties and initialize counters
+            db_insert_or_ignore(self.env, 'testconfig', 'NEXT_CATALOG_ID', '0', db)
+            db_insert_or_ignore(self.env, 'testconfig', 'NEXT_TESTCASE_ID', '0', db)
+            db_insert_or_ignore(self.env, 'testconfig', 'NEXT_PLAN_ID', '0', db)
+          
+            # Create the basic "TC" Wiki page, used as the root test catalog
+            tc_page = WikiPage(self.env, 'TC')
+            if not tc_page.exists:
+                tc_page.text = ' '
+                tc_page.save('System', '', '127.0.0.1')
+            
+            db.commit()
+            
+            if self._need_upgrade(db):
+                # Set custom ticket field to hold related test case
+                custom = self.config['ticket-custom']
+                config_dirty = False
+                if 'testcaseid' not in custom:
+                    custom.set('testcaseid', 'text')
+                    custom.set('testcaseid.label', _("Test Case"))
+                    config_dirty = True
+                if 'planid' not in custom:
+                    custom.set('planid', 'text')
+                    custom.set('planid.label', _("Test Plan"))
+                    config_dirty = True
 
-        # Create default values for configuration properties and initialize counters
-        db_insert_or_ignore(self.env, 'testconfig', 'NEXT_CATALOG_ID', '0')
-        db_insert_or_ignore(self.env, 'testconfig', 'NEXT_TESTCASE_ID', '0')
-        db_insert_or_ignore(self.env, 'testconfig', 'NEXT_PLAN_ID', '0')
-        
-        # Create the basic "TC" Wiki page, used as the root test catalog
-        tc_page = WikiPage(self.env, 'TC')
-        if not tc_page.exists:
-            tc_page.text = ' '
-            tc_page.save('System', '', '127.0.0.1')
-        
-        if self._need_upgrade(db):
-            # Set custom ticket field to hold related test case
-            custom = self.config['ticket-custom']
-            config_dirty = False
-            if 'testcaseid' not in custom:
-                custom.set('testcaseid', 'text')
-                custom.set('testcaseid.label', _("Test Case"))
-                config_dirty = True
-            if 'planid' not in custom:
-                custom.set('planid', 'text')
-                custom.set('planid.label', _("Test Plan"))
-                config_dirty = True
+                # Set config section for test case outcomes
+                if 'test-outcomes' not in self.config:
+                    self.config.set('test-outcomes', 'green.SUCCESSFUL', _("Successful"))
+                    self.config.set('test-outcomes', 'yellow.TO_BE_TESTED', _("Untested"))
+                    self.config.set('test-outcomes', 'red.FAILED', _("Failed"))
+                    self.config.set('test-outcomes', 'default', 'TO_BE_TESTED')
+                    config_dirty = True
 
-            # Set config section for test case outcomes
-            if 'test-outcomes' not in self.config:
-                self.config.set('test-outcomes', 'green.SUCCESSFUL', _("Successful"))
-                self.config.set('test-outcomes', 'yellow.TO_BE_TESTED', _("Untested"))
-                self.config.set('test-outcomes', 'red.FAILED', _("Failed"))
-                self.config.set('test-outcomes', 'default', 'TO_BE_TESTED')
-                config_dirty = True
-
-            # Set config section for default visible columns in tabular view
-            if self.config.get('testmanager', 'testcatalog.visible_description') == '':
-                self.config.set('testmanager', 'testcatalog.visible_description', 'False')
-                config_dirty = True
-                
-            if config_dirty:
-                self.config.save()
+                if config_dirty:
+                    self.config.save()
 
     def _need_upgrade(self, db):
         # Check for custom ticket field to hold related test case
         custom = self.config['ticket-custom']
         if 'testcaseid' not in custom or 'planid' not in custom:
+            self.env.log.debug('TestManager needs to be upgraded: missing custom ticket fields.')
             return True
 
         # Check for config section for test case outcomes
         if 'test-outcomes' not in self.config:
+            self.env.log.debug('TestManager needs to be upgraded: missing custom test outcomes.')
             return True
 
-        if 'testmanager' not in self.config:
-            return True
-            
+        self.env.log.debug('No need to upgrade TestManager for trac.ini matters.')
         return False

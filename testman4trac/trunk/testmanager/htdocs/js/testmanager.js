@@ -913,10 +913,10 @@ function sendUpdate(realm, name) {
    	var inputField = document.getElementById("custom_field_"+name);
 	var value = inputField.value;
     
-    var url = baseLocation+"/propertyupdate";
-    params = "realm="+realm+"&key="+objKey+"&props="+objProps+"&name="+name+"&value="+value;
+    params = "realm="+realm+"&key="+objKey+"&props="+objProps+"&name="+name+"&value="+encodeURIComponent(value);
+    var url = baseLocation+"/propertyupdate?" + params;
     
-    result = doAjaxCall(url, "POST", params); 
+    result = doAjaxCall(url, "GET", "");
 
     // Handle errors in the Ajax call
     if (result == 'OK') {

@@ -1,10 +1,20 @@
 VER=$1
 
-. ./clean.sh
-. ./build.sh
+PY_VERSION=`./get_python_version.sh`
 
-zip -r ../testman4trac.$VER.zip bin
-tar cvzf ../testmanager.$VER.tar.gz bin
+echo $PY_VERSION
+
+. ./clean.sh
+
+. ./build_011.sh
+zip -r ../testman4trac.$VER-Py_$PY_VERSION-Trac_0.11.zip bin
+tar cvzf ../testmanager.$VER-Py_$PY_VERSION-Trac_0.11.tar.gz bin
+
+. ./clean.sh
+
+. ./build.sh
+zip -r ../testman4trac.$VER-Py_$PY_VERSION-Trac_0.12-1.0.zip bin
+tar cvzf ../testmanager.$VER-Py_$PY_VERSION-Trac_0.12-1.0.tar.gz bin
 
 . ./clean.sh
 

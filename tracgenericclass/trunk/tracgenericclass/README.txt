@@ -73,6 +73,10 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.1.5 (2012-10-14):
+  This release makes the plugins compatible with Trac 1.0.
+  o Fixed Ticket #10293 (Track-Hacks): New install impossible on Trac 1.0beta1
+
 Release 1.1.3 (2012-06-03):
   o Fixed Ticket #9953 (Track-Hacks): Changing a testcase custom field value gives and error
 

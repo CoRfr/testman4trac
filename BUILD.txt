@@ -11,9 +11,15 @@ To build the four plugins that make up the application:
  2) Unzip the source code distribution package
  3) Open a shell, cd into the root directory coming from the source code 
     distribution package
- 4) Build the source code using the provided buil.sh script:
+ 4) Build the source code using the provided build scripts:
+    
+    - To build for Trac 0.11:
  
-    . ./build.sh
+        . ./build_011.sh
+ 
+    - To build for Trac 0.12 and above:
+ 
+        . ./build.sh
  
     The build shell script can copy the resulting egg files into your desired 
     destination.
@@ -29,9 +35,15 @@ To build the four plugins that make up the application:
   On Windows:
 
  1), 2), 3) Same as for Linux
- 4) Build the source code using the provided buil.sh script:
+ 4) Build the source code using the provided build scripts:
  
-    build.cmd
+    - To build for Trac 0.11:
+ 
+        build_011.cmd
+ 
+    - To build for Trac 0.12 and above:
+ 
+        build.cmd
  
     The build shell script can copy the resulting egg files into your desired 
     destination.

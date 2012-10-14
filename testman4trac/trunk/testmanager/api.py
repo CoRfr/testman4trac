@@ -159,7 +159,7 @@ class TestManagerSystem(Component):
 
     def get_config_property(self, propname):
         try:
-            db = get_db(self.env)
+            db = self.env.get_read_db()
             cursor = db.cursor()
             sql = "SELECT value FROM testconfig WHERE propname=%s"
             
@@ -178,8 +178,8 @@ class TestManagerSystem(Component):
             return None
     
     def set_config_property(self, propname, value):
-        db, handle_ta = get_db_for_write(self.env)
-        try:
+        @with_transaction(self.env)
+        def do_set_config_property(db):
             cursor = db.cursor()
             sql = "SELECT COUNT(*) FROM testconfig WHERE propname = %s"
             cursor.execute(sql, (propname,))
@@ -195,17 +195,8 @@ class TestManagerSystem(Component):
                                INSERT INTO testconfig (propname,value)
                                    VALUES (%s,%s)
                                """, (propname, str(value)))
-            if handle_ta:
-                db.commit()
  
-            return True
- 
-        except:
-            self.env.log.error("Error setting configuration property '%s' to '%s'" % (propname, str(value)))
-            self.env.log.error(formatExceptionInfo())
-            db.rollback()
-
-        return False
+        return True
     
     def get_default_tc_status(self):
         """Returns the default test case in plan status"""
@@ -249,7 +240,7 @@ class TestManagerSystem(Component):
         result += '<tr><th>'+_("Timestamp")+'</th><th>'+_("Author")+'</th><th>'+_("Status")+'</th></tr>'
         result += '</thead><tbody>'
         
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         sql = "SELECT time, author, status FROM testcasehistory WHERE id='"+str(id)+"' AND planid='"+str(planid)+"' ORDER BY time DESC"
@@ -271,7 +262,7 @@ class TestManagerSystem(Component):
     def list_all_testplans(self):
         """Returns a list of all test plans."""
 
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         sql = "SELECT id, catid, page_name, name, author, time FROM testplan ORDER BY catid, id"
@@ -892,8 +883,6 @@ class TestManagerSystem(Component):
 
     def get_tc_template(self, t_cat_page):
         """ get TestCase template for TestCatalog """
-        db = get_db(self.env)
-        cursor = db.cursor()
 
         try:
             # first get TestCatalog ID
@@ -918,7 +907,7 @@ class TestManagerSystem(Component):
 
     def get_template_by_id(self, t_id):
         """ Returns a template text by its id """
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         try:
@@ -937,7 +926,7 @@ class TestManagerSystem(Component):
 
     def get_template_by_name(self, t_name, t_type):
         """ Get a single template by name and type """
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
         
         try:
@@ -955,10 +944,10 @@ class TestManagerSystem(Component):
 
     # save a template
     def save_template(self, t_id, t_name, t_type, t_desc, t_cont, t_action):
-        db, handle_ta = get_db_for_write(self.env)
-        cursor = db.cursor()
+        @with_transaction(self.env)
+        def do_save_template(db):
+            cursor = db.cursor()
 
-        try:
             if t_action == 'ADD':
                 t_id = self.get_next_template_id()
                 self.env.log.debug("next id is: " + t_id)
@@ -973,41 +962,23 @@ class TestManagerSystem(Component):
                         WHERE id = %s AND name = %s AND type = %s
                 """, (t_desc, t_cont, t_id, t_name, t_type))
 
-            if handle_ta:
-                db.commit()
-                
-        except:
-            self.env.log.error("Error saving template with id '%s'" % t_id)
-            self.env.log.error(formatExceptionInfo())
-            db.rollback()
-            return False
-            
         return True
 
     def remove_template(self, t_id):
         """ Removes a single template by id """
-        db, handle_ta = get_db_for_write(self.env)
-        cursor = db.cursor()
-        
-        try:
+        @with_transaction(self.env)
+        def do_remove_template(db):
+            cursor = db.cursor()
+
             sql = "DELETE FROM testmanager_templates WHERE id = %s"
             self.env.log.debug("removing template with id '%s'" % t_id)
             cursor.execute(sql, (t_id,))
             
-            if handle_ta:
-                db.commit()
-
-        except:
-            self.env.log.error("Error removing template with id '%s'" % t_id)
-            self.env.log.error(formatExceptionInfo())
-            db.rollback()
-            return False
-        
         return True
 
     def get_templates(self, t_type):
         """ Get all templates of desired type """
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         items = []
@@ -1027,7 +998,7 @@ class TestManagerSystem(Component):
 
     def template_exists(self, name, t_type):
         """ Check if a given template with desired name and type already exists """
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
         
         try:
@@ -1046,7 +1017,7 @@ class TestManagerSystem(Component):
 
     def template_in_use(self, t_id):
         """ Check if a given Test Case template is in use """
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
         
         try:
@@ -1067,7 +1038,7 @@ class TestManagerSystem(Component):
 
     def get_next_template_id(self):
         """ Get next id to assign a new temmplate """
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
         ids = []
         try:
@@ -1090,7 +1061,7 @@ class TestManagerSystem(Component):
         
         # TODO: Use the TestCatalog class instead
         
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
         cursor.execute("SELECT * from testcatalog")
         items = []
@@ -1487,7 +1458,7 @@ class TestManagerSystem(Component):
         return result
         
     def list_matching_subpages(self, curpage):
-        db = get_db(self.env)
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         sql = "SELECT w1.name, w1.text, w1.version FROM wiki w1, (SELECT name, max(version) as ver FROM wiki WHERE name LIKE '%s%%' GROUP BY name) w2 WHERE w1.version = w2.ver AND w1.name = w2.name ORDER BY w2.name" % curpage

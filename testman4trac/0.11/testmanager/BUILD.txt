@@ -1,0 +1,57 @@
+
+To build the four plugins that make up the application:
+
+
+  On Linux:
+
+ 1) Make sure you have Trac installed and available in the Python lookup 
+    path. Genshi should also be available in the Python lookup path.
+    To make these libraries available to Python you can either install them
+    centrally, or reference them using the PYTHONLIB environment variable.
+ 2) Unzip the source code distribution package
+ 3) Open a shell, cd into the root directory coming from the source code 
+    distribution package
+ 4) Build the source code using the provided buil.sh script:
+ 
+    . ./build.sh
+ 
+    The build shell script can copy the resulting egg files into your desired 
+    destination.
+    If you wish to directly install the egg files under your Trac environment, 
+    you can do that
+    by providing your project root directory to the build.sh script:
+    
+    . ./build.sh path/to/your/project
+
+ 5) You will find the built egg files under the directory "bin".
+    
+    
+  On Windows:
+
+ 1), 2), 3) Same as for Linux
+ 4) Build the source code using the provided buil.sh script:
+ 
+    build.cmd
+ 
+    The build shell script can copy the resulting egg files into your desired 
+    destination.
+    If you wish to directly install the egg files under your Trac environment, 
+    you can do that by providing your project root directory to the build.sh 
+    script:
+    
+    build.cmd path\to\your\project
+    
+ 5) You will find the built egg files under the directory "bin".
+    
+
+==============================================================================
+Use the following command to clean up the build:
+
+  On Linux:
+
+    . ./clean.sh
+
+    
+  On Windows:
+    
+    clean.cmd

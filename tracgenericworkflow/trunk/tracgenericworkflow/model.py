@@ -145,9 +145,9 @@ class GenericWorkflowModelProvider(Component):
 
     # IEnvironmentSetupParticipant methods
     def environment_created(self):
-        self.upgrade_environment(get_db(self.env))
+        self.upgrade_environment()
 
-    def environment_needs_upgrade(self, db):
+    def environment_needs_upgrade(self, db=None):
         for realm in self.SCHEMA:
             realm_metadata = self.SCHEMA[realm]
 
@@ -158,13 +158,15 @@ class GenericWorkflowModelProvider(Component):
                 
         return False
 
-    def upgrade_environment(self, db):
+    def upgrade_environment(self, db=None):
         # Create or update db
-        for realm in self.SCHEMA:
-            realm_metadata = self.SCHEMA[realm]
+        @self.env.with_transaction(db)
+        def do_upgrade_environment(db):
+            for realm in self.SCHEMA:
+                realm_metadata = self.SCHEMA[realm]
 
-            if need_db_create_for_realm(self.env, realm, realm_metadata, db):
-                create_db_for_realm(self.env, realm, realm_metadata, db)
+                if need_db_create_for_realm(self.env, realm, realm_metadata, db):
+                    create_db_for_realm(self.env, realm, realm_metadata, db)
 
-            elif need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
-                upgrade_db_for_realm(self.env, 'tracgenericworkflow.upgrades', realm, realm_metadata, db)
+                elif need_db_upgrade_for_realm(self.env, realm, realm_metadata, db):
+                    upgrade_db_for_realm(self.env, 'tracgenericworkflow.upgrades', realm, realm_metadata, db)

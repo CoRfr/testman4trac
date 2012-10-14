@@ -46,6 +46,10 @@ Change History:
 
 (Refer to the tickets on trac-hacks for complete descriptions.)
 
+Release 1.0.4 (2012-10-14):
+  This release makes the plugins compatible with Trac 1.0.
+  o Fixed Ticket #10293 (Track-Hacks): New install impossible on Trac 1.0beta1
+
 Release 1.0.2 (2010-11-30):
   o Added out of the box operation to workflow engine: set_owner and set_owner_to_self
 

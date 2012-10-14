@@ -30,8 +30,7 @@ from datetime import date, datetime
 
 from trac.attachment import Attachment
 from trac.core import *
-from trac.db import Table, Column, Index
-from trac.env import IEnvironmentSetupParticipant
+from trac.db import Table, Column, Index, DatabaseManager, with_transaction
 from trac.resource import Resource, ResourceNotFound
 from trac.util.datefmt import utc, utcmax
 from trac.util.text import CRLF
@@ -305,10 +304,11 @@ class AbstractVariableFieldsObject(object):
     def _fetch_object(self, key, db=None):
         self.env.log.debug('>>> _fetch_object')
     
-        if db is None:
-            db = get_db(self.env, db)
-        
+        if not db:
+            db = self.env.get_read_db()
+
         if not self.pre_fetch_object(db):
+            self.env.log.debug('<<< _fetch_object (pre_fetch_object returned False)')
             return
         
         row = None
@@ -362,7 +362,7 @@ class AbstractVariableFieldsObject(object):
                         self.values[name] = value
 
         self.post_fetch_object(db)
-        
+    
         self.exists = True
 
         self.env.log.debug('<<< _fetch_object')
@@ -471,8 +471,6 @@ class AbstractVariableFieldsObject(object):
 
         assert not self.exists, 'Cannot insert an existing object'
 
-        db, handle_ta = get_db_for_write(self.env, db)
-
         # Add a timestamp
         if when is None:
             when = datetime.now(utc)
@@ -496,36 +494,36 @@ class AbstractVariableFieldsObject(object):
                     custom_fields.append(fname)
                 else:
                     std_fields.append(fname)
+        
+        @self.env.with_transaction(db)
+        def do_insert(db):
+            if not self.pre_insert(db):
+                self.env.log.debug('<<< insert (pre_insert returned False)')
+                return
 
-        if not self.pre_insert(db):
-            return
+            self.env.log.debug('  Inserting record')
+            cursor = db.cursor()
+            cursor.execute("INSERT INTO %s (%s) VALUES (%s)"
+                           % (self.realm,
+                              ','.join(std_fields),
+                              ','.join(['%s'] * len(std_fields))),
+                           [values[name] for name in std_fields])
 
-        self.env.log.debug('  Inserting record')
-        cursor = db.cursor()
-        cursor.execute("INSERT INTO %s (%s) VALUES (%s)"
-                       % (self.realm,
-                          ','.join(std_fields),
-                          ','.join(['%s'] * len(std_fields))),
-                       [values[name] for name in std_fields])
+            # Insert custom fields
+            key_names = self.get_key_prop_names()
+            key_values = self.get_key_prop_values()
+            if len(custom_fields) > 0:
+                self.env.log.debug('  Inserting custom fields')
+                cursor.executemany("""
+                INSERT INTO %s_custom (%s,name,value) VALUES (%s,%%s,%%s)
+                """ 
+                % (self.realm, 
+                   ','.join(key_names),
+                   ','.join(['%s'] * len(key_names))),
+                [to_list((key_values, name, self[name])) for name in custom_fields])
 
-        # Insert custom fields
-        key_names = self.get_key_prop_names()
-        key_values = self.get_key_prop_values()
-        if len(custom_fields) > 0:
-            self.env.log.debug('  Inserting custom fields')
-            cursor.executemany("""
-            INSERT INTO %s_custom (%s,name,value) VALUES (%s,%%s,%%s)
-            """ 
-            % (self.realm, 
-               ','.join(key_names),
-               ','.join(['%s'] * len(key_names))),
-            [to_list((key_values, name, self[name])) for name in custom_fields])
-
-        self.post_insert(db)
+            self.post_insert(db)
                 
-        if handle_ta:
-            db.commit()
-
         self.env.log.debug('  Setting up internal fields')
         self.exists = True
         self.resource = self.resource(id=self.get_resource_id())
@@ -553,70 +551,68 @@ class AbstractVariableFieldsObject(object):
         if not self._old and not comment:
             return False # Not modified
 
-        db, handle_ta = get_db_for_write(self.env, db)
-
         if when is None:
             when = datetime.now(utc)
         when_ts = to_any_timestamp(when)
+            
+        @self.env.with_transaction(db)
+        def do_save_changes(db):
+            if not self.pre_save_changes(db):
+                self.env.log.debug('<<< save_changes (pre_save_changes returned False)')
+                return
+            
+            cursor = db.cursor()
 
-        if not self.pre_save_changes(db):
-            return
-        
-        cursor = db.cursor()
+            # store fields
+            custom_fields = [f['name'] for f in self.fields if f.get('custom')]
+            
+            key_names = self.get_key_prop_names()
+            key_values = self.get_key_prop_values()
+            sql_where = '1=1'
+            for k in key_names:
+                sql_where += " AND " + k + "=%%s" 
 
-        # store fields
-        custom_fields = [f['name'] for f in self.fields if f.get('custom')]
-        
-        key_names = self.get_key_prop_names()
-        key_values = self.get_key_prop_values()
-        sql_where = '1=1'
-        for k in key_names:
-            sql_where += " AND " + k + "=%%s" 
-
-        for name in self._old.keys():
-            if name in custom_fields:
-                cursor.execute(("""
-                    SELECT * FROM %s_custom 
-                    WHERE name=%%s AND 
-                    """ + sql_where) % self.realm, to_list((name, key_values)))
-                    
-                if cursor.fetchone():
+            for name in self._old.keys():
+                if name in custom_fields:
                     cursor.execute(("""
-                        UPDATE %s_custom SET value=%%s
+                        SELECT * FROM %s_custom 
                         WHERE name=%%s AND 
-                        """ + sql_where) % self.realm, to_list((self[name], name, key_values)))
+                        """ + sql_where) % self.realm, to_list((name, key_values)))
+                        
+                    if cursor.fetchone():
+                        cursor.execute(("""
+                            UPDATE %s_custom SET value=%%s
+                            WHERE name=%%s AND 
+                            """ + sql_where) % self.realm, to_list((self[name], name, key_values)))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO %s_custom (%s,name,value) 
+                            VALUES (%s,%%s,%%s)
+                            """ 
+                            % (self.realm, 
+                            ','.join(key_names),
+                            ','.join(['%s'] * len(key_names))),
+                            to_list((key_values, name, self[name])))
                 else:
-                    cursor.execute("""
-                        INSERT INTO %s_custom (%s,name,value) 
-                        VALUES (%s,%%s,%%s)
-                        """ 
+                    cursor.execute(("""
+                        UPDATE %s SET %s=%%s WHERE 
+                        """ + sql_where) 
+                        % (self.realm, name),
+                        to_list((self[name], key_values)))
+                
+                if self.metadata['has_change']:
+                    cursor.execute(("""
+                        INSERT INTO %s_change
+                            (%s, time,author,field,oldvalue,newvalue)
+                        VALUES (%s, %%s, %%s, %%s, %%s, %%s)
+                        """
                         % (self.realm, 
                         ','.join(key_names),
-                        ','.join(['%s'] * len(key_names))),
-                        to_list((key_values, name, self[name])))
-            else:
-                cursor.execute(("""
-                    UPDATE %s SET %s=%%s WHERE 
-                    """ + sql_where) 
-                    % (self.realm, name),
-                    to_list((self[name], key_values)))
+                        ','.join(['%s'] * len(key_names)))),
+                        to_list((key_values, when_ts, author, name, 
+                        self._old[name], self[name])))
             
-            if self.metadata['has_change']:
-                cursor.execute(("""
-                    INSERT INTO %s_change
-                        (%s, time,author,field,oldvalue,newvalue)
-                    VALUES (%s, %%s, %%s, %%s, %%s, %%s)
-                    """
-                    % (self.realm, 
-                    ','.join(key_names),
-                    ','.join(['%s'] * len(key_names)))),
-                    to_list((key_values, when_ts, author, name, 
-                    self._old[name], self[name])))
-        
-        self.post_save_changes(db)
-
-        if handle_ta:
-            db.commit()
+            self.post_save_changes(db)
 
         old_values = self._old
         self._old = {}
@@ -639,44 +635,42 @@ class AbstractVariableFieldsObject(object):
 
         self.env.log.debug('>>> delete')
 
-        db, handle_ta = get_db_for_write(self.env, db)
+        @self.env.with_transaction(db)
+        def do_delete(db):
+            if not self.pre_delete(db):
+                self.env.log.debug('<<< delete (pre_delete returned False)')
+                return
+                
+            #Attachment.delete_all(self.env, 'ticket', self.id, db)
 
-        if not self.pre_delete(db):
-            return
-            
-        #Attachment.delete_all(self.env, 'ticket', self.id, db)
+            cursor = db.cursor()
 
-        cursor = db.cursor()
+            key_names = self.get_key_prop_names()
+            key_values = self.get_key_prop_values()
 
-        key_names = self.get_key_prop_names()
-        key_values = self.get_key_prop_values()
+            sql_where = 'WHERE 1=1'
+            for k in key_names:
+                sql_where += " AND " + k + "=%%s" 
 
-        sql_where = 'WHERE 1=1'
-        for k in key_names:
-            sql_where += " AND " + k + "=%%s" 
-
-        self.env.log.debug("Deleting %s: %s" % (self.realm, sql_where))
-        for k in key_names:
-            self.env.log.debug("%s = %s" % (k, self[k]))
-                       
-        cursor.execute(("DELETE FROM %s " + sql_where)
-            % self.realm, key_values)
-            
-        if self.metadata['has_change']:
-            cursor.execute(("DELETE FROM %s_change " + sql_where)
+            self.env.log.debug("Deleting %s: %s" % (self.realm, sql_where))
+            for k in key_names:
+                self.env.log.debug("%s = %s" % (k, self[k]))
+                           
+            cursor.execute(("DELETE FROM %s " + sql_where)
                 % self.realm, key_values)
-
-        if self.metadata['has_custom']:
-            custom_fields = [f['name'] for f in self.fields if f.get('custom')]
-            if len(custom_fields) > 0:
-                cursor.execute(("DELETE FROM %s_custom " + sql_where) 
+                
+            if self.metadata['has_change']:
+                cursor.execute(("DELETE FROM %s_change " + sql_where)
                     % self.realm, key_values)
 
-        self.post_delete(db)
-                
-        if handle_ta:
-            db.commit()
+            if self.metadata['has_custom']:
+                custom_fields = [f['name'] for f in self.fields if f.get('custom')]
+                if len(custom_fields) > 0:
+                    cursor.execute(("DELETE FROM %s_custom " + sql_where) 
+                        % self.realm, key_values)
 
+            self.post_delete(db)
+                
         from tracgenericclass.api import GenericClassSystem
         for listener in GenericClassSystem(self.env).change_listeners:
             listener.object_deleted(self.realm, self)
@@ -692,10 +686,13 @@ class AbstractVariableFieldsObject(object):
         """
         self.env.log.debug('>>> save_as')
 
-        db, handle_ta = get_db_for_write(self.env, db)
+        @self.env.with_transaction(db)
+        def do_save_as(db):
+            old_key = self.key
+            if not self.pre_save_as(old_key, new_key, db):
+                self.env.log.debug('<<< save_as (pre_save_as returned False)')
+                return
 
-        old_key = self.key
-        if self.pre_save_as(old_key, new_key, db):
             self.key = new_key
         
             # Copy values from key into corresponding self.values field
@@ -708,9 +705,6 @@ class AbstractVariableFieldsObject(object):
             self.insert(when, db)
         
             self.post_save_as(old_key, new_key, db)
-
-            if handle_ta:
-                db.commit()
 
         self.env.log.debug('<<< save_as')
         
@@ -730,9 +724,9 @@ class AbstractVariableFieldsObject(object):
             for k in self.get_key_prop_names():
                 sql_where += " AND " + k + "=%%s" 
 
-            if db is None:
-                db = get_db(self.env, db)
-
+            if not db:
+                db = self.env.get_read_db()
+                
             cursor = db.cursor()
 
             cursor.execute(("SELECT time,author,field,oldvalue,newvalue FROM %s_change " + sql_where+ " ORDER BY time DESC")
@@ -818,8 +812,8 @@ class AbstractVariableFieldsObject(object):
         """
         self.env.log.debug('>>> list_matching_objects')
         
-        if db is None:
-            db = get_db(self.env, db)
+        if not db:
+            db = self.env.get_read_db()
 
         self.pre_list_matching_objects(db)
 
@@ -894,6 +888,9 @@ class AbstractVariableFieldsObject(object):
         """
         Use this method to perform further work after your object has
         been inserted into the database.
+        
+        You should throw an exception inside here if you want the insert
+        to be aborted (i.e. all the work done so far rolled back).
         """
         pass
         
@@ -1046,7 +1043,6 @@ class GenericClassModelProvider(Component):
     Tickets.
     Currently, only 'text' type of fields are supported.
     """
-    implements(IEnvironmentSetupParticipant)
 
     class_providers = ExtensionPoint(IConcreteClassProvider)
     
@@ -1266,162 +1262,86 @@ class GenericClassModelProvider(Component):
             
         return self.all_custom_fields[realm]
 
-
-
-    # IEnvironmentSetupParticipant methods
-    def environment_created(self):
-        self.upgrade_environment(get_db(self.env))
-
-    def environment_needs_upgrade(self, db):
-        return (self._need_initialization(db) or self._need_upgrade(db))
-
-    def upgrade_environment(self, db):
-        # Create db
-        if self._need_initialization(db):
-            try:
-                try:
-                    from trac.db import DatabaseManager
-                    db_backend, _ = DatabaseManager(self.env)._get_connector()
-                except ImportError:
-                    db_backend = self.env.get_db_cnx()
-
-                cursor = db.cursor()
-
-                # Create base table
-                self.env.log.info("Creating table tracgenericclassconfig...")
-                tablem = Table('tracgenericclassconfig', key = ('propname'))[
-                          Column('propname'),
-                          Column('value')]
-                for stmt in db_backend.to_sql(tablem):
-                    self.env.log.debug(stmt)
-                    cursor.execute(stmt)
-
-                db.commit()
-
-                # Create default values for configuration properties and initialize counters
-                db_set_config_property(self.env, 'tracgenericclassconfig', 'tracgenericclass_dbversion', '1')
                 
-                db.commit()
-            except:
-                db.rollback()
-                self.env.log.error("Exception during upgrade")
-                raise
-
-    def _need_initialization(self, db):
-        return self._need_upgrade(db)
-
-    def _need_upgrade(self, db):
-        # Check for configuration table
-        cursor = db.cursor()
-        try:
-            cursor.execute("select count(*) from tracgenericclassconfig")
-            cursor.fetchone()
-            
-            return False
-        except:
-            db.rollback()
-            self.env.log.info("Need to create db table 'tracgenericclassconfig'.")
-            return True
-
-
 # Methods to help components create their databases
-def need_db_upgrade(env, schema, db):
-    """
-    Obsolete method.
-    """
-    return False
-
-def upgrade_db(env, schema, db):
-    """
-    Obsolete method.
-    """
-    pass
-
-def need_db_create_for_realm(env, realm, realm_metadata, db):
+def need_db_create_for_realm(env, realm, realm_metadata, db=None):
     """
     Call this method from inside your Component IEnvironmentSetupParticipant's
     environment_needs_upgrade() function to check whether your Component 
     using the generic classes needs to create the corresponding database tables.
     
-    :param tablename: The db table that, if missing, means that the database 
-                   must be created. 
+    :param realm_metadata: The db table metadata that, if missing, means that the 
+                database must be created. 
     """
-    table_metadata = realm_metadata['table']
-    tablename = table_metadata.name
-
-    cursor = db.cursor()
-    try:
-        cursor.execute("select count(*) from %s" % tablename)
-        cursor.fetchone()
-        
-        return False
-    except:
-        db.rollback()
+    current_version = _get_installed_version(env, realm, db)
+    env.log.debug("Current database version for class '%s' is %s", realm, current_version)
+    
+    if current_version is None or current_version <= 0:
+        env.log.info("Need to create db tables for class '%s'.", realm)
         return True
 
-def need_db_upgrade_for_realm(env, realm, realm_metadata, db=None):
+    env.log.debug("No need to create database for class \'%s\'.", realm)
+        
+    return False
+
+def need_db_upgrade_for_realm(env, realm, realm_schema, db=None):
     """
     Call this method from inside your Component IEnvironmentSetupParticipant's
     environment_needs_upgrade() function to check whether your Component 
     using the generic classes needs to update the corresponding database tables.
     
-    :param schema: The db schema definition, as returned by 
+    :param realm_schema: The db schema definition, as returned by 
                    the get_data_models() function in the IConcreteClassProvider
                    interface.
     """
-    cursor = db.cursor()
-    try:
-        table_metadata = realm_metadata['table']
-        version = realm_metadata['version']
 
-        dbversion = db_get_config_property(env, 'tracgenericclassconfig', realm + "_dbversion")
-        if dbversion is None:
-            dbversion = '1'
-        
-        if int(dbversion) < version:
-            return True
-        
-    except:
-        db.rollback()
-        env.log.debug("Need to create db tables for class '%s'." % realm)
+    table_metadata = realm_schema['table']
+    desired_version = realm_schema['version']
+
+    current_version = _get_installed_version(env, realm, db)
+    env.log.debug("Current database version for class '%s' is %s. Desired version is %s", realm, current_version, desired_version)
+    
+    if current_version is None or current_version < desired_version:
+        env.log.info("Need to update db tables for class '%s'.", realm)
         return True
 
+    env.log.debug("No need to update database for class \'%s\'.", realm)
 
-def create_db_for_realm(env, realm, realm_metadata, db, do_commit=True):
+    return False
+
+def create_db_for_realm(env, realm, realm_schema, db=None):
     """
     Call this method from inside your Component IEnvironmentSetupParticipant's
     upgrade_environment() function to create the database tables corresponding to
     your Component's generic classes.
     
-    :param schema: The db schema definition, as returned by 
+    :param realm_schema: The db schema definition, as returned by 
                    the get_data_models() function in the IConcreteClassProvider
                    interface.
     """
-    try:
-        try:
-            from trac.db import DatabaseManager
-            db_backend, _ = DatabaseManager(env)._get_connector()
-        except ImportError:
-            db_backend = env.get_db_cnx()
+    @env.with_transaction(db)
+    def do_create_db_for_realm(db):
+        cursor = db.cursor()
 
-        env.log.info("Creating DB for class '%s'." % realm)
+        db_backend, _ = DatabaseManager(env).get_connector()        
+
+        env.log.info("Creating DB for class '%s'.", realm)
             
         # Create the required tables
-        table_metadata = realm_metadata['table']
-        version = realm_metadata['version']
+        table_metadata = realm_schema['table']
+        version = realm_schema['version']
         tablename = table_metadata.name
         
-        cursor = db.cursor()
         key_names = [k for k in table_metadata.key]
         
         # Create base table
-        env.log.info("Creating base table %s..." % tablename)
+        env.log.info("Creating base table %s...", tablename)
         for stmt in db_backend.to_sql(table_metadata):
             env.log.debug(stmt)
             cursor.execute(stmt)
 
         # Create custom fields table if required
-        if realm_metadata['has_custom']:
+        if realm_schema['has_custom']:
             cols = []
             for k in key_names:
                 # Determine type of column k
@@ -1439,13 +1359,13 @@ def create_db_for_realm(env, realm, realm_metadata, db, do_commit=True):
             custom_key.append('name')
             
             table_custom = Table(tablename+'_custom', key = custom_key)[cols]
-            env.log.info("Creating custom properties table %s..." % table_custom.name)
+            env.log.info("Creating custom properties table %s...", table_custom.name)
             for stmt in db_backend.to_sql(table_custom):
                 env.log.debug(stmt)
                 cursor.execute(stmt)
 
         # Create change history table if required
-        if realm_metadata['has_change']:
+        if realm_schema['has_change']:
             cols = []
             for k in key_names:
                 # Determine type of column k
@@ -1468,48 +1388,34 @@ def create_db_for_realm(env, realm, realm_metadata, db, do_commit=True):
             change_key.append('field')
 
             table_change = Table(tablename+'_change', key = change_key)[cols]
-            env.log.info("Creating change history table %s..." % table_change.name)
+            env.log.info("Creating change history table %s...", table_change.name)
             for stmt in db_backend.to_sql(table_change):
                 env.log.debug(stmt)
                 cursor.execute(stmt)
 
-        db_set_config_property(env, 'tracgenericclassconfig', realm + '_dbversion', version)
+        _set_installed_version(env, realm, version, db)
 
-        if do_commit:
-            db.commit()
-
-    except:
-        env.log.error(formatExceptionInfo())
-        env.log.error("Exception during database creation for class '%s'." % realm)
-
-        db.rollback()
-        raise
-
-def upgrade_db_for_realm(env, package_name, realm, realm_metadata, db, do_commit=True):
+def upgrade_db_for_realm(env, package_name, realm, realm_schema, db=None):
     """
     Each db version should have its own upgrade module, named
     upgrades/db_<schema>_<N>.py, where 'N' is the version number (int).
     """
-    try:
-        try:
-            from trac.db import DatabaseManager
-            db_backend, _ = DatabaseManager(env)._get_connector()
-        except ImportError:
-            db_backend = env.get_db_cnx()
+    @env.with_transaction(db)
+    def do_upgrade_db_for_realm(db):
+        cursor = db.cursor()
 
-        env.log.info("Upgrading DB for class '%s'." % realm)
-            
+        db_backend, _ = DatabaseManager(env).get_connector()        
+
+        env.log.info("Upgrading DB for class '%s'.", realm)
+        
         # Create the required tables
-        table_metadata = realm_metadata['table']
-        version = realm_metadata['version']
+        table_metadata = realm_schema['table']
+        version = realm_schema['version']
         tablename = table_metadata.name
             
         cursor = db.cursor()
-        current_version = db_get_config_property(env, 'tracgenericclassconfig', realm + "_dbversion")
+        current_version = _get_installed_version(env, realm, db)
         
-        if current_version is None:
-            current_version = 1
-
         for i in range(current_version + 1, version + 1):
             env.log.info('Upgrading database version for class \'%s\' from %d to %d', realm, i - 1, i)
 
@@ -1522,16 +1428,73 @@ def upgrade_db_for_realm(env, package_name, realm, realm_metadata, db, do_commit
                                   '(%(version)s.py)', num=i, version=name))
             script.do_upgrade(env, i, db_backend, db)
 
-            db_set_config_property(env, 'tracgenericclassconfig', realm + '_dbversion', str(i))
+            _set_installed_version(env, realm, i, db)
 
-            env.log.info('Upgrade successful.')
-            if do_commit:
-                db.commit()
+            env.log.info('Upgrade step successful.')
 
-    except:
-        env.log.error(formatExceptionInfo())
-        env.log.error("Exception during database upgrade for class '%s'." % realm)
 
-        db.rollback()
-        raise
+# DB schema management methods
+
+def _get_installed_version(env, realm, db=None):
+    """
+    :return: -1, if the DB for realm does not exist,
+             a number greater or equals to 1 as the installed DB version for realm.
+    """
+    version = _get_system_value(env, realm + '_version', None, db)
+    if version is None:
+        # check for old naming schema
+        dburi = env.config.get('trac', 'database')
+        env.log.debug('Database backend is \'%s\'', dburi)
+
+        tables = list_available_tables(dburi, db.cursor())
+        if 'tracgenericclassconfig' in tables:
+            version = db_get_config_property(env, 'tracgenericclassconfig', realm + "_dbversion", db)
+        else:
+            if realm in tables:
+                version = 1
+
+    if version is None:
+        version = -1
+            
+    return int(version)
+
+def _set_installed_version(env, realm, version, db=None):
+    env.log.info('Setting database version for class \'%s\' to %d', realm, version)
+    _set_system_value(env, realm + '_version', version, db)
+
+# Trac db 'system' table management methods
+
+def _get_system_value(env, key, default=None, db=None):
+    result = default
+
+    if not db:
+        db = env.get_read_db()
+
+    cursor = db.cursor()
+    cursor.execute("SELECT value FROM system WHERE name=%s", (key,))
+    row = cursor.fetchone()
+    
+    if row and row[0]:
+        result = row[0]
+        env.log.debug('Found system key \'%s\' with value %s', key, result)
+    else:
+        env.log.debug('System key \'%s\' not found', key)
+        
+    env.log.debug('Returning system key \'%s\' with value %s', key, result)
+    return result
+
+def _set_system_value(env, key, value, db=None):
+    """
+    Atomic UPSERT (i.e. UPDATE or INSERT) db transaction to save realm DB version.
+    """
+    @env.with_transaction(db)
+    def do_set_system_value(db):
+        cursor = db.cursor()
+        cursor.execute(
+                "UPDATE system SET value=%s WHERE name=%s", (value, key))
+        
+        cursor.execute("SELECT value FROM system WHERE name=%s", (key,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO system(name, value) VALUES(%s, %s)", (key, value))
 

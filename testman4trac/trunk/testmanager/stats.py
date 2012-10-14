@@ -96,7 +96,7 @@ class TestStatsPlugin(Component):
         if at_date:
             dates_condition += " AND time <= %s" % to_any_timestamp(at_date)
 
-        db = self.env.get_db_cnx()
+        db = self.env.get_read_db()
         cursor = db.cursor()
         
         cursor.execute("SELECT COUNT(*) FROM wiki WHERE name LIKE '%s' AND version = 1 %s" % (path_filter, dates_condition))
@@ -114,7 +114,7 @@ class TestStatsPlugin(Component):
         specified status between from_date to at_date.
         '''
         
-        db = self.env.get_db_cnx()
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         if testplan == None or testplan == '':
@@ -144,7 +144,7 @@ class TestStatsPlugin(Component):
             testplan_filter = "INNER JOIN ticket_custom AS tcus ON t.id = tcus.ticket AND tcus.name = 'planid' AND tcus.value = '%s'" % testplan
 
 
-        db = self.env.get_db_cnx()
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         #self.env.log.debug("select COUNT(*) FROM ticket AS t %s WHERE time > %s and time <= %s" % 
@@ -169,7 +169,7 @@ class TestStatsPlugin(Component):
         else:
             testplan_filter = "INNER JOIN ticket_custom AS tcus ON tch.ticket = tcus.ticket AND tcus.name = 'planid' AND tcus.value = '%s'" % testplan
 
-        db = self.env.get_db_cnx()
+        db = self.env.get_read_db()
         cursor = db.cursor()
 
         #self.env.log.debug("select COUNT(*) FROM ticket_change AS tch %s WHERE tch.field = 'status' AND tch.newvalue = '%s' AND tch.time > %s AND tch.time <= %s"
@@ -413,7 +413,6 @@ class TestStatsPlugin(Component):
         
         else:
             # Normal rendering of first chart
-            db = self.env.get_db_cnx()
             showall = req.args.get('show') == 'all'
 
             testplan_list = []
