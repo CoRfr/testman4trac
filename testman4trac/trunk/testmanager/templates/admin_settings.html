@@ -37,6 +37,7 @@
 		  <td>Sort a test plan's test cases by:</td>
 		  <td>
 			  <select name="testplan_sortby">
+				  <option value="custom" selected="${testplan_sortby=='custom' or None}">User-specified (use "Organize Test Catalogs" to set)</option>
 				  <option value="name" selected="${testplan_sortby=='name' or None}">Name</option>
 				  <option value="modification_time" selected="${testplan_sortby=='modification_time' or None}">Modification time</option>
 			  </select>

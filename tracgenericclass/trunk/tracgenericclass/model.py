@@ -417,7 +417,7 @@ class AbstractVariableFieldsObject(object):
         if name in self.values and self.values[name] == value:
             return
         if name not in self._old: # Changed field
-            self.env.log.debug("Changing field value.")
+            self.env.log.debug("Changing '%s' field value." % name)
             self._old[name] = self.values.get(name)
         elif self._old[name] == value: # Change of field reverted
             del self._old[name]
@@ -471,36 +471,38 @@ class AbstractVariableFieldsObject(object):
 
         assert not self.exists, 'Cannot insert an existing object'
 
-        # Add a timestamp
-        if when is None:
-            when = datetime.now(utc)
-        self.values['time'] = self.values['changetime'] = when
-
-        # Perform type conversions
-        self.env.log.debug('  Performing type conversions')
-        values = dict(self.values)
-        for field in self.time_fields:
-            if field in values:
-                values[field] = to_any_timestamp(values[field])
-        
-        # Insert record
-        self.env.log.debug('  Getting fields')
-        std_fields = []
-        custom_fields = []
-        for f in self.fields:
-            fname = f['name']
-            if fname in self.values:
-                if f.get('custom'):
-                    custom_fields.append(fname)
-                else:
-                    std_fields.append(fname)
-        
         @self.env.with_transaction(db)
         def do_insert(db):
             if not self.pre_insert(db):
                 self.env.log.debug('<<< insert (pre_insert returned False)')
                 return
 
+            t_when = when
+
+            # Add a timestamp
+            if t_when is None:
+                t_when = datetime.now(utc)
+            self.values['time'] = self.values['changetime'] = t_when
+
+            # Perform type conversions
+            self.env.log.debug('  Performing type conversions')
+            values = dict(self.values)
+            for field in self.time_fields:
+                if field in values:
+                    values[field] = to_any_timestamp(values[field])
+            
+            # Insert record
+            self.env.log.debug('  Getting fields')
+            std_fields = []
+            custom_fields = []
+            for f in self.fields:
+                fname = f['name']
+                if fname in self.values:
+                    if f.get('custom'):
+                        custom_fields.append(fname)
+                    else:
+                        std_fields.append(fname)
+            
             self.env.log.debug('  Inserting record')
             cursor = db.cursor()
             cursor.execute("INSERT INTO %s (%s) VALUES (%s)"

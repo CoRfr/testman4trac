@@ -52,9 +52,19 @@
         var jQuery_trac_old = $.noConflict(true);
     </script>
 	
-	<link href="chrome/testmanager/css/blitzer/jquery-ui-1.8.13.custom.css" rel="stylesheet" type="text/css"/>
-	<script src="chrome/testmanager/js/jquery-1.5.1.min.js"></script>
-	<script src="chrome/testmanager/js/jquery-ui-1.8.13.custom.min.js"></script>
+	<link href="chrome/testmanager/css/blitzer/jquery-ui-1.10.0.custom.css" rel="stylesheet" type="text/css"/>
+	<script src="chrome/testmanager/js/jquery-1.9.1.min.js"></script>
+	<script src="chrome/testmanager/js/jquery-ui-1.10.0.custom.min.js"></script>
+    
+	<!--
+    <link href="chrome/testmanager/css/jquery-ui/jquery-ui.css" rel="stylesheet" type="text/css"/>
+	<script src="chrome/testmanager/js/jquery.js"></script>
+	<script src="chrome/testmanager/js/jquery-ui.js"></script>
+	<script src="chrome/testmanager/js/jquery-ui-addons.js"></script>
+	<link href="chrome/testmanager/css/jquery-ui/jquery-ui-addons.css" rel="stylesheet" type="text/css"/>
+	<script src="chrome/testmanager/js/jquery-ui-i18n.js"></script>
+    <script src="chrome/testmanager/js/babel.js"></script>
+	-->
 
     <script type="text/javascript">
         var jQuery_testmanager = $.noConflict(true);
@@ -106,6 +116,10 @@
 					   }
 					}
 				);
+                
+                $("#start_date").datepicker();
+                $("#end_date").datepicker();
+                
             });
         })(jQuery_testmanager);	
 		
@@ -145,9 +159,15 @@
 		<legend>Settings</legend>
 			<span id="period_container">
 				<label for="start_date">Start Date: </label>
-				<input type="text" name="start_date" id="start_date" value="${start_date}" size="10"/>
+				<input type="text" name="start_date" id="start_date" size="${len(date_hint)}"
+                       value="${start_date and format_date(start_date)}" readonly="${readonly}"
+                       title="${_('Format: %(datehint)s', datehint=date_hint)}"/>                
+                
 				<label for="end_date">End Date: </label>
-				<input type="text" name="end_date" id="end_date" value="${end_date}" size="10"/>
+				<input type="text" name="end_date" id="end_date" size="${len(date_hint)}"
+                       value="${end_date and format_date(end_date)}" readonly="${readonly}"
+                       title="${_('Format: %(datehint)s', datehint=date_hint)}"/>                
+
 				<label for="resolution">Resolution: </label>
 				<!--input type="text" name="resolution" id="resolution" value="${resolution}" size="5"/-->
 			   <select name="resolution" id="resolution">
@@ -161,6 +181,9 @@
 				  <option value="360">1 Year</option>
 			   </select>
 			</span>
+            <div>
+                <span class="hint" i18n:msg="datehint">Format: $date_hint</span>
+            </div>
 			<label for="testplan">Test Plan: </label>
 			<select name="testplan" id="testplan">
 				<option value="__all">All Test Plans</option>

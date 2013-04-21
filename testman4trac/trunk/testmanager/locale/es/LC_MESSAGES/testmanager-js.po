@@ -1,19 +1,20 @@
 # Spanish translations for TestManager.
-# Copyright (C) 2011 Roberto Longobardi
+# Copyright (C) 2012 Roberto Longobardi
 # This file is distributed under the same license as the TestManager
 # project.
 #
-# <jesuchristopher@gmail.com>, 2011.
+# Translators:
+# crossroad <jesuchristopher@gmail.com>, 2011
 msgid ""
 msgstr ""
 "Project-Id-Version: Test Manager for Trac plugin\n"
 "Report-Msgid-Bugs-To: http://trac-hacks.org/wiki/TestManagerForTracPlugin"
 "\n"
-"POT-Creation-Date: 2012-03-03 23:25+0100\n"
-"PO-Revision-Date: 2011-08-13 22:12+0000\n"
-"Last-Translator: crossroad <jesuchristopher@gmail.com>\n"
-"Language-Team: Spanish (Castilian) "
-"(http://www.transifex.net/projects/p/testman4trac/team/es/)\n"
+"POT-Creation-Date: 2013-04-21 19:34+0200\n"
+"PO-Revision-Date: 2012-08-09 20:52+0000\n"
+"Last-Translator: Roberto Longobardi <seccanj@gmail.com>\n"
+"Language-Team: Spanish "
+"(http://www.transifex.com/projects/p/testman4trac/language/es/)\n"
 "Plural-Forms: nplurals=2; plural=(n != 1)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
@@ -32,11 +33,15 @@ msgstr "Debe especificar un nombre. Longitud entre 4 y 90 caracteres."
 msgid "Length between 4 and 90 characters."
 msgstr "Longitud entre 4 y 90 caracteres."
 
-#: testmanager/htdocs/js/testmanager.js:151
+#: testmanager/htdocs/js/testmanager.js:173
+msgid "Are you sure you want to remove the test case from the plan?"
+msgstr ""
+
+#: testmanager/htdocs/js/testmanager.js:187
 msgid "[Insert problem summary]"
 msgstr ""
 
-#: testmanager/htdocs/js/testmanager.js:163
+#: testmanager/htdocs/js/testmanager.js:199
 msgid ""
 "Are you sure you want to duplicate the test catalog and all its contained"
 " test cases?"
@@ -44,14 +49,16 @@ msgstr ""
 "¿Esta seguro que desea duplicar el catálogo y todos los casos de pruebas "
 "contenidos en él?"
 
-#: testmanager/htdocs/js/testmanager.js:170
+#: testmanager/htdocs/js/testmanager.js:206
 msgid ""
 "Are you sure you want to delete the test plan and the state of all its "
 "contained test cases?"
 msgstr ""
+"¿Esta seguro que desea eliminar el Plan de Pruebas y estados de todos los"
+" casos de pruebas contenidos en él?"
 
-#: testmanager/htdocs/js/testmanager.js:402
-#: testmanager/htdocs/js/testmanager.js:557
+#: testmanager/htdocs/js/testmanager.js:467
+#: testmanager/htdocs/js/testmanager.js:622
 msgid "Results: "
 msgstr "Resultados:"
 

@@ -44,7 +44,7 @@ except ImportError:
 
 setup(
     name='TestManager',
-    version='1.5.2',
+    version='1.6.1',
     packages=['testmanager','testmanager.upgrades'],
     package_data={
         'testmanager' : [
@@ -53,6 +53,8 @@ setup(
             'htdocs/js/*.js', 
             'htdocs/js/*.swf', 
             'htdocs/css/*.css', 
+            'htdocs/css/jquery-ui/*.css', 
+            'htdocs/css/jquery-ui/images/*.*', 
             'htdocs/css/blitzer/*.css', 
             'htdocs/css/blitzer/images/*.*', 
             'htdocs/css/images/*.*', 

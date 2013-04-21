@@ -58,7 +58,7 @@ class WikiTestManagerInterface(Component):
     implements(ITemplateStreamFilter, IWikiChangeListener)
     
     _config_properties = {}
-    sortby = 'name'
+    sortby = 'custom'
     open_new_window = False
     
     def __init__(self, *args, **kwargs):
@@ -67,8 +67,8 @@ class WikiTestManagerInterface(Component):
         
         Available properties are:
         
-          testplan.sortby = {modification_time|name}    (default is name)
-          testcase.open_new_window = {True|False}       (default is False)
+          testplan.sortby = {modification_time|name|custom}    (default is custom)
+          testcase.open_new_window = {True|False}              (default is False)
         """
         
         Component.__init__(self, *args, **kwargs)
@@ -78,7 +78,7 @@ class WikiTestManagerInterface(Component):
     
     def _parse_config_options(self):
         if 'testmanager' in self.config:
-            self.sortby = self.config.get('testmanager', 'testplan.sortby', 'name')
+            self.sortby = self.config.get('testmanager', 'testplan.sortby', 'custom')
             self.open_new_window = self.config.get('testmanager', 'testcase.open_new_window', '') == 'True'
                         
     # IWikiChangeListener methods
@@ -305,6 +305,10 @@ class WikiTestManagerInterface(Component):
             insert2.append(tag.input(type='button', id='exportTestCasesButton', value=_("Export Test Catalog"), onclick='exportTestCasesFromCatalog("'+cat_name+'")')
                     )
 
+            insert2.append(HTML(self._get_organize_catalogs_dialog_markup(req, cat_name)))
+            insert2.append(tag.input(type='button', id='organizeCatalogsButton', value=_("Organize Test Catalogs"), onclick='organizeTestCatalog("'+cat_name+'")')
+                    )
+
             insert2.append(tag.div(class_='field')(
                 self._build_testplan_list(cat_name, mode, fulldetails, show_delete_button)
                 ))
@@ -321,7 +325,7 @@ class WikiTestManagerInterface(Component):
                 tag.input(type='submit', value=_("Delete Test Catalog"))
                 )
         else:
-            insert3 = HTML('')
+            insert3 = HTML(u'')
         
         common_code = self._write_common_code(req)
         
@@ -346,8 +350,6 @@ class WikiTestManagerInterface(Component):
             table_columns, table_columns_map, custom_ctx = get_all_table_columns_for_object(self.env, 'testplan', self.env.config)
             
         tmmodelprovider = GenericClassModelProvider(self.env)
-        test_plan = TestPlan(self.env, planid, cat_id, page_name)
-        
         tp = TestPlan(self.env, planid)
         
         insert1 = tag.div()(
@@ -366,14 +368,16 @@ class WikiTestManagerInterface(Component):
                     HTML(self._build_testplan_tree(formatter.context, str(planid), page_name, mode, self.sortby, table_columns, table_columns_map, custom_ctx)),
                     tag.div(class_='testCaseList')(
                     tag.br(),
-                    self._get_custom_fields_markup(test_plan, tmmodelprovider.get_custom_fields_for_realm('testplan')),
+                    self._get_custom_fields_markup(tp, tmmodelprovider.get_custom_fields_for_realm('testplan')),
                     tag.br(),
                     HTML(self._get_export_dialog_markup(req, cat_name, planid, 'testplan')),
+                    HTML(self._get_clone_testplan_dialog_markup(req, planid, tp['name'])),
                     tag.input(type='button', id='exportTestCasesButton', value=_("Export Test Plan"), onclick='exportTestCasesFromCatalog("'+cat_name+'")'),
+                    tag.input(type='button', id='cloneTestPlanButton', value=_("Clone Test Plan"), onclick='cloneTestPlan("'+cat_name+'", "'+planid+'")'),
                     tag.br(),
                     ),
                     tag.div(class_='field')(
-                        self._get_object_change_history_markup(test_plan)
+                        self._get_object_change_history_markup(tp)
                         ),
                     tag.br(), tag.br(), tag.br(), tag.br()
                     )
@@ -421,7 +425,7 @@ class WikiTestManagerInterface(Component):
     
         tc_id = tc_name.partition('_TC')[2]
         test_case = TestCase(self.env, tc_id, tc_name)
-        summary = test_case.title
+        summary = str(test_case.title)
 
         tcat = TestCatalog(self.env, cat_id)
         
@@ -452,13 +456,13 @@ class WikiTestManagerInterface(Component):
                     self._get_custom_fields_markup(test_case, tmmodelprovider.get_custom_fields_for_realm('testcase')),
                     tag.br(),
                     tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "", "", "'+summary+'")'),
-                    HTML('&nbsp;&nbsp;'), 
+                    HTML(u'&nbsp;&nbsp;'), 
                     tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "", "")'),
-                    HTML('&nbsp;&nbsp;'), 
+                    HTML(u'&nbsp;&nbsp;'), 
                     tag.input(type='button', id='moveTCButton', value=_("Move the Test Case into another catalog"), onclick='copyTestCaseToClipboard("'+tc_name+'")'),
-                    HTML('&nbsp;&nbsp;'), 
+                    HTML(u'&nbsp;&nbsp;'), 
                     tag.input(type='button', id='duplicateTCButton', value=_("Duplicate the Test Case"), onclick='duplicateTestCase("'+tc_name+'", "'+cat_name+'")'),
-                    HTML('&nbsp;&nbsp;'), 
+                    HTML(u'&nbsp;&nbsp;'), 
                     tag.input(type='button', id='addToTestPlanTCButton', value=_("Add to a Test Plan"), onclick='addTestCaseToTestplanDialog("'+tc_name+'")'),
                     tag.div(class_='field')(
                         self._get_object_change_history_markup(test_case)
@@ -519,9 +523,9 @@ class WikiTestManagerInterface(Component):
                     tag.br(), tag.br(),
                     self._get_update_to_latest_version_markup(tp, tc_name, planid),
                     tag.input(type='button', value=_("Open a Ticket on this Test Case"), onclick='creaTicket("'+tc_name+'", "'+planid+'", "'+plan_name+'", "'+summary+'")'),
-                    HTML('&nbsp;&nbsp;'), 
+                    HTML(u'&nbsp;&nbsp;'), 
                     tag.input(type='button', value=_("Show Related Tickets"), onclick='showTickets("'+tc_name+'", "'+planid+'", "'+plan_name+'")'),
-                    HTML('&nbsp;&nbsp;'), 
+                    HTML(u'&nbsp;&nbsp;'), 
                     self._get_remove_from_tp_markup(tp, tc_name, planid),
                     tag.br(), tag.br(), 
                     self._get_testcase_status_history_markup(formatter, has_status, page_name, planid),
@@ -535,15 +539,15 @@ class WikiTestManagerInterface(Component):
 
     def _get_update_to_latest_version_markup(self, tp, tc_name, planid):
         if tp['freeze_tc_versions']:
-            return tag.input(type='button', value=_("Update to latest version of Test Case"), onclick='updateTestCase("'+tc_name+'", "'+planid+'")'), HTML('&nbsp;&nbsp;')
+            return tag.input(type='button', value=_("Update to latest version of Test Case"), onclick='updateTestCase("'+tc_name+'", "'+planid+'")'), HTML(u'&nbsp;&nbsp;')
         else:
-            return HTML('')
+            return HTML(u'')
         
     def _get_remove_from_tp_markup(self, tp, tc_name, planid):
         if not tp['contains_all']:
-            return tag.input(type='button', value=_("Remove from the Test Plan"), onclick='removeTestCase("'+tc_name+'", "'+planid+'")'), HTML('&nbsp;&nbsp;')
+            return tag.input(type='button', value=_("Remove from the Test Plan"), onclick='removeTestCase("'+tc_name+'", "'+planid+'")'), HTML(u'&nbsp;&nbsp;')
         else:
-            return HTML('')
+            return HTML(u'')
     
     def _get_breadcrumb_markup(self, formatter, planid, page_name, mode='tree', fulldetails='False'):
         if planid and not planid == '-1':
@@ -634,7 +638,7 @@ class WikiTestManagerInterface(Component):
 
     def _get_testplan_dialog_markup(self, req, cat_name):
         result = u"""
-            <div id="dialog_testplan" style="padding:20px; display:none;" title="New Test Plan">
+            <div id="dialog_testplan" style="padding:20px; display:none;" title=\"""" + _("New Test Plan") + """\">
                 <form id="new_testplan_form" class="addnew">
                 """ + _("Specify the new Test Plan properties.") + """
                 <br />
@@ -693,6 +697,47 @@ class WikiTestManagerInterface(Component):
         
         return result
     
+    def _get_clone_testplan_dialog_markup(self, req, planid, plan_name):
+        
+        new_plan_name = _("Copy of %s") % (plan_name,)
+        
+        result = u"""
+            <div id="dialog_clone_testplan" style="padding:20px; display:none;" title=\"""" + _("Clone Test Plan") + """\">
+                <form id="clone_testplan_form" class="addnew">
+                """ + _("Specify the name of the new Test Plan.") + """
+                <br />
+                <fieldset>
+                    <table><tbody>
+                        <tr>
+                            <td>
+                                <div class="field">
+                                  <label>
+                                    """ + _("New Test Plan name:") + """
+                                  </label>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <input type="text" id="new_cloned_testplan_name" value="%s" size="50" /><br />
+                            </td>
+                        </tr>
+                    </tbody></table>
+                </fieldset>
+                <fieldset>
+                    <div class="buttons">
+                        <input type="button" value='""" + _("Clone Test Plan") + """' onclick="cloneTestPlanConfirm(%s)" style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Cancel") + """' onclick="cloneTestPlanCancel()" style="text-align: right;"></input>
+                    </div>
+                </fieldset>
+                </form>
+            </div>
+        """
+        
+        result = result % (new_plan_name, planid)
+        
+        return result
+    
     def _get_object_change_history_markup(self, obj, exclude_fields=None):
         text = u'<form id="objectChangeHistory" class="printableform"><fieldset id="objectChangeHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no6"  onclick="expandCollapseSection(\'objectChangeHistoryFields\')">'+_("Object change history")+'</a></legend>'
         
@@ -725,7 +770,7 @@ class WikiTestManagerInterface(Component):
     
     def _get_import_dialog_markup(self, req, cat_name):
         result = u"""
-            <div id="dialog_import" style="padding:20px; display:none;" title="Import test cases">
+            <div id="dialog_import" style="padding:20px; display:none;" title=\"""" + _("Import Test Cases") + """\">
                 <form id="import_file" class="addnew" method="post" enctype="multipart/form-data" action="%s/testimport">
                 """ + _("Select a file in CSV format to import the test cases from.") + """
                 <br />
@@ -784,7 +829,7 @@ class WikiTestManagerInterface(Component):
     
     def _get_export_dialog_markup(self, req, cat_name, planid, object_type):
         result = u"""
-            <div id="dialog_export" style="padding:20px; display:none;" title="Export test cases">
+            <div id="dialog_export" style="padding:20px; display:none;" title=\"""" + _("Export Test Cases") + """\">
                 <form id="export_file" class="addnew" method="post" action="%s/testexport">
                 """ + _("Select a name and a location on your machine for the CSV file to export the test cases to.") + """
                 <br />
@@ -848,7 +893,7 @@ class WikiTestManagerInterface(Component):
     
     def _get_select_testplan_dialog_markup(self, req, tc, tcat):
         result = u"""
-            <div id="dialog_select_testplan" style="padding:20px; display:none;" title='""" + _("Add Test Case to a Test Plan") + """'>
+            <div id="dialog_select_testplan" style="padding:20px; display:none;" title=\"""" + _("Add Test Case to a Test Plan") + """\">
                 <form id="add_to_testplan_form" class="addnew">
                     """ + _("Select the Test Plan to add the Test Case to.") + """
                 <br />
@@ -866,8 +911,9 @@ class WikiTestManagerInterface(Component):
         num_plans = 0
         
         tp_search = TestPlan(self.env)
+        tcat_page_name = str(tcat['page_name'])
         # Go up to outer enclosing Test Catalog
-        tp_search['page_name'] = 'TC_TT' + tcat['page_name'].partition('TC_TT')[2].partition('_')[0] + '%'
+        tp_search['page_name'] = 'TC_TT' + tcat_page_name.partition('TC_TT')[2].partition('_')[0] + str('%')        
         tp_search['contains_all'] = None
         tp_search['freeze_tc_versions'] = None
         
@@ -905,6 +951,29 @@ class WikiTestManagerInterface(Component):
         result = result % (tc['id'], tcat['id'])
 
         return result
+
+    def _get_organize_catalogs_dialog_markup(self, req, cat_name):
+        result = u"""
+            <div id="dialog_organize" style="padding:20px; display:none;" title=\"""" + _("Organize Test Catalogs") + """\">
+                <form id="organize_form_id" name="organize_form_id" class="addnew" method="post" action="%s/testorganize">
+                """ + _("Drag and drop the test cases to reorder them, or to move them to different catalogs.") + """
+                <br />
+                """ + self._build_catalog_organize(cat_name) + """ 
+                <fieldset>
+                    <div class="buttons">
+                        <input type="hidden" name="test_list" value="" />
+                        <input type="hidden" name="path" value="%s" />
+                        <input type="button" name="save" value='""" + _("Save") + """' onclick="postCatalogOrganization()" style="text-align: right;"></input>
+                        <input type="button" value='""" + _("Cancel") + """' onclick="organizeCatalogCancel()" style="text-align: right;"></input>
+                    </div>
+                </fieldset>
+                </form>
+            </div>
+        """
+        
+        result = result % (fix_base_location(req), cat_name)
+        
+        return result
     
     def _get_error_dialog_markup(self, req):
         result = u"""
@@ -917,8 +986,10 @@ class WikiTestManagerInterface(Component):
     
     def _write_common_code(self, req, add_statuses_and_colors=False, add_menu=False):
         add_stylesheet(req, 'common/css/report.css')
-        add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.8.13.custom.css')
+        add_stylesheet(req, 'testmanager/css/blitzer/jquery-ui-1.10.0.custom.css')
+        add_stylesheet(req, 'testmanager/css/jquery.uix.tree.css')
         add_stylesheet(req, 'testmanager/css/testmanager.css')
+        add_stylesheet(req, 'testmanager/css/nestedSortable.css')
 
         before_jquery = u'var baseLocation="'+fix_base_location(req)+'";' + \
             'var jQuery_trac_old = $.noConflict(true);'
@@ -932,11 +1003,13 @@ class WikiTestManagerInterface(Component):
         common_code = tag.div()(
             HTML(self._get_error_dialog_markup(req)),
             tag.script(before_jquery, type='text/javascript'),
-            tag.script(src='../chrome/testmanager/js/jquery-1.5.1.min.js', type='text/javascript'),
-            tag.script(src='../chrome/testmanager/js/jquery-ui-1.8.13.custom.min.js', type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/jquery-1.9.1.min.js', type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/jquery-ui-1.10.0.custom.min.js', type='text/javascript'),
             tag.script(after_jquery, type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/cookies.js', type='text/javascript'),
             tag.script(src='../chrome/testmanager/js/testmanager.js', type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/jquery.uix.tree.js', type='text/javascript'),
+            tag.script(src='../chrome/testmanager/js/jquery.mjs.nestedSortable.js', type='text/javascript'),
             )
 
         if self.env.get_version() < 25:
@@ -1073,7 +1146,7 @@ class WikiTestManagerInterface(Component):
         
         return text
     
-    def _build_testplan_tree(self, context, planid, curpage, mode='tree', sortby='name', table_columns=None, table_columns_map=None, custom_ctx=None):
+    def _build_testplan_tree(self, context, planid, curpage, mode='tree', sortby='custom', table_columns=None, table_columns_map=None, custom_ctx=None):
         testmanagersystem = TestManagerSystem(self.env)
         default_status = testmanagersystem.get_default_tc_status()
         
@@ -1148,8 +1221,6 @@ class WikiTestManagerInterface(Component):
         return HTML(text)
         
     def _render_testplan_list(self, catid, mode, fulldetails, show_delete_button):
-        """Returns a test case status in a plan audit trail."""
-
         delete_icon = '../chrome/testmanager/images/trash.png'
 
         cat = TestCatalog(self.env, catid)
@@ -1216,7 +1287,8 @@ class WikiTestManagerInterface(Component):
             data = component['childrenC']
             text +='<ul style="list-style: none;">';
         
-        sortedList = sorted(data, key=lambda k: data[k]['title'])
+        #sortedList = sorted(data, key=lambda k: data[k]['title'])
+        sortedList = sorted(data, key=self._test_sorting(data))
         
         for x in sortedList:
             ind['count'] += 1
@@ -1232,12 +1304,24 @@ class WikiTestManagerInterface(Component):
                     toggle_icon = '../chrome/testmanager/images/empty.png'
                     
                 index = str(ind['count'])
+
+                has_status = True
                 if planid is not None and not planid == '-1':
                     plan_param = '?planid='+planid
+                    color = [comp['color'], 'yellow'][comp['color'] == 'none']
+                    statusIcon='../chrome/testmanager/images/%s.png' % color
                 else:
+                    has_status = False
                     plan_param = ''
-                    
-                text += '<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span><span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title="'+_("Open")+'">'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
+
+                text += '<span name="'+toggable+'" style="cursor: pointer" id="b_'+index+'"><span onclick="toggle(\'b_'+index+'\')"><img class="iconElement" src="'+toggle_icon+'" /></span>'
+
+                # Include color icon for the aggregated status of all sub catalogs/test cases
+                if has_status:
+                    text += '<img class="aggregatedStatusIconElement" style="cursor: default;" src="'+statusIcon+'"></img>'
+
+                text += '<span id="l_'+index+'" onmouseover="underlineLink(\'l_'+index+'\')" onmouseout="removeUnderlineLink(\'l_'+index+'\')" onclick="window.location=\''+comp['id']+plan_param+'\'" title="'+_("Open")+'">'+comp['title']+'</span></span><span style="color: gray;">&nbsp;('+str(comp['tot'])+')</span>'
+
                 text +='<ul id="b_'+index+'_list" style="display:none;list-style: none;">';
                 ind['count']+=1
                 text += self._render_subtree(planid, subcData, ind, level+1)
@@ -1261,6 +1345,7 @@ class WikiTestManagerInterface(Component):
         tc_target = ("", " target='_blank'")[self.open_new_window]
         
         text=u''
+        #sortedList = sorted(data, key=self._test_sorting(data))
         sortedList = sorted(data)
         for x in sortedList:
             tick = data[x]
@@ -1328,7 +1413,7 @@ class WikiTestManagerInterface(Component):
         if (level == 0):
             data = component['childrenC']
 
-        sortedList = sorted(data, key=lambda k: data[k]['title'])
+        sortedList = sorted(data, key=self._test_sorting(data))
 
         for x in sortedList:
             ind['count'] += 1
@@ -1337,16 +1422,28 @@ class WikiTestManagerInterface(Component):
                 subcData=comp['childrenC']
                 
                 index = str(ind['count'])
+
+                has_status = True
                 if planid is not None and not planid == '-1':
                     plan_param = '&planid='+planid
+                    
+                    color = [comp['color'], 'yellow'][comp['color'] == 'none']
+                    statusIcon='../chrome/testmanager/images/%s.png' % color
                 else:
+                    has_status = False
                     plan_param = ''
-                
+
                 text += '<tr name="testcatalog">'
 
                 # Common columns
                 if table_columns_map['title']['visible'] == 'True':
-                    text += '<td style="padding-left: '+str(level*30)+'px;"><a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+_("Open")+'">'+comp['title']+'</a></td>'
+                    text += '<td style="padding-left: '+str(level*30)+'px;">'
+                    
+                    if has_status:
+                        # Include color icon for the aggregated status of all sub catalogs/test cases
+                        text += '<img class="aggregatedStatusIconElement" style="cursor: default;" src="'+statusIcon+'"></img>'
+                    
+                    text += '<a href="'+comp['id']+'?mode=tree_table'+plan_param+'&fulldetails='+str(fulldetails)+'" title="'+_("Open")+'">'+comp['title']+'</a></td>'
 
                 # Custom testcatalog columns
                 tcat = None
@@ -1380,6 +1477,7 @@ class WikiTestManagerInterface(Component):
         tc_target = ("", " target='_blank'")[self.open_new_window]
         
         text=u''
+        #sortedList = sorted(data, key=self._test_sorting(data))
         sortedList = sorted(data)
         for x in sortedList:
             tick = data[x]
@@ -1496,6 +1594,104 @@ class WikiTestManagerInterface(Component):
                 
         return text
         
+    def _build_catalog_organize(self, curpage):
+        # Determine current catalog name
+        cat_id = ''
+        if not curpage == 'TC':
+            cat_id = curpage.rpartition('_TT')[2]
+
+        # Create the catalog subtree model
+        components = TestManagerSystem(self.env).get_test_catalog_data_model(curpage, sortby='custom')
+
+        # Generate the markup
+        ind = {'count': 0}
+        text = u''
+
+        text += '<ul id="testcaseOrganizeList" catid="%s" level="-1" class="sortable sortableTree">' % cat_id;
+        
+        text += self._render_organize_table(components, ind, 0)
+        
+        text += '</ul>'
+
+        return text
+
+    def _test_sorting(self, data):
+        #self.env.log.debug("  --> data=%s" % data)
+    
+        def do_sort(k):
+            #self.env.log.debug("      --> k=%s, data[k]=%s" % (k, data[k]))
+        
+            if 'exec_order' in data[k]:
+                return data['exec_order']
+                
+            return data[k]['title']
+            
+        return do_sort
+
+    # Render the catalog as a tree table, with only the title column
+    def _render_organize_table(self, component, ind, level):
+        data = component
+        text = u''
+
+        if (level == 0):
+            data = component['childrenC']
+
+        sortedList = sorted(data, key=self._test_sorting(data))
+
+        for x in sortedList:
+            ind['count'] += 1
+            comp = data[x]
+            if ('childrenC' in comp):
+                subcData=comp['childrenC']
+                
+                index = str(ind['count'])
+
+                text += '<li name="testcatalog" catid="%s" level="%s" class="mjs-nestedSortable-branch">' % (comp['tcat_id'], level)
+
+                # Anchor to drag the row
+                text += '<div><span class="disclose"><span></span></span>'
+                
+                # Title
+                #text += '<span name="title" style="padding-left: '+str(level*30)+'px;">'+comp['title']+'</span>'
+                text += '<span name="title">'+comp['title']+'</span>'
+
+                text += '</div><ul>'
+
+                ind['count']+=1
+                text += self._render_organize_table(subcData, ind, level+1)
+                if ('childrenT' in comp):            
+                    mtData=comp['childrenT']
+                    text += self._render_organize_testcases_table(comp['tcat_id'], mtData, ind, level+1)
+
+                text += '</ul></li>'
+
+        if (level == 0):
+            if ('childrenT' in component):            
+                cmtData = component['childrenT']
+                text += self._render_organize_testcases_table(component['tcat_id'], cmtData, ind, level)
+
+        return text
+
+    def _render_organize_testcases_table(self, tcatId, data, ind, level=0): 
+
+        text=u''
+        #sortedList = sorted(data, key=self._test_sorting(data))
+        sortedList = sorted(data)
+        for x in sortedList:
+            tick = data[x]
+
+            text += '<li name="testcase" catid="%s" tcid="%s" level="%s" execorder="%s" class="ui-nestedSortable-no-nesting mjs-nestedSortable-leaf">' % (tcatId, tick['tc_id'], level, tick['exec_order'])
+
+            # Anchor to drag the row
+            text += '<div><span class="disclose"><span></span></span>'
+            
+            # Title
+            text += '<span name="title">'+tick['title']+'</span>'
+                
+            text += '</div></li>'
+            
+        return text
+
     def _build_testcase_change_status(self, planid, curpage):
         testmanagersystem = TestManagerSystem(self.env)
         tc_statuses = testmanagersystem.get_tc_statuses_by_name()
@@ -1582,7 +1778,7 @@ class WikiTestManagerInterface(Component):
         
         tcip = TestCaseInPlan(self.env, tc_id, planid)
         
-        text = '<form id="testCaseHistory" class="printableform"><fieldset id="testCaseHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no3"  onclick="expandCollapseSection(\'testCaseHistoryFields\')">'+_("Status change history")+'</a></legend>'
+        text = u'<form id="testCaseHistory" class="printableform"><fieldset id="testCaseHistoryFields" class="collapsed"><legend class="foldable" style="cursor: pointer;"><a href="#no3"  onclick="expandCollapseSection(\'testCaseHistoryFields\')">'+_("Status change history")+'</a></legend>'
         
         text += '<table class="listing"><thead>'
         text += '<tr><th>'+_("Timestamp")+'</th><th>'+_("Author")+'</th><th>'+_("Status")+'</th></tr>'

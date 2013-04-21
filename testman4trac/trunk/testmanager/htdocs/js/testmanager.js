@@ -208,6 +208,35 @@ function deleteTestPlan(url){
     }
 }
 
+function cloneTestPlan(catId, planId){
+	(function($) {
+		$(function() {
+			$("#dialog_clone_testplan").dialog({width: 500, height: 300, modal: true});
+		});
+	})(jQuery_testmanager);	
+}
+
+function cloneTestPlanConfirm(planId) {
+	(function($) {
+		$(function() {
+            var newPlanNameInput = document.getElementById('new_cloned_testplan_name');
+            var testPlanName = newPlanNameInput.value; 
+            var tplanName = stripLessSpecialChars(testPlanName); 
+
+            var url = baseLocation+"/testclone?type=testplan&planId="+planId+"&newName="+tplanName;
+            window.location = url;
+		});
+	})(jQuery_testmanager);	
+}
+
+function cloneTestPlanCancel() {
+	(function($) {
+        $(function() {
+            $("#dialog_clone_testplan").dialog('close');
+        });
+    })(jQuery_testmanager);	
+}
+
 /******************************************************/
 /**    Move or copy test case into another catalog    */
 /******************************************************/
@@ -844,6 +873,95 @@ function getStatusSubContextMenuMarkup(imgNodeId, color) {
     return result;
 }
 
+/******************************************************/
+/**                Draggable test cases               */
+/******************************************************/
+
+
+// TODO: 
+/*
+ * 1) Supportare il drag di interi cataloghi
+ * 2) Il test plan deve visualizzare i test case in ordine di esecuzione, se presente
+ * 3) Supportare la copia di test case con Ctrl
+ */
+
+function organizeTestCatalog(catName) {
+	(function($) {
+        $(function() {
+            $("#dialog_organize").dialog({width: 900, height: 500, modal: true});
+
+			$('#testcaseOrganizeList').nestedSortable({
+				handle: 'div',
+				listType: 'ul',
+				items: 'li',
+				protectRoot: false,
+				rootID: 'testcaseOrganizeList',
+				toleranceElement: '> div',
+				isAllowed: canDropItem
+			});
+
+			$("#testcaseOrganizeList").sortableTree();
+
+        });
+    })(jQuery_testmanager);	
+}
+
+function organizeCatalogCancel() {
+	(function($) {
+        $(function() {
+            $("#dialog_organize").dialog('close');
+        });
+    })(jQuery_testmanager);	
+}
+
+function canDropItem(item, parent) {
+
+	console.info("item: "+item.attr('name'));
+	console.info("parent: "+(parent != null ? parent.attr('name') : "null"));
+
+	if (item.attr('name') == 'testcase' && (parent == null || parent.attr('name') == 'testcatalog')) {
+		return true;
+	}
+	
+	return false; 
+}
+
+function postCatalogOrganization() {
+	(function($) {
+		//var hiered = dump($('#testcaseOrganizeList').nestedSortable('toHierarchy', {startDepthCount: 0}));
+		var hiered = JSON.stringify($('#testcaseOrganizeList').nestedSortable('toHierarchy', {startDepthCount: 0}));
+		
+		$("div [name=test_list]").val(hiered);
+		
+		document.organize_form_id.submit();
+		
+    })(jQuery_testmanager);	
+}
+
+function dump(arr,level) {
+	var dumped_text = "";
+	if(!level) level = 0;
+
+	//The padding given at the beginning of the line.
+	var level_padding = "";
+	for(var j=0;j<level+1;j++) level_padding += "    ";
+
+	if(typeof(arr) == 'object') { //Array/Hashes/Objects
+		for(var item in arr) {
+			var value = arr[item];
+
+			if(typeof(value) == 'object') { //If it is an array,
+				dumped_text += level_padding + "'" + item + "' ...\n";
+				dumped_text += dump(value,level+1);
+			} else {
+				dumped_text += level_padding + "'" + item + "' => \"" + value + "\"\n";
+			}
+		}
+	} else { //Strings/Chars/Numbers etc.
+		dumped_text = "===>"+arr+"<===("+typeof(arr)+")";
+	}
+	return dumped_text;
+}
 
 /******************************************************/
 /**                  Utility functions                */

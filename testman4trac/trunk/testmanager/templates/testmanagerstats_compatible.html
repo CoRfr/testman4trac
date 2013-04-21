@@ -1,0 +1,357 @@
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xi="http://www.w3.org/2001/XInclude"
+      xmlns:i18n="http://genshi.edgewall.org/i18n"
+      xmlns:py="http://genshi.edgewall.org/"
+      i18n:domain="testmanager"
+	  >
+  <xi:include href="layout.html" />
+  <xi:include href="macros.html" />
+  <head>
+
+	<style type="text/css">
+	#chart { 
+        height: 350px 
+    }
+
+	#piechart
+	{
+		float: left;
+		width: 450px;
+		height: 300px;
+	}
+
+	.piechart_title
+	{
+		display: block;
+		font-size: 1.2em;
+		font-weight: bold;
+		margin-bottom: 0.4em;
+	}
+	
+	#ticketchart { 
+        height: 350px 
+    }
+
+	</style>
+
+    <script src="chrome/testmanager/js/yahoo-dom-event.js"></script>
+    <script src="chrome/testmanager/js/element-min.js"></script>
+    <script src="chrome/testmanager/js/datasource-min.js"></script>
+    <script src="chrome/testmanager/js/json-min.js"></script>
+    <script src="chrome/testmanager/js/swf-min.js"></script>
+
+    <!-- OPTIONAL: Connection (enables XHR) -->
+    <script src="chrome/testmanager/js/connection-min.js"></script>
+    <!-- Source files -->
+    <script src="chrome/testmanager/js/charts-min.js"></script>
+
+    <script type="text/javascript">
+        var jQuery_trac_old = $.noConflict(true);
+    </script>
+	
+	<link href="chrome/testmanager/css/blitzer/jquery-ui-1.8.13.custom.css" rel="stylesheet" type="text/css"/>
+	<script src="chrome/testmanager/js/jquery-1.5.1.min.js"></script>
+	<script src="chrome/testmanager/js/jquery-ui-1.8.13.custom.min.js"></script>
+
+    <script type="text/javascript">
+        var jQuery_testmanager = $.noConflict(true);
+		$ = jQuery_trac_old;
+    </script>
+
+    <script type="text/javascript">
+        var urlAddress = "${baseurl}" + "/teststats?content=render";
+		var chartTabs = null;
+
+        function addBookmark() {
+            var sel = document.getElementById("dt_frm").testplan;
+            var tplan = sel.options[sel.options.selectedIndex].innerHTML;
+            
+            var title = "Test Case statistics (" + tplan + ") ${start_date} - ${end_date}"; 
+
+            if (window.sidebar) { /* Mozilla Firefox Bookmark */
+                window.sidebar.addPanel(title, urlAddress, "");
+            } else if (window.external) { 
+                if (window.external.AddFavorite) { /* IE Favorite */
+                    window.external.AddFavorite(urlAddress, title); 
+                }
+            } else if (window.opera) {
+                if (window.print) { /* Opera Hotlist */
+                    return true; 
+                }
+            }
+        }
+
+        (function($) {
+            $(document).ready(function() {
+				chartTabs = $('#tabs').tabs(
+					{
+					    select: function(event, ui) {
+                            switch (ui.index) {
+                                case 0:
+                                    $('#period_container').show();
+                                    $('#bookmark_container').show();
+                                    break;
+                                case 1:
+                                    $('#period_container').hide();
+                                    $('#bookmark_container').hide();
+                                    break;
+                                case 2:
+                                    $('#period_container').show();
+                                    $('#bookmark_container').hide();
+                                    break;
+                            }
+					   }
+					}
+				);
+            });
+        })(jQuery_testmanager);	
+		
+    </script>
+    
+  </head>
+<body class="yui-skin-sam">
+
+
+<p/>
+<span class="chart_title">
+<h1>Test Management Statistics</h1>
+</span>
+
+<div>
+<form method="post" id="dt_frm" action="javascript:doRequestData()">
+	<div id="tabs">
+		<ul>
+			<li><a href="#barchartContainer"><span>Test activity trend</span></a></li>
+			<li><a href="#piechartContainer"><span>Current test status</span></a></li>
+			<li><a href="#ticketchartContainer"><span>Tickets trend</span></a></li>
+		</ul>
+
+		<div id="barchartContainer">
+			<div id="chart"></div>
+		</div>
+		<div id="piechartContainer">
+			<div id="piechart"></div>
+		</div>
+		<div id="ticketchartContainer">
+			<div id="ticketchart"></div>
+		</div>
+	</div>
+
+	<div id="settingsContainer">
+		<fieldset id="Settings">
+		<legend>Settings</legend>
+			<span id="period_container">
+				<label for="start_date">Start Date: </label>
+				<input type="text" name="start_date" id="start_date" value="${start_date}" size="10"/>
+				<label for="end_date">End Date: </label>
+				<input type="text" name="end_date" id="end_date" value="${end_date}" size="10"/>
+				<label for="resolution">Resolution: </label>
+				<!--input type="text" name="resolution" id="resolution" value="${resolution}" size="5"/-->
+			   <select name="resolution" id="resolution">
+				  <option value="1">1 Day</option>
+				  <option value="7">1 Week</option>
+				  <option value="14">2 Weeks</option>
+				  <option value="30">1 Month</option>
+				  <option value="60">2 Months</option>
+				  <option value="90">3 Months</option>
+				  <option value="180">6 Months</option>
+				  <option value="360">1 Year</option>
+			   </select>
+			</span>
+			<label for="testplan">Test Plan: </label>
+			<select name="testplan" id="testplan">
+				<option value="__all">All Test Plans</option>
+				<py:for each="m in testplans">
+				<option value="${m['planid']}|${m['catpath']}">${m['name']}</option>
+				</py:for> 
+			</select>
+			<input type="submit" name="Update Chart" value="Update Chart" />
+		<p />
+		<div id="bookmark_container" class="help"><small>
+            <b>URL to bookmark:</b> <span id="static_url"></span>
+            <br />
+
+            <script type="text/javascript">
+                if (window.sidebar) {
+                    document.write('<a href="javascript:addBookmark()">Bookmark this chart</a>&nbsp;&nbsp;&nbsp;(On Firefox you\'ll need to Ctrl-click on the bookmark to then open it)'); 
+                } else if (window.opera) {
+                    if (window.print) {
+                        document.write('<a rel="sidebar" href="javascript:addBookmark()">Bookmark this chart</a>'); 
+                    }
+                }
+            </script>
+
+            <br />
+            <a id="export_excel" href="">Export this data to Excel</a>&nbsp;&nbsp;&nbsp;(CSV format)
+		</small></div>
+		</fieldset>
+	</div>
+</form>
+
+</div>
+
+<script type = "text/javascript">
+	function rqstr(){
+		return  "&#38;start_date=" + document.getElementById("dt_frm").start_date.value + 
+			"&#38;end_date=" + document.getElementById("dt_frm").end_date.value +
+			"&#38;resolution=" + document.getElementById("dt_frm").resolution.value +
+			"&#38;testplan=" + document.getElementById("dt_frm").testplan.value;
+	}
+
+	function doRequestData(){
+		var selectedTab = chartTabs.tabs('option', 'selected');
+
+		if (selectedTab == 0) {
+			myCChart.set("request",rqstr());
+		} else if (selectedTab == 1) {
+			myPieChart.set("request",rqstr());
+		} else if (selectedTab == 2) {
+			myTicketCChart.set("request",rqstr());
+		}
+		
+		updateStaticURL();
+	}
+
+	function updateStaticURL(){
+        urlAddress = "${baseurl}" + "/teststats?content=render" + rqstr();
+		document.getElementById("static_url").innerHTML = "${baseurl}" + "/teststats?content=render" + rqstr();
+        document.getElementById("export_excel").href = "${baseurl}" + "/teststats?content=downloadcsv" + rqstr();
+	}
+
+    function setProvided(res, mile){
+       if (!res)
+          res=${resolution};
+       document.getElementById("resolution").selectedIndex = {1:0, 7:1, 14:2, 30:3, 60:4, 90:5, 180:6, 360:7}[res];
+    }
+
+    setProvided();
+	updateStaticURL();
+
+	YAHOO.widget.Chart.SWFURL = "chrome/testmanager/js/charts.swf";
+
+	var myDataSource = new YAHOO.util.DataSource( "?content=chartdata" );
+
+	/***************** FIRST CHART: Test activity ****************/
+	
+	myDataSource.connMethodPost = false;
+	myDataSource.responseType = YAHOO.util.DataSource.TYPE_JSON;
+	myDataSource.responseSchema = { 
+		resultsList : "chartdata", 
+		fields : [
+			{key: "date"}, 
+			{key: "new_tcs"}, 
+			{key: "successful"}, 
+			{key: "failed"},
+			{key: "all_tcs"}, 
+			{key: "all_successful"},
+			{key: "all_untested"}, 
+			{key: "all_failed"}
+			] 
+	};
+
+	var seriesDef =
+	[
+		{ displayName: "New Test Cases", yField: "new_tcs", style: {color: 0x00ffff, size: 20} },
+		{ displayName: "Successful", yField: "successful", style: {color: 0x00ff00, size:20} },
+		{ displayName: "Failed", yField: "failed", style: {color: 0xff0000, size:20} },
+		{ type: "line", displayName: "All Test Cases", yField: "all_tcs", style: {color: 0x0000ff} },
+		{ type: "line", displayName: "Successful", yField: "all_successful", style: {color: 0x00ff00} },
+		{ type: "line", displayName: "Untested", yField: "all_untested", style: {color: 0xffff00} },
+		{ type: "line", displayName: "Failed", yField: "all_failed", style: {color: 0xff0000} }
+	];
+
+	var numtixAxis = new YAHOO.widget.NumericAxis();
+	numtixAxis.minimum = 0;
+
+	YAHOO.example.getDataTipText = function( item, index, series )
+	{
+		var toolTipText = series.displayName + " for " + item.date;
+		toolTipText += "\n" + item[series.yField] ;
+		return toolTipText;
+	};
+
+	var myCChart = new YAHOO.widget.ColumnChart( "chart", myDataSource,
+	{
+		xField: "date",
+		series: seriesDef,
+		yAxis: numtixAxis,
+		dataTipFunction: YAHOO.example.getDataTipText,
+		style: {legend: {display: "bottom"}},
+		request: rqstr()
+	});
+
+	
+	/***************** SECOND CHART: Test current status ****************/
+	
+	
+	var myPieDataSource = new YAHOO.util.DataSource( "?content=piechartdata" );
+	myPieDataSource.connMethodPost = false;
+	myPieDataSource.responseType = YAHOO.util.DataSource.TYPE_JSARRAY;
+	myPieDataSource.responseSchema = { fields: [ "response", "count" ] };
+
+	var myPieChart = new YAHOO.widget.PieChart( "piechart", myPieDataSource,
+	{
+		dataField: "count",
+		categoryField: "response",
+		style:
+		{
+			padding: 20,
+			legend:
+			{
+				display: "right",
+				padding: 10,
+				spacing: 5,
+				font:
+				{
+					family: "Arial",
+					size: 13
+				}
+			}
+		},
+		series: [{style:{colors: ["#33dd00", "#cc0000", "#ffdd00"]}}]
+	});
+
+
+	/***************** THIRD CHART: Tickets against plans ****************/
+	
+
+	var myTicketDataSource = new YAHOO.util.DataSource( "?content=ticketchartdata" );
+
+	myTicketDataSource.connMethodPost = false;
+	myTicketDataSource.responseType = YAHOO.util.DataSource.TYPE_JSON;
+	myTicketDataSource.responseSchema = { 
+		resultsList : "ticketchartdata", 
+		fields : [
+			{key: "date"}, 
+			{key: "tot_tickets"},
+			{key: "active_tickets"},
+			{key: "closed_tickets"}
+			] 
+	};
+
+	var ticketSeriesDef =
+	[
+		{ type: "line", displayName: "Total Tickets", yField: "tot_tickets", style: {color: 0x0000dd} },
+		{ type: "line", displayName: "Active Tickets", yField: "active_tickets", style: {color: 0xcc0000} },
+		{ type: "line", displayName: "Closed Tickets", yField: "closed_tickets", style: {color: 0x00dd00} }
+	];
+
+	var myTicketCChart = new YAHOO.widget.ColumnChart( "ticketchart", myTicketDataSource,
+	{
+		xField: "date",
+		series: ticketSeriesDef,
+		yAxis: numtixAxis,
+		dataTipFunction: YAHOO.example.getDataTipText,
+		style: {legend: {display: "bottom"}},
+		request: rqstr()
+	});
+
+	
+	
+</script>
+
+  </body>
+</html>

@@ -75,7 +75,7 @@ class TestManagerAdmin(Component):
             if req.method == 'POST':
                 default_days_back = req.args.get('default_days_back', '90')
                 default_interval = req.args.get('default_interval', '7')
-                testplan_sortby = req.args.get('testplan_sortby', 'name')
+                testplan_sortby = req.args.get('testplan_sortby', 'custom')
                 open_new_window = req.args.get('open_new_window', 'False')
                 testcatalog_default_view = req.args.get('testcatalog_default_view', 'tree')
                 testplan_default_view = req.args.get('testplan_default_view', 'tree')
@@ -101,7 +101,7 @@ class TestManagerAdmin(Component):
 
         data['default_days_back'] = self.env.config.get('testmanager', 'default_days_back', '90')
         data['default_interval'] = self.env.config.get('testmanager', 'default_interval', '7')
-        data['testplan_sortby'] = self.env.config.get('testmanager', 'testplan.sortby', 'name')
+        data['testplan_sortby'] = self.env.config.get('testmanager', 'testplan.sortby', 'custom')
         data['open_new_window'] = self.env.config.get('testmanager', 'testcase.open_new_window', 'False')
         data['testcatalog_default_view'] = self.env.config.get('testmanager', 'testcatalog.default_view', 'tree')
         data['testplan_default_view'] = self.env.config.get('testmanager', 'testplan.default_view', 'tree')

@@ -1,13 +1,13 @@
 # Copyright (C) 2010 Roberto Longobardi
 # This file is distributed under the same license as the TestManager
-# project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2010.
 #
+# Translators:
+# Roberto Longobardi <otrebor.dev@gmail.com>, 2013.
 msgid ""
 msgstr ""
 "Project-Id-Version: TestManager 1.3.12\n"
 "Report-Msgid-Bugs-To: otrebor.dev@gmail.com\n"
-"POT-Creation-Date: 2012-08-07 19:12+0200\n"
+"POT-Creation-Date: 2013-04-21 19:34+0200\n"
 "PO-Revision-Date: 2011-03-10 16:35+0100\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: it_IT <LL@li.org>\n"
@@ -53,8 +53,8 @@ msgstr ""
 "Sei sicuro di voler eliminare il piano di test e lo stato di tutti i casi"
 " di test in esso contenuti?"
 
-#: testmanager/htdocs/js/testmanager.js:438
-#: testmanager/htdocs/js/testmanager.js:593
+#: testmanager/htdocs/js/testmanager.js:467
+#: testmanager/htdocs/js/testmanager.js:622
 msgid "Results: "
 msgstr "Risultati: "
 

@@ -26,18 +26,35 @@
 
 import re
 
+from datetime import date, datetime, time, timedelta
+from time import strptime
+
 from genshi.builder import tag
 
 from trac.core import *
 from trac.config import Option, IntOption
-from trac.util import format_date, format_datetime
-from trac.web import IRequestHandler
-from trac.web.chrome import INavigationContributor, ITemplateProvider
-from trac.perm import IPermissionRequestor
 
-from datetime import date, datetime, time, timedelta
-from time import strptime
-from trac.util.datefmt import utc, parse_date
+try:
+    from trac.util.datefmt import (utc, parse_date, 
+                                   get_date_format_hint, 
+                                   pretty_timedelta, format_datetime, format_date, format_time,
+                                   from_utimestamp, http_date, utc, is_24_hours,
+                                   user_time, get_date_format_jquery_ui, 
+                                   get_time_format_jquery_ui, get_month_names_jquery_ui,
+                                   get_day_names_jquery_ui, get_timezone_list_jquery_ui,
+                                   get_first_week_day_jquery_ui)
+    compatibility = False
+
+except ImportError:
+    compatibility = True
+
+# TODO To be removed
+compatibility = True
+
+
+from trac.web import IRequestHandler
+from trac.web.chrome import Chrome, INavigationContributor, ITemplateProvider, add_script_data
+from trac.perm import IPermissionRequestor
 
 from tracgenericclass.util import *
 
@@ -256,6 +273,9 @@ class TestStatsPlugin(Component):
             grab_from_date = req.args.get('start_date')
             grab_resolution = req.args.get('resolution')
 
+            self.env.log.debug("Start date: %s", grab_from_date)
+            self.env.log.debug("End date: %s", grab_at_date)
+
             # validate inputs
             if None in [grab_at_date, grab_from_date]:
                 raise TracError('Please specify a valid range.')
@@ -269,8 +289,12 @@ class TestStatsPlugin(Component):
             if not grab_resolution.isdigit():
                 raise TracError('The graph interval field must be an integer, days.')
 
-            at_date = parse_date(grab_at_date, req.tz)+timedelta(2)
-            from_date = parse_date(grab_from_date, req.tz)
+            if compatibility:
+                at_date = parse_date(grab_at_date, req.tz)+timedelta(2)
+                from_date = parse_date(grab_from_date, req.tz)
+            else:
+                at_date = user_time(req, parse_date, grab_at_date, hint='date')
+                from_date = user_time(req, parse_date, grab_from_date, hint='date')
 
             graph_res = int(grab_resolution)
 
@@ -421,12 +445,42 @@ class TestStatsPlugin(Component):
 
             data = {}
             data['testcase_data'] = count
-            data['start_date'] = format_date(from_date)
-            data['end_date'] = format_date(at_date)
             data['resolution'] = str(graph_res)
             data['baseurl'] = req.base_url
             data['testplans'] = testplan_list
             data['ctestplan'] = testplan
+
+            if compatibility:
+                data['start_date'] = format_date(from_date)
+                data['end_date'] = format_date(at_date)
+
+                return 'testmanagerstats_compatible.html', data, None
+
+            else:
+                data['start_date'] = from_date
+                data['end_date'] = at_date
+
+                Chrome(self.env).add_jquery_ui(req)
+                
+                data.update({
+                            'date_hint': get_date_format_hint(req.lc_time),
+                        })
+                        
+                is_iso8601 = req.lc_time == 'iso8601'
+                add_script_data(req, jquery_ui={
+                    'month_names': get_month_names_jquery_ui(req),
+                    'day_names': get_day_names_jquery_ui(req),
+                    'date_format': get_date_format_jquery_ui(req.lc_time),
+                    'time_format': get_time_format_jquery_ui(req.lc_time),
+                    'ampm': not is_24_hours(req.lc_time),
+                    'first_week_day': get_first_week_day_jquery_ui(req),
+                    'timepicker_separator': 'T' if is_iso8601 else ' ',
+                    'show_timezone': is_iso8601,
+                    'timezone_list': get_timezone_list_jquery_ui() \
+                                     if is_iso8601 else [],
+                    'timezone_iso8601': is_iso8601,
+                })
+                    
             return 'testmanagerstats.html', data, None
  
     # ITemplateProvider methods
@@ -479,5 +533,6 @@ def daterange(begin, end, delta = timedelta(1)):
           begin += delta
 
 
-
+def compatible_user_time(req, parse_date, grab_at_date, hint='date'):
+    return parse_date(grab_at_date, req.tz)+timedelta(2)
 

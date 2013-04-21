@@ -202,6 +202,23 @@ Change History:
 (Refer to the tickets on trac-hacks or SourceForge for complete 
 descriptions.)
 
+Release 1.6.1 (2013-04-21):
+
+  o Enhancement #10672 (Trac-Hacks): Status summary for the directory in the testplans.
+                                     In the test plan view, now a semaphore is displayed next to each
+                                     test catalog node, with the aggregated (worst) status of all the sub-tree.  
+
+  o Enhancement #10907 (Trac-Hacks): Custom execution order for test cases.
+                                     Test cases can now be organized in catalogs with the order of your choice.
+                                     You can also easily drag and drop test cases from one catalog to another.
+
+  o Enhancement #10807 (Trac-Hacks): Cloning a test plan
+
+  o Fixed Ticket #10568 (Track-Hacks): Can't edit test case templates
+
+  o Fixed Ticket #10295 (Track-Hacks): Trac detected an internal error: UnicodeError: source returned bytes, but no encoding specified
+
+
 Release 1.5.2 (2012-10-14):
 
   This release makes the plugins compatible with Trac 1.0.

@@ -220,7 +220,85 @@ class TestCatalog(AbstractTestDescription):
             yield tp
 
         self.env.log.debug('<<< list_testplans')
+
+    def get_last_order(self, db=None):
+        tcat_page_filter = "%s_TC%%" % self.values['page_name']
         
+        if not db:
+            db = self.env.get_read_db()
+        
+        cursor = db.cursor()
+        cursor.execute("SELECT max(exec_order) FROM testcase WHERE page_name LIKE %s",
+            (tcat_page_filter,))
+
+        row = cursor.fetchone()
+        last_order = row[0]
+        
+        if last_order is None:
+            last_order = -1
+        
+        return last_order
+        
+    def remove_testcase_from_order(self, tc, db=None):
+        """ 
+        Removes the test case from the ordered list of test cases, rearranging the
+        other test cases to fill the empty position.
+        """
+
+        @self.env.with_transaction(db)
+        def do_remove_testcase_from_order(db):
+            old_order = tc['exec_order']
+            tcat_page_filter = "%s_TC%%" % self.values['page_name']
+
+            cursor = db.cursor()
+            
+            # Spostare indietro di 1 posizione tutti gli elementi
+            # da old_order + 1 in poi
+            cursor.execute("UPDATE testcase SET exec_order = exec_order - 1 WHERE page_name LIKE %s AND exec_order >= %s", 
+                (tcat_page_filter, old_order + 1))
+                
+    def insert_testcase_into_order(self, tc, new_order, db=None):
+        """ 
+        Inserts the test case into the ordered list of test cases, at the specified
+        position, rearranging the other test cases accordingly.
+        """
+
+        @self.env.with_transaction(db)
+        def do_insert_testcase_into_order(db):
+            tcat_page_filter = "%s_TC%%" % self.values['page_name']
+            
+            cursor = db.cursor()
+            
+            # Spostare avanti di 1 posizione tutti gli elementi
+            # da new_order in poi
+            cursor.execute("UPDATE testcase SET exec_order = exec_order + 1 WHERE page_name LIKE %s AND exec_order >= %s", 
+                (tcat_page_filter, new_order))
+                
+    def change_testcase_order(self, tc, new_order, db=None):
+        """ 
+        Moves the test case to a different position inside the same catalog.
+        """
+
+        @self.env.with_transaction(db)
+        def do_change_testcase_order(db):
+            old_order = tc['exec_order']
+            tcat_page_filter = "%s_TC%%" % self.values['page_name']
+
+            cursor = db.cursor()
+            
+            if new_order < old_order:
+                # Spostare in avanti di 1 posizione tutti gli elementi compresi
+                # tra new_order incluso e old_order -1 inluso
+                #update testcase set exec_order = old_order + 1 where 
+                cursor.execute("UPDATE testcase SET exec_order = exec_order + 1 WHERE page_name LIKE %s AND exec_order >= %s AND exec_order <= %s", 
+                    (tcat_page_filter, new_order, old_order - 1))
+
+            else:
+                # Spostare indietro di 1 posizione tutti gli elementi compresi
+                # tra old_order + 1 incluso e new_order incluso
+                cursor.execute("UPDATE testcase SET exec_order = exec_order - 1 WHERE page_name LIKE %s AND exec_order >= %s AND exec_order <= %s", 
+                    (tcat_page_filter, old_order + 1, new_order))
+
     def pre_delete(self, db):
         """ 
         Delete all contained test catalogs and test cases, recursively.
@@ -248,15 +326,22 @@ class TestCatalog(AbstractTestDescription):
         for tp in self.list_testplans(db):
             tp.delete(db=db)
 
+        AbstractTestDescription.post_delete(self, db)
+
     def create_instance(self, key):
         return TestCatalog(self.env, key['id'])
 
    
 class TestCase(AbstractTestDescription):
-    def __init__(self, env, id=None, page_name=None, title=None, description=None, db=None):
-    
-        AbstractTestDescription.__init__(self, env, 'testcase', id, page_name, title, description, db)
 
+    # Fields that must not be modified directly by the user
+    protected_fields = ('id', 'page_name', 'exec_order')
+
+    def __init__(self, env, id=None, page_name=None, title=None, description=None, exec_order=0, db=None):
+    
+        self.exec_order = exec_order
+        AbstractTestDescription.__init__(self, env, 'testcase', id, page_name, title, description, db)
+        
     def get_enclosing_catalog(self):
         """
         Returns the catalog containing this test case.
@@ -269,10 +354,27 @@ class TestCase(AbstractTestDescription):
         
     def create_instance(self, key):
         return TestCase(self.env, key['id'])
-        
-    def move_to(self, tcat, db=None):
+
+    def set_order(self, new_order, db=None):
+        """
+        Changes the order of the test case in the current catalog.
+        """
+
+        if new_order != self['exec_order']:
+            @self.env.with_transaction(db)
+            def do_move_to(db):
+                self['exec_order'] = new_order
+                
+                self.save_changes('System', "Changed execution order", 
+                    datetime.now(utc), db)
+
+    def move_to(self, tcat, new_order=-1, delete_tcip=True, db=None):
         """ 
         Moves the test case into a different catalog.
+        
+        delete_tcip: True to delete the status of the test case in any plan
+                          and the corresponding history,
+                     False to keep them.
         
         Note: the test case keeps its ID, and the wiki page is moved 
         into the new name. This way, the page change history is kept.
@@ -280,6 +382,17 @@ class TestCase(AbstractTestDescription):
 
         @self.env.with_transaction(db)
         def do_move_to(db):
+            # Remove the test case from the ordered list of the old catalog
+            old_cat = self.get_enclosing_catalog()
+            old_cat.remove_testcase_from_order(self)
+
+            t_new_order = new_order
+            if t_new_order == -1:
+                t_new_order = tcat.get_last_order(db) + 1
+            
+            # Add it to the ordered list of the new catalog
+            tcat.insert_testcase_into_order(self, t_new_order)
+        
             # Rename the wiki page
             new_page_name = tcat['page_name'] + '_TC' + self['id']
 
@@ -297,14 +410,16 @@ class TestCase(AbstractTestDescription):
             #from trac.attachment import Attachment
             #Attachment.delete_all(self.env, 'wiki', self.name, db)
             
-            # Remove test case from all the plans
-            tcip_search = TestCaseInPlan(self.env)
-            tcip_search['id'] = self.values['id']
-            for tcip in tcip_search.list_matching_objects(db=db):
-                tcip.delete(db)
+            if delete_tcip:
+                # Remove test case from all the plans
+                tcip_search = TestCaseInPlan(self.env)
+                tcip_search['id'] = self.values['id']
+                for tcip in tcip_search.list_matching_objects(db=db):
+                    tcip.delete(db)
 
             # Update self properties and save
             self['page_name'] = new_page_name
+            self['exec_order'] = t_new_order
             self.wikipage = WikiPage(self.env, new_page_name)
             
             self.save_changes('System', "Moved to a different catalog", 
@@ -331,6 +446,28 @@ class TestCase(AbstractTestDescription):
 
         self.env.log.debug('<<< get_related_tickets')
 
+    def pre_insert(self, db):
+        """
+        Sets the execution order to the last of the catalog, 
+        if not explicitly specified.
+        """
+        AbstractTestDescription.pre_insert(self, db)
+
+        if self['exec_order'] is None or self['exec_order'] == -1:
+            tcat = self.get_enclosing_catalog()
+            last_order = tcat.get_last_order(db)
+
+            self.env.log.debug("last_order: %s" % last_order)
+            
+            self['exec_order'] = last_order + 1
+
+        # Inserts the test case into the enclosing catalog, 
+        # in the right position.
+        tcat = self.get_enclosing_catalog()
+        tcat.insert_testcase_into_order(self, self['exec_order'], db)
+            
+        return True
+
     def post_delete(self, db):
         """
         Deletes the test case from all plans and its status change 
@@ -343,9 +480,17 @@ class TestCase(AbstractTestDescription):
         # Delete test cases in plan
         cursor.execute('DELETE FROM testcaseinplan WHERE id = %s', (self['id'],))
 
+		# TODO Delete from testcaseinplan_custom and testcaseinplan_change
+
         # Delete test case status history
         cursor.execute('DELETE FROM testcasehistory WHERE id = %s', (self['id'],))
 
+        if self['exec_order'] is not None and self['exec_order'] != -1:
+            tcat = self.get_enclosing_catalog()
+            tcat.remove_testcase_from_order(self)
+
+        AbstractTestDescription.post_delete(self, db)
+        
         
 class TestCaseInPlan(AbstractVariableFieldsObject):
     """
@@ -559,8 +704,6 @@ class TestPlan(AbstractVariableFieldsObject):
         elif self.values['freeze_tc_versions']:
             # Create a TestCaseInPlan for each test case in the catalog, and
             # set the wiki page version to the current latest version
-            self.env.log.debug(" - 1 -")
-
             tcat = TestCatalog(self.env, self.values['catid'], self.values['page_name'])
 
             from testmanager.api import TestManagerSystem
@@ -569,14 +712,11 @@ class TestPlan(AbstractVariableFieldsObject):
             author = self.values['author']
 
             for tc in tcat.list_testcases(deep=True):
-                self.env.log.debug(" - 2 -")
                 tcip = TestCaseInPlan(self.env, tc.values['id'], self.values['id'])
                 if not tcip.exists:
                     tcip['page_name'] = tc['page_name']
                     tcip['page_version'] = tc.wikipage.version
                     tcip.set_status(default_status, author)
-                    
-                    self.env.log.debug(" - 3 - %s %s", tcip['id'], tcip['page_name'])
                     
                     tcip.insert()
 
@@ -598,11 +738,34 @@ class TestPlan(AbstractVariableFieldsObject):
         # Delete test cases in plan
         cursor.execute('DELETE FROM testcaseinplan WHERE planid = %s', (self['id'],))
 
+		# TODO Delete from testcaseinplan_custom and testcaseinplan_change
+
         # Delete test case status history
         cursor.execute('DELETE FROM testcasehistory WHERE planid = %s', (self['id'],))
 
-    def get_related_tickets(self, db):
+    def get_related_tickets(self, db=None):
         pass
+
+    def get_selected_testcases(self, db=None):
+        """
+        If this test plan does not contain all the test cases,
+        returns a list of the contained test cases.
+        Otherwise, returns None.
+        """
+        self.env.log.debug('>>> get_selected_testcases')
+        
+        if not db:
+            db = self.env.get_read_db()
+
+        cursor = db.cursor()
+
+        cursor.execute('SELECT id FROM testcaseinplan WHERE planid = %s', (self.values['id'],))
+
+        for row in cursor:
+            tcip_id = row[0]
+            yield TestCaseInPlan(self.env, tcip_id, self.values['id'])
+            
+        self.env.log.debug('<<< get_selected_testcases')      
 
         
 class TestManagerModelProvider(Component):
@@ -656,10 +819,11 @@ class TestManagerModelProvider(Component):
                     {'table':
                         Table('testcase', key = ('id'))[
                               Column('id'),
-                              Column('page_name')],
+                              Column('page_name'),
+                              Column('exec_order', type='int')],
                      'has_custom': True,
                      'has_change': True,
-                     'version': 1},
+                     'version': 2},
                 'testcaseinplan':  
                     {'table':
                         Table('testcaseinplan', key = ('id', 'planid'))[
@@ -708,7 +872,8 @@ class TestManagerModelProvider(Component):
                 ],
                 'testcase': [
                     {'name': 'id', 'type': 'text', 'label': N_('ID')},
-                    {'name': 'page_name', 'type': 'text', 'label': N_('Wiki page name')}
+                    {'name': 'page_name', 'type': 'text', 'label': N_('Wiki page name')},
+                    {'name': 'exec_order', 'type': 'int', 'label': N_('Order')}
                 ],
                 'testcaseinplan': [
                     {'name': 'id', 'type': 'text', 'label': N_('ID')},
@@ -725,7 +890,7 @@ class TestManagerModelProvider(Component):
                     {'name': 'author', 'type': 'text', 'label': N_('Author')},
                     {'name': 'time', 'type': 'time', 'label': N_('Created')},
                     {'name': 'contains_all', 'type': 'int', 'label': N_('Contains all Test Cases')},
-                    {'name': 'freeze_tc_versions', 'type': 'text', 'label': N_('Freeze Test Case versions')}
+                    {'name': 'freeze_tc_versions', 'type': 'int', 'label': N_('Freeze Test Case versions')}
                 ]
             }
             
@@ -845,6 +1010,20 @@ class TestManagerModelProvider(Component):
             db_insert_or_ignore(self.env, 'testconfig', 'NEXT_CATALOG_ID', '0', db)
             db_insert_or_ignore(self.env, 'testconfig', 'NEXT_TESTCASE_ID', '0', db)
             db_insert_or_ignore(self.env, 'testconfig', 'NEXT_PLAN_ID', '0', db)
+            
+            db.commit()
+
+            # Fix templates with a blank id
+            if self._check_blank_id_templates(db):
+                self._fix_blank_id_templates(db)
+                db.commit()
+                self.env.log.info(_("""
+    Test Manager templates with blank IDs have been fixed.\n
+    Please go to the Administration panel, in the Test Manager Templates
+    section, and check the associations between templates and Test Cases 
+    and Test Catalogs.\n
+    You will have to manually fix any misconfiguration you should find.
+                    """))
           
             # Create the basic "TC" Wiki page, used as the root test catalog
             tc_page = WikiPage(self.env, 'TC')
@@ -852,7 +1031,7 @@ class TestManagerModelProvider(Component):
                 tc_page.text = ' '
                 tc_page.save('System', '', '127.0.0.1')
             
-            db.commit()
+                db.commit()
             
             if self._need_upgrade(db):
                 # Set custom ticket field to hold related test case
@@ -890,5 +1069,62 @@ class TestManagerModelProvider(Component):
             self.env.log.debug('TestManager needs to be upgraded: missing custom test outcomes.')
             return True
 
+        # Check for templates with blank IDs. This was a bug in 1.5.2 that will
+        # be fixed here
+        if self._check_blank_id_templates(db):
+            return True
+
         self.env.log.debug('No need to upgrade TestManager for trac.ini matters.')
         return False
+
+    def _check_blank_id_templates(self, db):
+        self.env.log.debug('Checking for templates with blank IDs.')
+
+        cursor = db.cursor()
+        try:
+            sql = "SELECT count(id) FROM testmanager_templates WHERE id=''" 
+            cursor.execute(sql)
+            
+            row = cursor.fetchone()
+
+            if row is not None and int(row[0]) > 0:
+                return True
+
+        except:
+            self.env.log.error("Error retrieving test manager templates")
+            self.env.log.error(formatExceptionInfo())
+
+        return False
+
+    def _fix_blank_id_templates(self, db):
+        @self.env.with_transaction(db)
+        def do_fix_blank_id_templates(db):
+            cursor = db.cursor()
+
+            items = []
+
+            # Copy contents of all templates with a blank id
+            self.env.log.debug("Copying contents of all templates with a blank ID")
+            sql = "SELECT id, name, type, description, content FROM testmanager_templates WHERE id = ''" 
+            cursor.execute(sql)
+            for id_, name, type_, description, content in cursor:
+                template = { 'id': id_, 'name': name, 'type': type_, 'description': description, 'content': content }
+                items.append(template)
+
+            # Delete all templates with a blank id
+            self.env.log.debug("Deleting templates with a blank ID")
+            sql = "DELETE FROM testmanager_templates WHERE id = ''" 
+            cursor.execute(sql)
+
+            # Add the template contents back in, with ids starting with '500'
+            next_id = 500
+            for item in items:
+                self.env.log.debug("Adding the templates back in with a correct id, starting with id='500'")
+                cursor.execute("""
+                    INSERT INTO testmanager_templates (id, name, type, description, content) 
+                        VALUES (%s,%s,%s,%s,%s)
+                """, (str(next_id), item['name'], item['type'], item['description'], item['content']))
+                
+                next_id += 1
+
+
